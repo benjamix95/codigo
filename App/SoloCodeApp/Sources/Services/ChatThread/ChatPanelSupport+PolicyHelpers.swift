@@ -19,11 +19,10 @@ func isTodoLifecycleEvent(type: String, payload: [String: String]) -> Bool {
         return true
     }
     guard normalizedType == "mcp_tool_call" else { return false }
-    let tool = (payload["mcp_tool"] ?? payload["tool"] ?? "")
-        .trimmingCharacters(in: .whitespacesAndNewlines)
-        .lowercased()
-    return tool == "coderide_todo_write" || tool == "todo_write"
-        || tool == "coderide_todo_read" || tool == "todo_read"
+    guard let tool = canonicalTodoPolicyToolRecord(type: normalizedType, payload: payload) else {
+        return false
+    }
+    return tool.family == "todo"
 }
 
 func isPlanLifecycleEvent(type: String, payload: [String: String]) -> Bool {
@@ -41,16 +40,10 @@ func isPlanLifecycleEvent(type: String, payload: [String: String]) -> Bool {
         return true
     }
     guard normalizedType == "mcp_tool_call" else { return false }
-    let tool = (payload["mcp_tool"] ?? payload["tool"] ?? "")
-        .trimmingCharacters(in: .whitespacesAndNewlines)
-        .lowercased()
-    return tool == "coderide_plan_create" || tool == "plan_create"
-        || tool == "coderide_plan_request_user_input" || tool == "plan_request_user_input"
-        || tool == "coderide_plan_step_upsert" || tool == "plan_step_upsert"
-        || tool == "coderide_plan_step_batch_update" || tool == "plan_step_batch_update"
-        || tool == "coderide_plan_step_reorder" || tool == "plan_step_reorder"
-        || tool == "coderide_plan_step_dependency_set" || tool == "plan_step_dependency_set"
-        || tool == "coderide_plan_set_walkthrough" || tool == "plan_set_walkthrough"
+    guard let tool = canonicalTodoPolicyToolRecord(type: normalizedType, payload: payload) else {
+        return false
+    }
+    return tool.family == "plan" && tool.runtimeName.hasPrefix("plan_")
 }
 
 func isOperationalEventRequiringTodoPlanStartPolicy(type: String, payload: [String: String]) -> Bool {
@@ -141,15 +134,13 @@ func shouldShowOperationEventInLinearChat(
     }
     if type == "mcp_tool_call" {
         let tool = normalizedTodoPolicyToolName(type: type, payload: payload)
-        if tool == "coderide_policy_ack" || tool == "policy_ack" {
+        if tool == "policy_ack" {
             return false
         }
-        if tool == "coderide_activate_plan_mode" || tool == "activate_plan_mode"
-            || tool == "coderide_activate_debug_mode" || tool == "activate_debug_mode"
-        {
+        if tool == "activate_plan_mode" || tool == "activate_debug_mode" {
             return false
         }
-        if showTodoCard && (tool == "coderide_todo_write" || tool == "todo_write" || tool == "coderide_todo_read" || tool == "todo_read") {
+        if showTodoCard && (tool == "todo_write" || tool == "todo_read") {
             return false
         }
     }
@@ -186,7 +177,6 @@ func normalizedTodoPolicyToolName(type: String, payload: [String: String]) -> St
             ?? type
     )
     .trimmingCharacters(in: .whitespacesAndNewlines)
-    .lowercased()
 
     guard !rawToolName.isEmpty else { return "" }
 
@@ -197,11 +187,31 @@ func normalizedTodoPolicyToolName(type: String, payload: [String: String]) -> St
         "commentary.",
         "analysis.",
     ]
+    var candidate = rawToolName
     for prefix in namespacedPrefixes where rawToolName.hasPrefix(prefix) {
-        return String(rawToolName.dropFirst(prefix.count))
+        candidate = String(rawToolName.dropFirst(prefix.count))
+        break
     }
 
-    return rawToolName
+    let lowered = candidate
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .replacingOccurrences(of: "-", with: "_")
+        .replacingOccurrences(of: " ", with: "_")
+        .lowercased()
+    if lowered.isEmpty { return "" }
+    if let canonical = CoderIDECanonicalToolRegistry.shared.runtimeAliasesToCanonicalName[lowered] {
+        return canonical
+    }
+    if let runtime = CoderIDECanonicalToolRegistry.shared.runtimeName(forMCPName: candidate) {
+        return runtime
+    }
+    if let record = CoderIDECanonicalToolRegistry.shared.record(forRuntimeName: lowered) {
+        return record.runtimeName.lowercased()
+    }
+    if lowered.hasPrefix("coderide_") {
+        return String(lowered.dropFirst("coderide_".count))
+    }
+    return lowered
 }
 
 func isTodoDiscoveryToolEvent(type: String) -> Bool {
@@ -269,12 +279,12 @@ func isTodoGatedOperationalTool(_ rawToolName: String) -> Bool {
     let tool = normalizedTodoPolicyToolName(type: rawToolName, payload: [:])
     guard !tool.isEmpty else { return false }
 
-    if tool == "coderide_policy_ack" || tool == "policy_ack"
-        || tool == "coderide_activate_plan_mode" || tool == "activate_plan_mode"
-        || tool == "coderide_activate_debug_mode" || tool == "activate_debug_mode"
-        || tool == "coderide_skill" || tool == "skill"
-        || tool.hasPrefix("coderide_audit_") || tool.hasPrefix("audit_")
+    if tool == "policy_ack"
+        || tool == "activate_plan_mode"
+        || tool == "activate_debug_mode"
+        || tool == "skill"
         || tool.contains("subagent_")
+        || (CoderIDECanonicalToolRegistry.shared.record(forRuntimeName: tool)?.family == "audit")
     {
         return false
     }
@@ -305,4 +315,17 @@ func isTodoGatedOperationalTool(_ rawToolName: String) -> Bool {
     }
 
     return true
+}
+
+private func canonicalTodoPolicyToolRecord(
+    type: String,
+    payload: [String: String]
+) -> CanonicalToolRecord? {
+    let normalizedType = type
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased()
+    guard normalizedType == "mcp_tool_call" else { return nil }
+    let tool = normalizedTodoPolicyToolName(type: normalizedType, payload: payload)
+    guard !tool.isEmpty else { return nil }
+    return CoderIDECanonicalToolRegistry.shared.record(forRuntimeName: tool)
 }

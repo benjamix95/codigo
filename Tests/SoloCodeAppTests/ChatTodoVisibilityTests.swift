@@ -294,6 +294,16 @@ final class ChatTodoVisibilityTests: XCTestCase {
         XCTAssertNil(violation)
     }
 
+    func testTodoPlanStartPolicyTreatsNamespacedPlanLifecycleAsNonOperational() {
+        let violation = todoPlanStartPolicyViolation(
+            state: ToolStartRequirementsState(),
+            type: "mcp_tool_call",
+            payload: ["mcp_tool": "functions.coderide_plan_request_user_input"]
+        )
+
+        XCTAssertNil(violation)
+    }
+
     func testTodoPlanStartPolicyDoesNotTreatSubagentMCPCallAsTodoGatedOperationalWork() {
         let violation = todoPlanStartPolicyViolation(
             state: ToolStartRequirementsState(),
@@ -302,6 +312,21 @@ final class ChatTodoVisibilityTests: XCTestCase {
         )
 
         XCTAssertNil(violation)
+    }
+
+    func testTodoLifecycleDetectionUsesCanonicalMCPNormalization() {
+        XCTAssertTrue(
+            isTodoLifecycleEvent(
+                type: "mcp_tool_call",
+                payload: ["mcp_tool": "functions.coderide_todo_write"]
+            )
+        )
+        XCTAssertTrue(
+            isPlanLifecycleEvent(
+                type: "mcp_tool_call",
+                payload: ["mcpTool": "functions.coderide_plan_step_upsert"]
+            )
+        )
     }
 
     func testTodoCardDoesNotBindToInvisiblePipelineAssistantStub() {
