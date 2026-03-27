@@ -125,9 +125,6 @@ extension ProviderToolEventMapper {
             .lowercased()
         guard !n.isEmpty else { return false }
         if n == "bash" || n == "command_execution" { return false }
-        if n.hasPrefix("review_") || n.hasPrefix("bughunter_") || n.hasPrefix("audit_") {
-            return true
-        }
         return canonicalToolNames.contains(n)
     }
 

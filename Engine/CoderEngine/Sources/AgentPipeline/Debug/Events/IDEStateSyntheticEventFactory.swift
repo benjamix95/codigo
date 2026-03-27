@@ -10,24 +10,20 @@ struct IDEStateSyntheticEvent: Sendable, Equatable {
 // MARK: - IDEStateSyntheticEventFactory
 
 enum IDEStateSyntheticEventFactory {
-    static let supportedTools: Set<String> = [
-        "todo_write", "todo_read",
-        "plan_step_update", "plan_step",
-        "plan_create", "plan_read", "plan_step_upsert", "plan_step_batch_update",
-        "plan_step_reorder", "plan_step_dependency_set", "plan_set_walkthrough",
-        "plan_history_read", "plan_diff", "plan_request_user_input",
-        "debug_set_phase", "debug_request_user", "debug_resolve",
-        "policy_ack", "mermaid_render",
-        "activate_plan_mode", "activate_debug_mode",
-        "show_task_panel", "show_swarm_panel",
-        "review_start", "review_list_sessions", "review_status",
-        "review_findings", "review_apply_fix", "review_dismiss",
-        "review_configure", "review_diff_summary", "review_comment",
-        "review_get_outcome",
-        "security_status", "security_findings",
-        "bughunter_status", "bughunter_findings",
-        "bughunter_run_history", "bughunter_explain_cluster",
-    ]
+    static var supportedTools: Set<String> {
+        let registry = CoderIDECanonicalToolRegistry.shared
+        var tools: Set<String> = [
+            "plan_step_update", "plan_step",
+            "debug_set_phase", "debug_request_user", "debug_resolve",
+            "policy_ack", "mermaid_render",
+            "activate_plan_mode", "activate_debug_mode",
+            "show_task_panel", "show_swarm_panel",
+        ]
+        for family in ["todo", "plan", "review", "security", "bughunter"] {
+            tools.formUnion(registry.records(forFamily: family, availableOn: .app).map(\.runtimeName))
+        }
+        return tools
+    }
 
     static let legacyRemovedTools: Set<String> = [
         "debug_panel", "debug_panel_update",
