@@ -1,3 +1,4 @@
+import CoderEngine
 import Foundation
 
 @MainActor
@@ -165,24 +166,21 @@ extension TaskActivityStore {
     }
 
     func planRelevantRecentActivities(limit: Int = 60) -> [TaskActivity] {
-        recentActivities(limit: limit).filter { activity in
-            switch activity.type {
+        let registryDriven = Self.registryDrivenVisibleTypes
+        return recentActivities(limit: limit).filter { activity in
+            let type = activity.type.lowercased()
+            if registryDriven.contains(type) { return true }
+            switch type {
             case "command_execution", "bash",
                  "read_batch_started", "read_batch_completed",
                  "web_search", "web_search_started", "web_search_completed", "web_search_failed",
                  "web_fetch", "web_fetch_started", "web_fetch_completed", "web_fetch_failed",
-                "mcp_tool_call",
-                "process_paused", "process_resumed",
-                "plan_step", "plan_step_update", "planning_auto_reset",
-                "plan_create", "plan_read", "plan_step_upsert", "plan_step_batch_update",
-                "plan_step_reorder", "plan_step_dependency_set", "plan_set_walkthrough",
-                "plan_history_read", "plan_diff", "plan_request_user_input",
-                "activate_plan_mode", "activate_debug_mode",
-                "debug_phase_update", "debug_user_request", "debug_resolved",
-                "debug_log", "debug_query", "debug_session", "debug_native_session",
-                 "debug_hypothesize", "debug_mark", "debug_clean",
-                 "debug_trace_analyze", "debug_instrument", "debug_timeline", "debug_snapshot", "debug_test_check",
-                 "semantic_search", "read_lints", "debug_context",
+                 "mcp_tool_call",
+                 "process_paused", "process_resumed",
+                 "plan_step", "plan_step_update", "planning_auto_reset",
+                 "debug_phase_update", "debug_user_request", "debug_resolved",
+                 "debug_native_session",
+                 "semantic_search", "read_lints",
                  "file_change", "edit":
                 return true
             default:

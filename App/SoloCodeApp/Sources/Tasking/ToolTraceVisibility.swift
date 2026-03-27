@@ -1,3 +1,4 @@
+import CoderEngine
 import Foundation
 
 enum ToolTraceVisibility {
@@ -20,7 +21,7 @@ enum ToolTraceVisibility {
         "agent",
     ])
 
-    private static let operationalTypes: Set<String> = [
+    private static let staticOperationalTypes: Set<String> = [
         "bash",
         "command_execution",
         "debug_context",
@@ -71,6 +72,19 @@ enum ToolTraceVisibility {
         "browser_action_completed",
         "browser_action_failed",
     ]
+
+    private static var operationalTypes: Set<String> {
+        staticOperationalTypes.union(registryDrivenOperationalTypes)
+    }
+
+    private static var registryDrivenOperationalTypes: Set<String> {
+        let registry = CoderIDECanonicalToolRegistry.shared
+        var types: Set<String> = []
+        for family in ["todo", "plan", "debug"] {
+            types.formUnion(registry.records(forFamily: family, availableOn: .app).map(\.runtimeName))
+        }
+        return types
+    }
 
     private static let operationalPayloadKeys: Set<String> = [
         "command",
@@ -175,7 +189,15 @@ enum ToolTraceVisibility {
     }
 
     private static func normalizedType(_ value: String) -> String {
-        value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let lowered = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if let canonical = CoderIDECanonicalToolRegistry.shared.runtimeAliasesToCanonicalName[lowered] {
+            return canonical
+        }
+        if lowered.hasPrefix("coderide_"),
+           let canonical = CoderIDECanonicalToolRegistry.shared.runtimeName(forMCPName: lowered) {
+            return canonical
+        }
+        return lowered
     }
 
     private static func isRealMCPEvent(payload: [String: String]) -> Bool {

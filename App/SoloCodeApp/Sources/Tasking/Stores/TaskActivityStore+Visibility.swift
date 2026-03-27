@@ -1,3 +1,4 @@
+import CoderEngine
 import Foundation
 
 @MainActor
@@ -21,7 +22,7 @@ extension TaskActivityStore {
         "usage_",
     ]
 
-    static let concreteTypes: Set<String> = [
+    private static let staticConcreteTypes: Set<String> = [
         "agent",
         "bash",
         "command_execution",
@@ -91,6 +92,19 @@ extension TaskActivityStore {
         "skill_invocation",
         "subagent_text",
     ]
+
+    static var concreteTypes: Set<String> {
+        staticConcreteTypes.union(registryDrivenVisibleTypes)
+    }
+
+    static var registryDrivenVisibleTypes: Set<String> {
+        let registry = CoderIDECanonicalToolRegistry.shared
+        var types: Set<String> = []
+        for family in ["todo", "plan", "debug"] {
+            types.formUnion(registry.records(forFamily: family, availableOn: .app).map(\.runtimeName))
+        }
+        return types
+    }
 
     static func isConcreteVisibleEventType(_ type: String) -> Bool {
         let normalized = normalizedEventType(type)
@@ -283,9 +297,17 @@ extension TaskActivityStore {
     }
 
     private static func normalizedEventType(_ type: String) -> String {
-        type
+        let lowered = type
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
+        if let canonical = CoderIDECanonicalToolRegistry.shared.runtimeAliasesToCanonicalName[lowered] {
+            return canonical
+        }
+        if lowered.hasPrefix("coderide_"),
+           let canonical = CoderIDECanonicalToolRegistry.shared.runtimeName(forMCPName: lowered) {
+            return canonical
+        }
+        return lowered
     }
 
     private static func latestAssistantUpdate(in activities: [TaskActivity]) -> TaskActivity? {

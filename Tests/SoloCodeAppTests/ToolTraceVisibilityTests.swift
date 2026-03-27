@@ -198,6 +198,20 @@ final class ToolTraceVisibilityTests: XCTestCase {
         )
     }
 
+    func testRegistryDrivenPlanAndDebugTypesRemainOperational() {
+        let planEvent = makeEvent(type: "coderide_plan_create", payload: ["goal": "align"])
+        let debugEvent = makeEvent(type: "coderide_debug_log", payload: ["detail": "observed state"])
+
+        XCTAssertTrue(ToolTraceVisibility.shouldDisplay(event: planEvent))
+        XCTAssertTrue(ToolTraceVisibility.shouldDisplay(event: debugEvent))
+        XCTAssertTrue(
+            ToolTraceVisibility.requiresPolicyAck(
+                type: "coderide_plan_create",
+                payload: ["goal": "align"]
+            )
+        )
+    }
+
     func testActivatePlanModeIsNotIncludedAndNotDisplayed() {
         let activity = TaskActivity(
             type: "activate_plan_mode",
