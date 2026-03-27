@@ -60,6 +60,17 @@ final class CoderIDErustCatalogContractTests: XCTestCase {
         }
     }
 
+    func testEverySwiftCoderideToolIsPublishedInRustCatalog() throws {
+        let rust = try Self.rustToolNames()
+        let swift = Set(CoderIDETools.all.map(\.name)).filter { $0.hasPrefix("coderide_") }
+        for name in swift.sorted() {
+            XCTAssertTrue(
+                rust.contains(name),
+                "CoderIDETools espone '\(name)' ma il catalogo Rust non lo pubblica in tools/list (drift Swift→Rust)"
+            )
+        }
+    }
+
     func testRustCatalogLineCountMatchesDeclaredConstant() throws {
         let rust = try Self.rustToolNames()
         let declared = try Self.catalogToolCount()

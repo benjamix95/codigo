@@ -22,7 +22,7 @@ fn tools_list_matches_frozen_catalog_size_and_annotations() {
 
     let listed = read_message(&mut child);
     let tools = listed["result"]["tools"].as_array().expect("tools array");
-    assert_eq!(tools.len(), 117);
+    assert_eq!(tools.len(), 133);
     assert!(tools.iter().all(|tool| tool["description"].is_string()));
     assert!(tools
         .iter()
@@ -33,6 +33,15 @@ fn tools_list_matches_frozen_catalog_size_and_annotations() {
     assert!(tools
         .iter()
         .any(|tool| tool["name"] == "coderide_web_search"));
+    assert!(tools
+        .iter()
+        .any(|tool| tool["name"] == "coderide_debug_set_phase"));
+    assert!(tools
+        .iter()
+        .any(|tool| tool["name"] == "coderide_debug_session"));
+    assert!(tools
+        .iter()
+        .any(|tool| tool["name"] == "coderide_subagent_debugger"));
 
     terminate(child);
 }
@@ -143,15 +152,8 @@ fn initialize(child: &mut std::process::Child) {
 }
 
 fn spawn_server(home: &PathBuf, workspace: &PathBuf) -> std::process::Child {
-    Command::new("cargo")
-        .args([
-            "run",
-            "--quiet",
-            "--manifest-path",
-            "Native/CoderideMCPServerRust/Cargo.toml",
-            "--",
-            "--workspace",
-        ])
+    Command::new(env!("CARGO_BIN_EXE_coderide-mcp-server-rust"))
+        .arg("--workspace")
         .arg(workspace)
         .current_dir("/Users/benjaminstoica/SoloCode")
         .env("HOME", home)

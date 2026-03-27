@@ -3,7 +3,7 @@ use crate::tool_schema::input_schema_for;
 
 const TOOL_NAMES: &str = include_str!("tool_names.txt");
 pub const CATALOG_VERSION: &str = "2026-03-26";
-pub const CATALOG_TOOL_COUNT: usize = 117;
+pub const CATALOG_TOOL_COUNT: usize = 133;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ToolFamily {
@@ -11,6 +11,7 @@ pub enum ToolFamily {
     BugHunter,
     Codebase,
     Diagnostics,
+    Debug,
     Edit,
     File,
     Git,
@@ -71,6 +72,8 @@ fn family_for(name: &str) -> ToolFamily {
         || name == "coderide_run_tests"
     {
         ToolFamily::Diagnostics
+    } else if name.starts_with("coderide_debug_") {
+        ToolFamily::Debug
     } else if name.starts_with("coderide_plan_")
         || name == "coderide_activate_plan_mode"
         || name == "coderide_activate_debug_mode"
@@ -127,6 +130,10 @@ fn is_read_only(name: &str) -> bool {
             | "coderide_semantic_search"
             | "coderide_read_lints"
             | "coderide_git_diff"
+            | "coderide_debug_context"
+            | "coderide_debug_query"
+            | "coderide_debug_timeline"
+            | "coderide_debug_trace_analyze"
             | "coderide_todo_read"
             | "coderide_plan_read"
             | "coderide_plan_diff"
@@ -182,6 +189,7 @@ mod tests {
         let families: HashSet<_> = specs.iter().map(|spec| spec.family).collect();
         assert!(families.contains(&ToolFamily::Review));
         assert!(families.contains(&ToolFamily::Plan));
+        assert!(families.contains(&ToolFamily::Debug));
         assert!(families.contains(&ToolFamily::File));
         assert!(families.contains(&ToolFamily::Web));
     }

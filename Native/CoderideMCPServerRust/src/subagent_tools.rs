@@ -27,6 +27,7 @@ fn subagent_ack(name: &str, arguments: &BTreeMap<String, Value>) -> CallToolResu
         "explorer" => "Explorer",
         "reviewer" => "Reviewer",
         "coder" => "Coder",
+        "debugger" => "Debugger",
         "docWriter" => "Doc Writer",
         "testWriter" => "Test Writer",
         "securityAuditor" => "Security Auditor",

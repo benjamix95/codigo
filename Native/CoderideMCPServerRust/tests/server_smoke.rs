@@ -46,6 +46,12 @@ fn initialize_and_list_tools_work() {
     let tools = listed["result"]["tools"].as_array().expect("tools array");
     assert!(tools.iter().any(|tool| tool["name"] == "coderide_read"));
     assert!(tools.iter().any(|tool| tool["name"] == "coderide_todo_read"));
+    assert!(tools
+        .iter()
+        .any(|tool| tool["name"] == "coderide_debug_set_phase"));
+    assert!(tools
+        .iter()
+        .any(|tool| tool["name"] == "coderide_debug_context"));
 
     write_message(
         child.stdin.as_mut().expect("stdin"),
@@ -68,6 +74,70 @@ fn initialize_and_list_tools_work() {
     );
     let templates = read_message(&mut child);
     assert_eq!(templates["result"]["resourceTemplates"], json!([]));
+
+    terminate(child);
+}
+
+#[test]
+fn debug_bootstrap_tools_are_listed_and_callable() {
+    let home = make_temp_dir("rust-mcp-home");
+    let workspace = make_temp_dir("rust-mcp-workspace");
+    let mut child = spawn_server(&home, &workspace);
+    initialize(&mut child);
+
+    write_message(
+        child.stdin.as_mut().expect("stdin"),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 31,
+            "method": "tools/call",
+            "params": {
+                "name": "coderide_activate_debug_mode",
+                "arguments": { "reason": "Bootstrap debug" }
+            }
+        }),
+    );
+    let activate = read_message(&mut child);
+    assert_eq!(
+        activate["result"]["content"][0]["text"].as_str(),
+        Some("OK — debug mode activated")
+    );
+
+    write_message(
+        child.stdin.as_mut().expect("stdin"),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 32,
+            "method": "tools/call",
+            "params": {
+                "name": "coderide_debug_set_phase",
+                "arguments": { "phase": "describing" }
+            }
+        }),
+    );
+    let phase = read_message(&mut child);
+    assert_eq!(
+        phase["result"]["content"][0]["text"].as_str(),
+        Some("OK — debug phase set to describing")
+    );
+
+    write_message(
+        child.stdin.as_mut().expect("stdin"),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 33,
+            "method": "tools/call",
+            "params": {
+                "name": "coderide_debug_session",
+                "arguments": { "action": "start" }
+            }
+        }),
+    );
+    let session = read_message(&mut child);
+    let session_text = session["result"]["content"][0]["text"]
+        .as_str()
+        .expect("debug session text");
+    assert!(session_text.contains("debug session started"));
 
     terminate(child);
 }

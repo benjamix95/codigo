@@ -1,18 +1,18 @@
 import Foundation
 import MCP
 
-/// Debug panel tools (`coderide_debug_*`, fasi tipizzate in `CoderIDETools+IdeIntegration.swift`): **non** sono nel
-/// catalogo Rust `Native/CoderideMCPServerRust/src/tool_names.txt` (117 tool in `tools/list`). Restano solo
-/// in Swift per allowlist/host; il server MCP Rust espone un sottoinsieme diverso.
+/// Debug panel tools (`coderide_debug_*`, fasi tipizzate in `CoderIDETools+IdeIntegration.swift`).
+/// Devono restare allineati con il catalogo Rust `Native/CoderideMCPServerRust/src/tool_names.txt`
+/// perché il client vede il toolset MCP dalla risposta `tools/list`.
 extension CoderIDETools {
     static let debugTools: [Tool] = [
         // --- Debug Tools ---
         Tool(
             name: "coderide_debug_context",
-            description: """
-                Gather full debug context in one call: git status, open files, lint errors, \
-                recent commits, debug log summary. Use this FIRST when entering debug mode.
-                """,
+            description: RustSyncedToolDescriptions.text(
+                mcpName: "coderide_debug_context",
+                fallback: "Gather full debug context in one call: git status, open files, lint errors, recent commits, debug log summary. Use this FIRST when entering debug mode."
+            ),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -34,7 +34,10 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_debug_log",
-            description: "Write one or more entries to the debug log. Provide severity/source/message for single-entry mode, or use batch for multi-entry mode.",
+            description: RustSyncedToolDescriptions.text(
+                mcpName: "coderide_debug_log",
+                fallback: "Write one or more entries to the debug log. Provide severity/source/message for single-entry mode, or use batch for multi-entry mode."
+            ),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -56,7 +59,10 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_debug_query",
-            description: "Query the debug log. Filter by severity, category, source, or text search.",
+            description: RustSyncedToolDescriptions.text(
+                mcpName: "coderide_debug_query",
+                fallback: "Query the debug log. Filter by severity, category, source, or text search."
+            ),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -78,7 +84,10 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_debug_session",
-            description: "Manage debug sessions and lifecycle snapshots. Supports start, export, stop/end, clear, snapshot, and stats.",
+            description: RustSyncedToolDescriptions.text(
+                mcpName: "coderide_debug_session",
+                fallback: "Manage debug sessions and lifecycle snapshots. Supports start, export, stop/end, clear, snapshot, and stats."
+            ),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -91,7 +100,10 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_debug_hypothesize",
-            description: "Propose or update a debug hypothesis. Track investigation progress with structured hypotheses.",
+            description: RustSyncedToolDescriptions.text(
+                mcpName: "coderide_debug_hypothesize",
+                fallback: "Propose or update a debug hypothesis. Track investigation progress with structured hypotheses."
+            ),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -112,7 +124,10 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_debug_mark",
-            description: "Insert a debug marker (print/log/assert) into a file. The marker is tagged with 🐛 DEBUG for easy cleanup.",
+            description: RustSyncedToolDescriptions.text(
+                mcpName: "coderide_debug_mark",
+                fallback: "Insert a debug marker (print/log/assert) into a file. The marker is tagged with 🐛 DEBUG for easy cleanup."
+            ),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -130,7 +145,10 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_debug_clean",
-            description: "Remove ALL debug markers (lines containing 🐛 DEBUG) from a file or entire workspace.",
+            description: RustSyncedToolDescriptions.text(
+                mcpName: "coderide_debug_clean",
+                fallback: "Remove ALL debug markers (lines containing 🐛 DEBUG) from a file or entire workspace."
+            ),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -144,7 +162,10 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_debug_trace_analyze",
-            description: "Analyze stack traces, compiler errors, and crash output into actionable findings.",
+            description: RustSyncedToolDescriptions.text(
+                mcpName: "coderide_debug_trace_analyze",
+                fallback: "Analyze stack traces, compiler errors, and crash output into actionable findings."
+            ),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -158,7 +179,10 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_debug_instrument",
-            description: "Insert executable instrumentation code at a location in source.",
+            description: RustSyncedToolDescriptions.text(
+                mcpName: "coderide_debug_instrument",
+                fallback: "Insert executable instrumentation code at a location in source."
+            ),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -176,7 +200,10 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_debug_timeline",
-            description: "Build chronological timeline of debug events.",
+            description: RustSyncedToolDescriptions.text(
+                mcpName: "coderide_debug_timeline",
+                fallback: "Build chronological timeline of debug events."
+            ),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -190,7 +217,10 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_debug_snapshot",
-            description: "Capture and compare debug session snapshots.",
+            description: RustSyncedToolDescriptions.text(
+                mcpName: "coderide_debug_snapshot",
+                fallback: "Capture and compare debug session snapshots."
+            ),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -204,7 +234,10 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_debug_test_check",
-            description: "Run targeted Xcode test verification for a debug fix in the Solo Code workspace.",
+            description: RustSyncedToolDescriptions.text(
+                mcpName: "coderide_debug_test_check",
+                fallback: "Run targeted Xcode test verification for a debug fix in the Solo Code workspace."
+            ),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -220,7 +253,10 @@ extension CoderIDETools {
         // --- Debug IDE Control Tools (phase, user interaction, resolution) ---
         Tool(
             name: "coderide_debug_set_phase",
-            description: "Set the current debug flow phase. Controls the debug panel progress bar and phase-specific UI.",
+            description: RustSyncedToolDescriptions.text(
+                mcpName: "coderide_debug_set_phase",
+                fallback: "Set the current debug flow phase. Controls the debug panel progress bar and phase-specific UI."
+            ),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -233,7 +269,10 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_debug_request_user",
-            description: "Request user input during debugging. The debug panel will show the question and wait for the user to respond. Use kind=reproduce to ask for reproduction steps (shows Proceed button), kind=fix_confirmation to ask before cleanup (shows Mark Fixed button).",
+            description: RustSyncedToolDescriptions.text(
+                mcpName: "coderide_debug_request_user",
+                fallback: "Request user input during debugging. The debug panel will show the question and wait for the user to respond. Use kind=reproduce to ask for reproduction steps (shows Proceed button), kind=fix_confirmation to ask before cleanup (shows Mark Fixed button)."
+            ),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -246,7 +285,10 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_debug_resolve",
-            description: "Finalize and resolve the current debug session with a summary. Triggers cleanup of all debug markers and instrumentation if configured.",
+            description: RustSyncedToolDescriptions.text(
+                mcpName: "coderide_debug_resolve",
+                fallback: "Finalize and resolve the current debug session with a summary. Triggers cleanup of all debug markers and instrumentation if configured."
+            ),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([

@@ -312,6 +312,23 @@ pub fn input_schema_for(name: &str) -> Value {
             ],
             &["severity", "source", "message"],
         ),
+        "coderide_debug_query" => object_schema(
+            &[
+                ("severity", "string"),
+                ("category", "string"),
+                ("source", "string"),
+                ("search", "string"),
+                ("tags", "string"),
+                ("hypothesis_id", "string"),
+                ("time_range", "string"),
+                ("session_id", "string"),
+                ("group_by", "string"),
+                ("format", "string"),
+                ("limit", "string"),
+                ("offset", "string"),
+            ],
+            &[],
+        ),
         "coderide_debug_session" => object_schema(&[("action", "string"), ("label", "string")], &["action"]),
         "coderide_debug_hypothesize" => object_schema(
             &[
