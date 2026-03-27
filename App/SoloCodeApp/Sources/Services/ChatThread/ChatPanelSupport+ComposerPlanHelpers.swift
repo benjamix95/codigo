@@ -34,11 +34,8 @@ struct PlanCommandParseResult: Equatable {
 }
 
 func hasStrictPlanCommandPrefix(_ text: String) -> Bool {
-    guard text.lowercased().hasPrefix("/plan") else { return false }
-    guard text.count > 5 else { return true }
-    let boundary = text.index(text.startIndex, offsetBy: 5)
-    let next = text[boundary]
-    return next.isWhitespace || next.isNewline
+    _ = text
+    return false
 }
 
 func shouldUseClarificationPrompt(
@@ -52,21 +49,10 @@ func shouldUseClarificationPrompt(
 
 func parsePlanCommandInput(_ rawInput: String) -> PlanCommandParseResult {
     let text = rawInput.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard hasStrictPlanCommandPrefix(text) else {
-        return PlanCommandParseResult(
-            displayedInput: text,
-            llmPromptInput: text,
-            forcePlanInline: false
-        )
-    }
-    let remainder = String(text.dropFirst(5)).trimmingCharacters(in: .whitespacesAndNewlines)
-    let prompt = remainder.isEmpty
-        ? "Generate a structured plan with alternative options, pros/cons, and complexity."
-        : remainder
     return PlanCommandParseResult(
-        displayedInput: prompt,
-        llmPromptInput: prompt,
-        forcePlanInline: true
+        displayedInput: text,
+        llmPromptInput: text,
+        forcePlanInline: false
     )
 }
 
@@ -132,28 +118,11 @@ struct ShiftTabPlanShortcutTransition: Equatable {
 }
 
 func evaluateShiftTabPlanShortcut(currentInputText: String) -> ShiftTabPlanShortcutTransition {
-    let trimmed = currentInputText.trimmingCharacters(in: .whitespacesAndNewlines)
-    if trimmed.isEmpty {
-        return ShiftTabPlanShortcutTransition(
-            nextInputText: "/plan ",
-            shouldFocusInput: true,
-            shouldHighlightPlanToggle: false,
-            shouldEnablePlanToggle: true
-        )
-    }
-    if trimmed.lowercased().hasPrefix("/plan") {
-        return ShiftTabPlanShortcutTransition(
-            nextInputText: currentInputText,
-            shouldFocusInput: true,
-            shouldHighlightPlanToggle: false,
-            shouldEnablePlanToggle: true
-        )
-    }
     return ShiftTabPlanShortcutTransition(
-        nextInputText: "/plan " + trimmed,
+        nextInputText: currentInputText,
         shouldFocusInput: true,
         shouldHighlightPlanToggle: false,
-        shouldEnablePlanToggle: true
+        shouldEnablePlanToggle: false
     )
 }
 
@@ -201,7 +170,13 @@ enum PlanPanelAutoOpenTrigger: Equatable {
     case proposalReady
 }
 
-func shouldAutoOpenPlanPanel(trigger: PlanPanelAutoOpenTrigger) -> Bool {
+func shouldAutoOpenPlanPanel(
+    trigger: PlanPanelAutoOpenTrigger,
+    planToggleEnabled: Bool
+) -> Bool {
+    guard shouldHonorPlanUserOptIn(planToggleEnabled: planToggleEnabled) else {
+        return false
+    }
     switch trigger {
     case .flowStarted:
         return false
@@ -221,5 +196,6 @@ func resolveShouldRunPlanInline(
     coderMode: CoderMode,
     planToggleEnabled: Bool
 ) -> Bool {
-    forcePlanInline || (coderMode == .agent && planToggleEnabled)
+    _ = forcePlanInline
+    return coderMode == .agent && planToggleEnabled
 }

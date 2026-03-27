@@ -127,7 +127,8 @@ extension ChatPanelView {
         preferCodeReviewRuntimeProvider: Bool? = nil
     ) -> (any LLMProvider)? {
         // Plan mode must run with a dedicated read-only provider.
-        if forcePlanInline || shouldRunPlanInline || coderMode == .plan {
+        _ = forcePlanInline
+        if shouldRunPlanInline || coderMode == .plan {
             return resolveReadOnlyPlanRuntimeProvider()
         }
         // Code Review Multi-Swarm: build dedicated multi-swarm provider

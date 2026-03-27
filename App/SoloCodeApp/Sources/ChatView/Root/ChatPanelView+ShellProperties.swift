@@ -19,8 +19,7 @@ extension ChatPanelView {
     var activeModeGradient: LinearGradient { modeGradient(for: coderMode) }
 
     var showPlanRequestIndicator: Bool {
-        let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-        return planToggleEnabled || hasStrictPlanCommandPrefix(trimmed)
+        planToggleEnabled
     }
 
     var composerRuntimeStartDate: Date? {

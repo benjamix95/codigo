@@ -131,7 +131,7 @@ extension ChatPanelView {
                     persistImmediately: true
                 )
                 chatStore.setLastAssistantStreaming(false, in: conversationId)
-                if shouldAutoOpenPlanPanel(trigger: .awaitingClarification), !showPlanPanel {
+                if shouldAutoOpenPlanPanel(trigger: .awaitingClarification, planToggleEnabled: planToggleEnabled), !showPlanPanel {
                     openPlanPanelForCurrentContext(
                         preserveHistorySelection: false,
                         source: .automaticFlow
@@ -289,7 +289,7 @@ extension ChatPanelView {
                     shouldRunInline: shouldRunPlanInline,
                     planIntentConversationId: conversationId
                 )
-                if shouldAutoOpenPlanPanel(trigger: .awaitingChoice), !showPlanPanel {
+                if shouldAutoOpenPlanPanel(trigger: .awaitingChoice, planToggleEnabled: planToggleEnabled), !showPlanPanel {
                     openPlanPanelForCurrentContext(
                         preserveHistorySelection: false,
                         source: .automaticFlow

@@ -60,7 +60,7 @@ extension ChatPanelView {
                 )
             }
         }
-        if shouldAutoOpenPlanPanel(trigger: .flowStarted), !showPlanPanel {
+        if shouldAutoOpenPlanPanel(trigger: .flowStarted, planToggleEnabled: planToggleEnabled), !showPlanPanel {
             openPlanPanelForCurrentContext(
                 preserveHistorySelection: false,
                 source: .automaticFlow
@@ -220,7 +220,7 @@ extension ChatPanelView {
         planningState = .awaitingClarification(questions: questionsMarkdown)
         updatePlanStreamingContent(questionsMarkdown, conversationId: targetConversationId)
 
-        if shouldAutoOpenPlanPanel(trigger: .awaitingClarification), !showPlanPanel {
+        if shouldAutoOpenPlanPanel(trigger: .awaitingClarification, planToggleEnabled: planToggleEnabled), !showPlanPanel {
             openPlanPanelForCurrentContext(
                 preserveHistorySelection: false,
                 source: .automaticFlow

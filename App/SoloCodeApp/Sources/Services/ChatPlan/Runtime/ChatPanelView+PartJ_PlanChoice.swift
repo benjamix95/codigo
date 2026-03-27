@@ -249,7 +249,7 @@ extension ChatPanelView {
         planningState = .idle
         planFlowPhase = .idle
         clearPlanStreamingState()
-        inputText = "/plan \(mergedRequest)"
+        inputText = mergedRequest
         isInputFocused = true
         sendMessage()
     }

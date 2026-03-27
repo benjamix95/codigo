@@ -198,7 +198,9 @@ extension ChatPanelView {
             planHistoryStore.setSelectedEntry(id: nil)
         }
         showPlanPanel = nextState.showPlanPanel
-        syncPlanPanelVisibilityToRust(true)
+        if nextState.showPlanPanel {
+            syncPlanPanelVisibilityToRust(true)
+        }
     }
 
     internal func cyclePlanShortcutState() {

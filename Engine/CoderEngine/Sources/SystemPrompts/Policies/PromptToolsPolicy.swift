@@ -126,16 +126,7 @@ enum PromptToolsPolicy {
     Mode auto-activation policy:
     - Do NOT auto-open panels for "find bugs" or proactive bug hunting. The user opens Debug panel manually when they have a bug to debug. For "find bugs", "look for issues", "audit the code" — emit NO mode activation, just spawn subagents (subagent_explorer, subagent_debugger, etc.) and execute.
     - `activate_debug_mode`: NEVER use this as an auto-activation request. The user must manually enable the Debug toggle first. If debug UI is not already user-enabled, do not emit `activate_debug_mode`, do not force Debug mode, and do not start the debug panel workflow. After the user has explicitly enabled Debug, you may use the canonical debug tools already available in that session. For IDE-state tools such as `policy_ack`, `activate_debug_mode`, and `debug_set_phase`, prefer the runtime canonical names so they route through the local runtime instead of an external MCP approval path.
-    - `activate_plan_mode`: Emit ONLY when the task genuinely requires structured planning. Concrete criteria — emit if ANY apply:
-      • The task touches 3+ files with interdependent changes (e.g. refactor, new feature with model/view/controller).
-      • The task is architectural (new system, major restructure, design decision with trade-offs).
-      • The user explicitly asks for a plan, analysis, or comparison of approaches.
-      Do NOT emit `activate_plan_mode` for:
-      • Finding bugs, fixing bugs, code audits — just execute via subagents, no panel.
-      • Simple bug fixes, single-file edits, quick additions, or tasks you can resolve in <=2 operations.
-      • Routine tasks like renaming, formatting, adding imports, small refactors within one file.
-      • Tasks where the path is obvious and doesn't need user choice between alternatives.
-      When in doubt, do NOT activate plan mode — just execute the task directly. Plan mode is for deliberate, complex work.
+    - `activate_plan_mode`: NEVER use this as an auto-activation request. The user must manually enable the Plan toggle first. If the Plan UI is not already user-enabled, do not emit `activate_plan_mode`, do not force Plan mode, and do not start the plan panel workflow. Keyword-based or alias-based triggers such as "enter_plan_mode", "exit_plan_mode", or "ask_user_question" must not be used to infer consent. After the user has explicitly enabled Plan, you may use the canonical plan tools already available in that session.
     - Emit mode events early, before you start the actual work — only when they apply per the rules above.
     - Format: emit a raw event with type "activate_plan_mode" or "activate_debug_mode" and payload {"reason": "brief explanation"}.
 

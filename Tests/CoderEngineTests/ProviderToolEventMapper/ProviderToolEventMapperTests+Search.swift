@@ -162,14 +162,13 @@ extension ProviderToolEventMapperTests {
         XCTAssertEqual(mapped?.payload["reason"], "Manual activation")
     }
 
-    func testAskUserQuestionAliasMapsQuestionToPlanReason() {
+    func testAskUserQuestionAliasNoLongerAutoActivatesPlanMode() {
         let mapped = ProviderToolEventMapper.map(
             toolName: "ask_user_question",
             payload: ["question": "Do you prefer SwiftUI or UIKit?"]
         )
 
-        XCTAssertEqual(mapped?.type, "activate_plan_mode")
-        XCTAssertEqual(mapped?.payload["reason"], "Do you prefer SwiftUI or UIKit?")
+        XCTAssertNotEqual(mapped?.type, "activate_plan_mode")
     }
 
     func testLegacyDebugPanelMapsToValidationError() {

@@ -55,13 +55,6 @@ extension ProviderToolEventMapper {
         "websearch": "web_search",
         "write_stdin": "bash",
         "writefile": "write_file",
-        // Claude Code control tools -> IDE state equivalents
-        "askuserquestion": "activate_plan_mode",
-        "ask_user_question": "activate_plan_mode",
-        "exitplanmode": "activate_plan_mode",
-        "exit_plan_mode": "activate_plan_mode",
-        "enterplanmode": "activate_plan_mode",
-        "enter_plan_mode": "activate_plan_mode",
     ]
 
     private static var canonicalToolAliases: [String: String] {

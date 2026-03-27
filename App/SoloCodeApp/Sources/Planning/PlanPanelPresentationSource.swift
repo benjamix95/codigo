@@ -21,10 +21,10 @@ func resolvePlanPanelOpenState(
     preserveHistorySelection: Bool,
     source: PlanPanelPresentationSource
 ) -> PlanPanelOpenState {
-    _ = currentPlanToggleEnabled
+    let shouldOpenPanel = source != .automaticFlow || currentPlanToggleEnabled
     return PlanPanelOpenState(
-        planToggleEnabled: true,
+        planToggleEnabled: shouldOpenPanel ? true : currentPlanToggleEnabled,
         shouldResetHistorySelection: source == .automaticFlow || !preserveHistorySelection,
-        showPlanPanel: true
+        showPlanPanel: shouldOpenPanel
     )
 }

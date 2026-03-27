@@ -5,6 +5,9 @@ extension ChatPanelView {
     @MainActor
     internal func handleAutoActivatePlanMode(reason: String?) {
         _ = reason
+        guard shouldHonorPlanUserOptIn(planToggleEnabled: planToggleEnabled) else {
+            return
+        }
         // Skip if already in plan mode or a plan flow is actively running.
         switch planFlowPhase {
         case .analyzing, .questioning, .generating, .building:
@@ -12,7 +15,6 @@ extension ChatPanelView {
         default:
             break
         }
-        planToggleEnabled = true
     }
 
     @MainActor

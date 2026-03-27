@@ -5,16 +5,16 @@ import XCTest
 extension PlanShortcutAndCommandTests {
     func testParsePlanCommandInputWithExplicitPrompt() {
         let parsed = parsePlanCommandInput("  /plan create a rollout strategy  ")
-        XCTAssertTrue(parsed.forcePlanInline)
-        XCTAssertEqual(parsed.displayedInput, "create a rollout strategy")
-        XCTAssertEqual(parsed.llmPromptInput, "create a rollout strategy")
+        XCTAssertFalse(parsed.forcePlanInline)
+        XCTAssertEqual(parsed.displayedInput, "/plan create a rollout strategy")
+        XCTAssertEqual(parsed.llmPromptInput, "/plan create a rollout strategy")
     }
 
-    func testParsePlanCommandInputWithEmptyPromptUsesFallback() {
+    func testParsePlanCommandInputWithEmptyPromptKeepsLiteralText() {
         let parsed = parsePlanCommandInput("/plan")
-        XCTAssertTrue(parsed.forcePlanInline)
-        XCTAssertTrue(parsed.displayedInput.contains("Generate a structured plan"))
-        XCTAssertTrue(parsed.llmPromptInput.contains("Generate a structured plan"))
+        XCTAssertFalse(parsed.forcePlanInline)
+        XCTAssertEqual(parsed.displayedInput, "/plan")
+        XCTAssertEqual(parsed.llmPromptInput, "/plan")
     }
 
     func testParsePlanCommandInputWithoutCommandKeepsOriginal() {
@@ -96,28 +96,28 @@ extension PlanShortcutAndCommandTests {
     func testEvaluateShiftTabPlanShortcutFirstPressImmediatelyPrependsPlanCommand() {
         let result = evaluateShiftTabPlanShortcut(currentInputText: "fix parser")
 
-        XCTAssertEqual(result.nextInputText, "/plan fix parser")
+        XCTAssertEqual(result.nextInputText, "fix parser")
         XCTAssertTrue(result.shouldFocusInput)
         XCTAssertFalse(result.shouldHighlightPlanToggle)
-        XCTAssertTrue(result.shouldEnablePlanToggle)
+        XCTAssertFalse(result.shouldEnablePlanToggle)
     }
 
     func testEvaluateShiftTabPlanShortcutWithPrimedStateStillPrependsPlanCommand() {
         let result = evaluateShiftTabPlanShortcut(currentInputText: "analyze the refactor")
 
-        XCTAssertEqual(result.nextInputText, "/plan analyze the refactor")
+        XCTAssertEqual(result.nextInputText, "analyze the refactor")
         XCTAssertTrue(result.shouldFocusInput)
         XCTAssertFalse(result.shouldHighlightPlanToggle)
-        XCTAssertTrue(result.shouldEnablePlanToggle)
+        XCTAssertFalse(result.shouldEnablePlanToggle)
     }
 
     func testEvaluateShiftTabPlanShortcutWithEmptyInputSetsPlanOnly() {
         let result = evaluateShiftTabPlanShortcut(currentInputText: "   ")
 
-        XCTAssertEqual(result.nextInputText, "/plan ")
+        XCTAssertEqual(result.nextInputText, "   ")
         XCTAssertTrue(result.shouldFocusInput)
         XCTAssertFalse(result.shouldHighlightPlanToggle)
-        XCTAssertTrue(result.shouldEnablePlanToggle)
+        XCTAssertFalse(result.shouldEnablePlanToggle)
     }
 
     func testEvaluateShiftTabPlanShortcutKeepsExistingPlanPrefix() {
@@ -126,16 +126,16 @@ extension PlanShortcutAndCommandTests {
         XCTAssertEqual(result.nextInputText, "/plan roadmap fix")
         XCTAssertTrue(result.shouldFocusInput)
         XCTAssertFalse(result.shouldHighlightPlanToggle)
-        XCTAssertTrue(result.shouldEnablePlanToggle)
+        XCTAssertFalse(result.shouldEnablePlanToggle)
     }
 
     func testEvaluateShiftTabPlanShortcutAfterExpiryStillPrependsPlanCommand() {
         let result = evaluateShiftTabPlanShortcut(currentInputText: "nuovo task")
 
-        XCTAssertEqual(result.nextInputText, "/plan nuovo task")
+        XCTAssertEqual(result.nextInputText, "nuovo task")
         XCTAssertTrue(result.shouldFocusInput)
         XCTAssertFalse(result.shouldHighlightPlanToggle)
-        XCTAssertTrue(result.shouldEnablePlanToggle)
+        XCTAssertFalse(result.shouldEnablePlanToggle)
     }
 
     func testShouldOpenPlanPanelAfterShiftTabWhenPanelClosed() {
@@ -199,7 +199,7 @@ extension PlanShortcutAndCommandTests {
     }
 
     func testShouldHandlePlanKeyboardShortcutOnlyWhenInputFocused() {
-        XCTAssertTrue(shouldHandlePlanKeyboardShortcut(isInputFocused: true))
+        XCTAssertFalse(shouldHandlePlanKeyboardShortcut(isInputFocused: true))
         XCTAssertFalse(shouldHandlePlanKeyboardShortcut(isInputFocused: false))
     }
 
@@ -230,11 +230,12 @@ extension PlanShortcutAndCommandTests {
     }
 
     func testPlanPanelAutoOpenPolicy() {
-        XCTAssertFalse(shouldAutoOpenPlanPanel(trigger: .planStepUpdate))
-        XCTAssertFalse(shouldAutoOpenPlanPanel(trigger: .flowStarted))
-        XCTAssertTrue(shouldAutoOpenPlanPanel(trigger: .awaitingClarification))
-        XCTAssertTrue(shouldAutoOpenPlanPanel(trigger: .awaitingChoice))
-        XCTAssertTrue(shouldAutoOpenPlanPanel(trigger: .proposalReady))
+        XCTAssertFalse(shouldAutoOpenPlanPanel(trigger: .planStepUpdate, planToggleEnabled: false))
+        XCTAssertFalse(shouldAutoOpenPlanPanel(trigger: .flowStarted, planToggleEnabled: false))
+        XCTAssertFalse(shouldAutoOpenPlanPanel(trigger: .awaitingClarification, planToggleEnabled: false))
+        XCTAssertTrue(shouldAutoOpenPlanPanel(trigger: .awaitingClarification, planToggleEnabled: true))
+        XCTAssertTrue(shouldAutoOpenPlanPanel(trigger: .awaitingChoice, planToggleEnabled: true))
+        XCTAssertTrue(shouldAutoOpenPlanPanel(trigger: .proposalReady, planToggleEnabled: true))
     }
 
     func testShouldAllowStartingPlanBuildBlocksWhenAnotherBuildTaskIsActive() {

@@ -12,7 +12,8 @@ func isPlanBuildExecutionCapableProvider(_ providerId: String, registry: Provide
 }
 
 func shouldHandlePlanKeyboardShortcut(isInputFocused: Bool) -> Bool {
-    isInputFocused
+    _ = isInputFocused
+    return false
 }
 
 func canStartPlanBuild(isLoading: Bool, phase: PlanFlowPhase) -> Bool {

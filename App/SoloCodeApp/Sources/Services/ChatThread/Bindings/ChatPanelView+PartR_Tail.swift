@@ -60,7 +60,7 @@ extension ChatPanelView {
             shouldRunPlanInline: shouldRunPlanInline
         )
         if shouldHidePlanMarkdownForBuild,
-           shouldAutoOpenPlanPanel(trigger: .flowStarted),
+           shouldAutoOpenPlanPanel(trigger: .flowStarted, planToggleEnabled: planToggleEnabled),
            !showPlanPanel
         {
             openPlanPanelForCurrentContext(

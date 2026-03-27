@@ -8,9 +8,21 @@ final class PlanPanelHistoryVisibilityTests: XCTestCase {
         XCTAssertTrue(shouldShowPlanPanelHistory(source: .manualShortcut))
     }
 
-    func testAutomaticFlowOpenStateForcesToggleAndResetsHistory() {
+    func testAutomaticFlowOpenStateFailsClosedWithoutUserToggle() {
         let state = resolvePlanPanelOpenState(
             currentPlanToggleEnabled: false,
+            preserveHistorySelection: true,
+            source: .automaticFlow
+        )
+
+        XCTAssertFalse(state.planToggleEnabled)
+        XCTAssertTrue(state.shouldResetHistorySelection)
+        XCTAssertFalse(state.showPlanPanel)
+    }
+
+    func testAutomaticFlowOpenStateHonorsAlreadyEnabledToggle() {
+        let state = resolvePlanPanelOpenState(
+            currentPlanToggleEnabled: true,
             preserveHistorySelection: true,
             source: .automaticFlow
         )

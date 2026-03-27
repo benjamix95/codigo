@@ -232,7 +232,7 @@ extension ChatPanelView {
                     persistImmediately: true
                 )
                 chatStore.setLastAssistantStreaming(false, in: conversationId)
-                if shouldAutoOpenPlanPanel(trigger: .awaitingClarification), !showPlanPanel {
+                if shouldAutoOpenPlanPanel(trigger: .awaitingClarification, planToggleEnabled: planToggleEnabled), !showPlanPanel {
                     openPlanPanelForCurrentContext(
                         preserveHistorySelection: false,
                         source: .automaticFlow

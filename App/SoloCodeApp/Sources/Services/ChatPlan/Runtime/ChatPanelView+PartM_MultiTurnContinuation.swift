@@ -53,7 +53,7 @@ extension ChatPanelView {
                         sanitizedContent,
                         conversationId: conversationId
                     )
-                    if shouldAutoOpenPlanPanel(trigger: .flowStarted), !showPlanPanel {
+                    if shouldAutoOpenPlanPanel(trigger: .flowStarted, planToggleEnabled: planToggleEnabled), !showPlanPanel {
                         openPlanPanelForCurrentContext(
                             preserveHistorySelection: false,
                             source: .automaticFlow

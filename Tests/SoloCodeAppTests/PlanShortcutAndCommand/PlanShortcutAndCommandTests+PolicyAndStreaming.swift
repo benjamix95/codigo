@@ -111,13 +111,13 @@ extension PlanShortcutAndCommandTests {
         XCTAssertFalse(shouldStartDebugSessionOnAutoActivate(currentPhase: .verifying))
     }
 
-    func testResolveShouldRunPlanInlineOneShotBehaviorForSlashPlan() {
+    func testResolveShouldRunPlanInlineIgnoresSlashPlanKeywordByDefault() {
         let firstSend = resolveShouldRunPlanInline(
             forcePlanInline: true,
             coderMode: .agent,
             planToggleEnabled: false
         )
-        XCTAssertTrue(firstSend)
+        XCTAssertFalse(firstSend)
 
         let secondSend = resolveShouldRunPlanInline(
             forcePlanInline: false,

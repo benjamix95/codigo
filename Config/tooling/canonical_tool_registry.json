@@ -29,14 +29,7 @@
       "mutating_runtime": false,
       "first_round_exempt": true,
       "plugin_capabilities": [],
-      "runtime_aliases": [
-        "ask_user_question",
-        "askuserquestion",
-        "enter_plan_mode",
-        "enterplanmode",
-        "exit_plan_mode",
-        "exitplanmode"
-      ],
+      "runtime_aliases": [],
       "availability": {
         "app": "available",
         "subagents": "available",
@@ -2358,13 +2351,7 @@
     "webfetch": "web_fetch",
     "websearch": "web_search",
     "write_stdin": "bash",
-    "writefile": "write_file",
-    "askuserquestion": "activate_plan_mode",
-    "ask_user_question": "activate_plan_mode",
-    "exitplanmode": "activate_plan_mode",
-    "exit_plan_mode": "activate_plan_mode",
-    "enterplanmode": "activate_plan_mode",
-    "enter_plan_mode": "activate_plan_mode"
+    "writefile": "write_file"
   },
   "subagent_provider_profiles": {
     "codex": {
