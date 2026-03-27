@@ -57,7 +57,10 @@ public enum CodexDetector {
             }
             return custom
         }
-        return preferredCodexPath(candidates: codexPathCandidates())
+        return preferredCodexPath(
+            candidates: codexPathCandidates(),
+            allowsBlockingVersionProbe: !Thread.isMainThread
+        )
     }
 
     /// Verifica se auth.json esiste e contiene credenziali
@@ -141,7 +144,8 @@ public enum CodexDetector {
     static func preferredCodexPath(
         candidates: [String],
         versionLoader: (String) -> String? = loadCodexVersion,
-        isExecutable: (String) -> Bool = { FileManager.default.isExecutableFile(atPath: $0) }
+        isExecutable: (String) -> Bool = { FileManager.default.isExecutableFile(atPath: $0) },
+        allowsBlockingVersionProbe: Bool = true
     ) -> String? {
         let uniqueCandidates = Array(NSOrderedSet(array: candidates)) as? [String] ?? candidates
 
@@ -155,11 +159,16 @@ public enum CodexDetector {
             guard !path.isEmpty, isExecutable(path) else { return nil }
             return RankedCandidate(
                 path: path,
-                version: versionLoader(path).flatMap(CodexSemanticVersion.parse)
+                version: allowsBlockingVersionProbe
+                    ? versionLoader(path).flatMap(CodexSemanticVersion.parse)
+                    : nil
             )
         }
 
         guard !ranked.isEmpty else { return nil }
+        if !allowsBlockingVersionProbe {
+            return ranked.first?.path
+        }
 
         let stableCandidates = ranked.filter { version in
             guard let version = version.version else { return false }

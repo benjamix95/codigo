@@ -45,4 +45,23 @@ final class CodexDetectorStablePathTests: XCTestCase {
 
         XCTAssertEqual(selected, "/tmp/codex-b")
     }
+
+    func testPreferredCodexPathSkipsVersionProbeWhenBlockingProbeIsDisabled() {
+        var probedPaths: [String] = []
+        let selected = CodexDetector.preferredCodexPath(
+            candidates: [
+                "/opt/homebrew/bin/codex",
+                "/Applications/Codex.app/Contents/Resources/codex",
+            ],
+            versionLoader: { path in
+                probedPaths.append(path)
+                return "codex-cli 999.0.0"
+            },
+            isExecutable: { _ in true },
+            allowsBlockingVersionProbe: false
+        )
+
+        XCTAssertEqual(selected, "/opt/homebrew/bin/codex")
+        XCTAssertTrue(probedPaths.isEmpty)
+    }
 }
