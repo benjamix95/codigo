@@ -115,6 +115,19 @@ func shouldAllowPlanToggleDeactivation(phase: PlanFlowPhase) -> Bool {
     }
 }
 
+func restoredPlanBuildPhase(
+    conversationId: UUID?,
+    activeBuildPlanConversationId: UUID?,
+    activeBuildAgentConversationId: UUID?
+) -> PlanFlowPhase? {
+    guard let conversationId else { return nil }
+    guard conversationId == activeBuildPlanConversationId
+        || conversationId == activeBuildAgentConversationId else {
+        return nil
+    }
+    return .building
+}
+
 func resolveClarificationIdentitySeed(
     planClarificationCycles: Int,
     planConversationId: UUID?,
@@ -179,6 +192,7 @@ func shouldRoutePlanStreamToPlanPanel(
     activeBuildPlanConversationId: UUID?,
     activeBuildAgentConversationId: UUID?
 ) -> Bool {
+    guard shouldRoutePlanStreamingToPanel else { return false }
     guard let streamConversationId else { return false }
     if hasActivePlanContext { return true }
     if phase == .building {

@@ -117,7 +117,7 @@ final class ToolTraceStore: ObservableObject {
     }()
 
     /// Background queue for all disk I/O — keeps FileHandle operations off the main thread.
-    private static let diskQueue = DispatchQueue(label: "com.solocode.tooltrace.disk", qos: .utility)
+    static let diskQueue = DispatchQueue(label: "com.solocode.tooltrace.disk", qos: .utility)
 
     /// Throttle objectWillChange to avoid flooding SwiftUI with re-renders
     /// during rapid streaming. Coalesces updates within 150ms windows.
@@ -150,7 +150,9 @@ final class ToolTraceStore: ObservableObject {
 
     /// Blocks until all pending disk writes have completed. For test use.
     func flushDiskWrites() {
-        Self.diskQueue.sync {}
+        Self.diskQueue.sync {
+            Self.flushAllBufferedDiskAppends()
+        }
     }
 
     func startTurn(conversationId: UUID, assistantMessageId: UUID, providerId _: String) {
@@ -165,20 +167,28 @@ final class ToolTraceStore: ObservableObject {
     func append(event: ToolTraceEvent) {
         let key = TraceKey(conversationId: event.conversationId, assistantMessageId: event.assistantMessageId)
         var events = loadIfNeeded(for: key)
-        events.append(event)
-        events.sort { lhs, rhs in
-            if lhs.sequence != rhs.sequence { return lhs.sequence < rhs.sequence }
-            return lhs.timestamp < rhs.timestamp
+        let canAppendInOrder = events.last.map { last in
+            if last.sequence != event.sequence {
+                return last.sequence <= event.sequence
+            }
+            return last.timestamp <= event.timestamp
+        } ?? true
+        if canAppendInOrder {
+            events.append(event)
+        } else {
+            events.append(event)
+            events.sort { lhs, rhs in
+                if lhs.sequence != rhs.sequence { return lhs.sequence < rhs.sequence }
+                return lhs.timestamp < rhs.timestamp
+            }
         }
         throttledNotify()
         cache[key] = events
         invalidateConversationCaches(conversationId: event.conversationId)
-        // Encode on main thread (fast), dispatch write to background
+        // Encode on main thread (fast), batch the disk append off the main thread.
         if let encoded = try? encoder.encode(event) {
             let url = fileURL(for: key)
-            Self.diskQueue.async {
-                Self.appendDataToDisk(encoded, url: url)
-            }
+            Self.queueBufferedDiskAppend(encoded, url: url)
         }
     }
 
@@ -302,18 +312,8 @@ final class ToolTraceStore: ObservableObject {
         return out
     }
 
-    /// Appends pre-encoded JSON data to disk. Runs on `diskQueue` (off main thread).
-    nonisolated private static func appendDataToDisk(_ data: Data, url: URL) {
-        ensureTraceFileExistsOnDisk(at: url)
-        guard let handle = try? FileHandle(forWritingTo: url) else { return }
-        defer { try? handle.close() }
-        handle.seekToEndOfFile()
-        handle.write(data)
-        handle.write(Data([0x0A]))
-    }
-
     /// Ensures the trace file and parent directories exist. Runs on `diskQueue`.
-    nonisolated private static func ensureTraceFileExistsOnDisk(at url: URL) {
+    nonisolated static func ensureTraceFileExistsOnDisk(at url: URL) {
         let dir = url.deletingLastPathComponent()
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         if !FileManager.default.fileExists(atPath: url.path) {

@@ -32,6 +32,23 @@ final class TaskActivityStoreScopedActivitiesTests: XCTestCase {
         XCTAssertEqual(scoped.first?.payload["conversation_id"], firstConversationId.uuidString.lowercased())
     }
 
+    func testPlanRelevantRecentActivitiesScopesBeforeApplyingLimit() {
+        let store = TaskActivityStore()
+        let targetConversationId = UUID()
+        let otherConversationId = UUID()
+
+        store.addActivity(makeActivity(type: "plan_step_upsert", conversationId: targetConversationId))
+        for _ in 0..<30 {
+            store.addActivity(makeActivity(type: "plan_step_upsert", conversationId: otherConversationId))
+        }
+        store.flushPending()
+
+        let scoped = store.planRelevantRecentActivities(limit: 5, conversationId: targetConversationId)
+
+        XCTAssertEqual(scoped.count, 1)
+        XCTAssertEqual(scoped.first?.payload["conversation_id"], targetConversationId.uuidString.lowercased())
+    }
+
     func testActivitiesForConversationAcceptsCamelCaseConversationIdPayload() {
         let store = TaskActivityStore()
         let firstConversationId = UUID()

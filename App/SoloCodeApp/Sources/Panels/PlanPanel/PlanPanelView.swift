@@ -69,8 +69,7 @@ struct PlanPanelView: View {
     }
 
     var planTraceActivities: [TaskActivity] {
-        let recent = taskActivityStore.planRelevantRecentActivities(limit: 120)
-        return filterPlanTraceActivitiesForConversation(recent, conversationId: conversationId)
+        taskActivityStore.planRelevantRecentActivities(limit: 120, conversationId: conversationId)
     }
 
     var body: some View {

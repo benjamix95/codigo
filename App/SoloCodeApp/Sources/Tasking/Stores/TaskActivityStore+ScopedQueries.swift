@@ -19,12 +19,11 @@ extension TaskActivityStore {
     }
 
     func planRelevantRecentActivities(limit: Int = 60, conversationId: UUID?) -> [TaskActivity] {
-        let recent = planRelevantRecentActivities(limit: limit)
-        guard let conversationId else { return recent }
-        let scope = normalizedConversationScope(conversationId)
-        return recent.filter { activity in
-            canonicalConversationScope(from: activity.payload) == scope
-        }
+        guard let conversationId else { return planRelevantRecentActivities(limit: limit) }
+        let scoped = activities(for: conversationId)
+            .filter(isPlanRelevantActivity(_:))
+        guard limit > 0 else { return [] }
+        return Array(scoped.suffix(limit))
     }
 
     func instantGreps(for conversationId: UUID?) -> [InstantGrepResult] {

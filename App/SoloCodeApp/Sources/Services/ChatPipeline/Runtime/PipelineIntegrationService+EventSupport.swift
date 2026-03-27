@@ -21,6 +21,7 @@ extension PipelineIntegrationService {
 
         let currentRuntime = runtime(for: conversationId)
         let providerId = currentRuntime?.providerId ?? "pipeline"
+        let hasExternalRawHandler = currentRuntime?.rawEventHandler != nil
         if let callback = currentRuntime?.rawEventHandler {
             callback(rawType, p.payload, providerId, conversationId)
         }
@@ -31,27 +32,35 @@ extension PipelineIntegrationService {
         )
         consumeRawPipelineArtifacts(rawType: rawType, payload: p.payload, for: conversationId)
 
-        if rawType == RawEventType.todoWrite || p.payload.keys.contains(where: {
-            $0.hasPrefix("todo_")
-        }) {
-            handleRawTodoWrite(p, for: conversationId)
-        } else if envelopeContainsDebugEvent(normalizedEnvelope) {
-            // `rawEventHandler` invoca `handleRawStreamEvent` → `recordTaskActivity` →
-            // `routeDebugEvent` / `applyOrBufferDebugEvent`. Evita doppia applicazione
-            // degli stessi eventi debug quando il job pipeline ha incollato questo callback.
-            if currentRuntime?.rawEventHandler == nil {
+        if rawType == RawEventType.showTaskPanel {
+            chatStore?.setTaskStatus(
+                p.payload["status"] ?? "Working...",
+                for: conversationId
+            )
+        } else if !hasExternalRawHandler {
+            if rawType == RawEventType.todoWrite || p.payload.keys.contains(where: {
+                $0.hasPrefix("todo_")
+            }) {
+                handleRawTodoWrite(p, for: conversationId)
+            } else if envelopeContainsDebugEvent(normalizedEnvelope) {
                 handleRawDebugEvent(
                     p,
                     normalizedEnvelope: normalizedEnvelope,
                     for: conversationId
                 )
+            } else if rawType == RawEventType.planStep {
+                handleRawPlanStep(p, for: conversationId)
+            } else {
+                forwardRawEnvelopeToTaskActivity(
+                    normalizedEnvelope,
+                    for: conversationId
+                )
             }
-        } else if rawType == RawEventType.planStep {
-            handleRawPlanStep(p, for: conversationId)
-        } else if rawType == RawEventType.showTaskPanel {
-            chatStore?.setTaskStatus(
-                p.payload["status"] ?? "Working...",
-                for: conversationId
+        } else if mainChatTraceLoggingEnabled() {
+            NSLog(
+                "[PipelineIntegration] skipped local raw side-effects because external raw handler consumed type=%@ conv=%@",
+                rawType,
+                conversationId.uuidString.lowercased()
             )
         } else {
             forwardRawEnvelopeToTaskActivity(
@@ -88,8 +97,6 @@ extension PipelineIntegrationService {
         // Codex app-server: la fase `commentary` è instradata come testo principale (text_delta + assistant_update),
         // così la risposta visibile non resta solo nel blocco Thinking.
 
-        let phase = (rawEvent.payload["phase"] ?? "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
         let rawText = rawEvent.payload["output"] ?? rawEvent.payload["text"]
             ?? rawEvent.payload["content"] ?? rawEvent.payload["detail"] ?? ""
         let cleaned = ChatStore.stripCoderideMarkers(rawText, aggressive: true)

@@ -138,10 +138,14 @@ extension ChatPanelView {
             planFlowPhase = .idle
             return
         }
-        // If a plan build is actively running for this conversation, restore .building.
-        // Don't clear plan context — the background task still needs it.
-        if activeBuildPlanConversationId == conversationId {
-            planFlowPhase = .building
+        if let restoredBuildPhase = restoredPlanBuildPhase(
+            conversationId: conversationId,
+            activeBuildPlanConversationId: activeBuildPlanConversationId,
+            activeBuildAgentConversationId: activeBuildAgentConversationId
+        ) {
+            // If a plan build is actively running for this conversation, restore .building.
+            // Don't clear plan context — the background task still needs it.
+            planFlowPhase = restoredBuildPhase
             planningState = .idle
             return
         }
@@ -198,9 +202,6 @@ extension ChatPanelView {
             planHistoryStore.setSelectedEntry(id: nil)
         }
         showPlanPanel = nextState.showPlanPanel
-        if nextState.showPlanPanel {
-            syncPlanPanelVisibilityToRust(true)
-        }
     }
 
     internal func cyclePlanShortcutState() {

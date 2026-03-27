@@ -30,7 +30,7 @@ extension PlanShortcutAndCommandTests {
             )
         )
 
-        XCTAssertTrue(
+        XCTAssertFalse(
             shouldRoutePlanStreamToPlanPanel(
                 shouldRoutePlanStreamingToPanel: false,
                 streamConversationId: activeBuildAgentConversationId,
@@ -49,6 +49,37 @@ extension PlanShortcutAndCommandTests {
                 phase: .building,
                 activeBuildPlanConversationId: activeBuildPlanConversationId,
                 activeBuildAgentConversationId: activeBuildAgentConversationId
+            )
+        )
+    }
+
+    func testRestoredPlanBuildPhaseTreatsBuildAgentConversationAsBuilding() {
+        let buildPlanConversationId = UUID()
+        let buildAgentConversationId = UUID()
+
+        XCTAssertEqual(
+            restoredPlanBuildPhase(
+                conversationId: buildPlanConversationId,
+                activeBuildPlanConversationId: buildPlanConversationId,
+                activeBuildAgentConversationId: buildAgentConversationId
+            ),
+            .building
+        )
+
+        XCTAssertEqual(
+            restoredPlanBuildPhase(
+                conversationId: buildAgentConversationId,
+                activeBuildPlanConversationId: buildPlanConversationId,
+                activeBuildAgentConversationId: buildAgentConversationId
+            ),
+            .building
+        )
+
+        XCTAssertNil(
+            restoredPlanBuildPhase(
+                conversationId: UUID(),
+                activeBuildPlanConversationId: buildPlanConversationId,
+                activeBuildAgentConversationId: buildAgentConversationId
             )
         )
     }

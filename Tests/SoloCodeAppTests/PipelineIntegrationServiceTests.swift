@@ -539,6 +539,87 @@ final class PipelineIntegrationServiceTests: XCTestCase {
         XCTAssertTrue(service.cancelCurrentJob(for: secondConversationId))
     }
 
+    func testRawEventHandlerSuppressesLocalTodoSideEffectsToAvoidDuplicateApplication() {
+        let suiteName = "PipelineIntegrationServiceTests.raw-todo-owned-by-callback.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let chatStore = ChatStore(userDefaults: defaults)
+        let todoStore = TodoStore(
+            storageKey: "CoderIDE.todos.tests.\(UUID().uuidString)",
+            userDefaults: defaults
+        )
+        let taskActivityStore = TaskActivityStore()
+        let swarmProgressStore = SwarmProgressStore()
+        let executionController = ExecutionController()
+        let service = PipelineIntegrationService()
+        service.configure(
+            chatStore: chatStore,
+            taskActivityStore: taskActivityStore,
+            swarmProgressStore: swarmProgressStore,
+            todoStore: todoStore,
+            executionController: executionController
+        )
+
+        let conversationId = chatStore.conversations[0].id
+        chatStore.addMessage(
+            ChatMessage(role: .assistant, content: "", isStreaming: true),
+            to: conversationId
+        )
+        let context = WorkspaceContext(workspacePaths: [URL(fileURLWithPath: "/tmp")])
+        var callbackTypes: [String] = []
+        service.executeJob(
+            makeJob(id: "job-raw-todo"),
+            tasks: [TaskNode(taskId: "task-raw-todo", title: "Todo callback ownership")],
+            workerAdapter: AgentWorkerAdapter(
+                provider: DelayedMockPipelineProvider(
+                    id: "provider-raw-todo",
+                    text: "done",
+                    delayNanoseconds: 500_000_000
+                ),
+                context: context,
+                jobId: "job-raw-todo"
+            ),
+            providerId: "provider-raw-todo",
+            conversationId: conversationId,
+            assistantMessageId: UUID(),
+            rawEventHandler: { type, _, _, _ in
+                callbackTypes.append(type)
+            }
+        )
+
+        let todoId = UUID()
+        todoStore.upsertFromAgent(
+            id: todoId,
+            title: "Callback owned todo",
+            status: .pending,
+            priority: .medium,
+            notes: nil,
+            linkedFiles: [],
+            conversationId: conversationId
+        )
+
+        service.handleRawEvent(
+            RawEventPayload(
+                jobId: "job-raw-todo",
+                taskId: "task-raw-todo",
+                rawType: "todo_write",
+                payload: [
+                    "id": todoId.uuidString,
+                    "title": "Callback owned todo",
+                    "status": "done",
+                ]
+            ),
+            for: conversationId
+        )
+
+        XCTAssertEqual(callbackTypes, ["todo_write"])
+        XCTAssertEqual(todoStore.todos.first(where: { $0.id == todoId })?.status, .pending)
+
+        XCTAssertTrue(service.cancelCurrentJob(for: conversationId))
+    }
+
     func testFinalizeExecutionIsIdempotentAfterCancelAndClearsTaskState() async throws {
         let suiteName = "PipelineIntegrationServiceTests.finalize-cancel.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

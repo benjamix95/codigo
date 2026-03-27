@@ -3,6 +3,28 @@ import Foundation
 
 @MainActor
 extension TaskActivityStore {
+    func isPlanRelevantActivity(_ activity: TaskActivity) -> Bool {
+        let registryDriven = Self.registryDrivenVisibleTypes
+        let type = activity.type.lowercased()
+        if registryDriven.contains(type) { return true }
+        switch type {
+        case "command_execution", "bash",
+             "read_batch_started", "read_batch_completed",
+             "web_search", "web_search_started", "web_search_completed", "web_search_failed",
+             "web_fetch", "web_fetch_started", "web_fetch_completed", "web_fetch_failed",
+             "mcp_tool_call",
+             "process_paused", "process_resumed",
+             "plan_step", "plan_step_update", "planning_auto_reset",
+             "debug_phase_update", "debug_user_request", "debug_resolved",
+             "debug_native_session",
+             "semantic_search", "read_lints",
+             "file_change", "edit":
+            return true
+        default:
+            return false
+        }
+    }
+
     func clearSwarmCards(for conversationId: UUID? = nil) {
         if let scope = normalizedConversationScope(conversationId) {
             let scopedIds = swarmCards.compactMap { key, card in
@@ -186,27 +208,7 @@ extension TaskActivityStore {
     }
 
     func planRelevantRecentActivities(limit: Int = 60) -> [TaskActivity] {
-        let registryDriven = Self.registryDrivenVisibleTypes
-        return recentActivities(limit: limit).filter { activity in
-            let type = activity.type.lowercased()
-            if registryDriven.contains(type) { return true }
-            switch type {
-            case "command_execution", "bash",
-                 "read_batch_started", "read_batch_completed",
-                 "web_search", "web_search_started", "web_search_completed", "web_search_failed",
-                 "web_fetch", "web_fetch_started", "web_fetch_completed", "web_fetch_failed",
-                 "mcp_tool_call",
-                 "process_paused", "process_resumed",
-                 "plan_step", "plan_step_update", "planning_auto_reset",
-                 "debug_phase_update", "debug_user_request", "debug_resolved",
-                 "debug_native_session",
-                 "semantic_search", "read_lints",
-                 "file_change", "edit":
-                return true
-            default:
-                return false
-            }
-        }
+        recentActivities(limit: limit).filter(isPlanRelevantActivity(_:))
     }
 
     func swarmIds() -> [String] {
