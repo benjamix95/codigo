@@ -258,6 +258,23 @@ extension ChatPanelView {
         .task(id: conversationId) {
             refreshMessagesSnapshot()
         }
+        .onReceive(chatStore.objectWillChange) { _ in
+            guard conversationId != nil else { return }
+            // La chat non legge più `chatStore.conversations` direttamente nel body:
+            // senza questo hook, publish tardivi del ChatStore possono aggiornare lo store
+            // ma lasciare `messagesConversationSnapshot` fermo fino a un resize / nuovo evento.
+            refreshMessagesSnapshot()
+        }
+        .onReceive(pipelineIntegrationService.objectWillChange) { _ in
+            // Durante lo streaming pipeline, chatStore.objectWillChange è throttlato a 150ms
+            // ma pipelineIntegrationService pubblica ad ogni batch di eventi (~32ms).
+            // Senza questo hook, lo snapshot resta stale e la UI "sparisce" finché
+            // il throttle del chatStore non si sblocca o l'utente fa resize.
+            guard conversationId != nil,
+                  pipelineIntegrationService.isRunning(for: conversationId)
+            else { return }
+            refreshMessagesSnapshot()
+        }
         // Inject markdown font settings once at the messages area root.
         // All child MarkdownContentView instances read these via
         // @Environment(\.markdownSettings) instead of 4 separate

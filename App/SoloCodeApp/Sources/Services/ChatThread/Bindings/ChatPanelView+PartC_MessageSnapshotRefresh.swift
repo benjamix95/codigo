@@ -8,6 +8,7 @@ extension ChatPanelView {
     /// Called on every streamContentVersion change and messages.count change.
     internal func refreshMessagesSnapshot() {
         let fresh = chatStore.conversation(for: conversationId)
+        let now = Date()
 
         // Always update loading state.
         let freshLoading = chatStore.isTaskActive(for: conversationId)
@@ -30,6 +31,9 @@ extension ChatPanelView {
         let planBuilding =
             planFlowPhase == .building && activeBuildPlanConversationId == conversationId
         let chromeBusy = freshLoading || planBuilding
+        if chromeBusy {
+            snapshotLastBusyAt = now
+        }
         if snapshotChromeLoading != chromeBusy {
             snapshotChromeLoading = chromeBusy
         }
@@ -67,11 +71,18 @@ extension ChatPanelView {
                 let prevSnapId = messagesConversationSnapshot?.id.uuidString ?? "nil"
                 // Durante task/piano attivo, uno store Rust transitorio può restituire `messages` vuoti
                 // per lo stesso thread: sostituire lo snapshot svuoterebbe la lista (“chat sparita”).
-                let spuriousEmptyWhileBusy =
-                    fresh.messages.isEmpty
-                    && chromeBusy
-                    && (messagesConversationSnapshot.map { $0.id == fresh.id && !$0.messages.isEmpty } ?? false)
-                if spuriousEmptyWhileBusy {
+                // Manteniamo una breve grace window anche subito dopo la fine del task per coprire
+                // publish/store updates che arrivano in ritardo rispetto al flip `isLoading=false`.
+                let shouldPreserveTransientEmpty = shouldPreserveSnapshotAgainstTransientEmptyStore(
+                    freshConversationId: fresh.id,
+                    freshMessageCount: fresh.messages.count,
+                    previousSnapshotConversationId: messagesConversationSnapshot?.id,
+                    previousSnapshotMessageCount: messagesConversationSnapshot?.messages.count ?? 0,
+                    chromeBusy: chromeBusy,
+                    lastBusyAt: snapshotLastBusyAt,
+                    now: now
+                )
+                if shouldPreserveTransientEmpty {
                     AgentDebugSessionNDJSONLog.appendThrottled(
                         gateKey: "H16-skip-spurious-empty",
                         minInterval: 0.09,
@@ -83,6 +94,9 @@ extension ChatPanelView {
                             "prevCount": "\(messagesConversationSnapshot?.messages.count ?? -1)",
                             "streamContentVersion": "\(streaming.streamContentVersion)",
                             "chromeBusy": "\(chromeBusy)",
+                            "lastBusyAgeMs": snapshotLastBusyAt.map {
+                                "\(Int(now.timeIntervalSince($0) * 1000))"
+                            } ?? "nil",
                         ]
                     )
                 } else {
@@ -153,11 +167,11 @@ extension ChatPanelView {
         // streamContentVersion increment (215+ per session), which was
         // causing ~710 EQ-MISS. Text deltas are the most frequent
         // streamContentVersion source but don't affect trace events.
-        let now = CFAbsoluteTimeGetCurrent()
-        let elapsed = now - lastTraceRefreshTime
+        let refreshNow = CFAbsoluteTimeGetCurrent()
+        let elapsed = refreshNow - lastTraceRefreshTime
         if elapsed >= 0.25 || !snapshotIsLoading {
             refreshTraceEventsSnapshot(fresh: fresh)
-            lastTraceRefreshTime = now
+            lastTraceRefreshTime = refreshNow
         }
 
         // Sottotitolo live e planning: aggiornare sempre col messaggio (il throttle qui
