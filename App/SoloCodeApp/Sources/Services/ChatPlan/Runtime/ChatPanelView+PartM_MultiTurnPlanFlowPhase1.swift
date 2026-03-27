@@ -43,7 +43,10 @@ extension ChatPanelView {
         }
         guard !analysisPrompt.isEmpty else {
             await MainActor.run {
-                resetPlanFlowAfterAbortedPreflight(targetConversationId: conversationId)
+                resetPlanFlowAfterAbortedPreflight(
+                    targetConversationId: conversationId,
+                    reason: "empty_phase1_prompt_after_bridge"
+                )
             }
             return .finished(.completed)
         }
@@ -83,6 +86,19 @@ extension ChatPanelView {
             return .finished(.completed)
         }
         let shouldRequestClarifications = analysisRuntimeSnapshot?.plan?.phase == .questioning
+
+        // #region agent log
+        PlanFlowDebugNDJSONLog.append(
+            hypothesisId: "E",
+            location: "PartM_MultiTurnPlanFlowPhase1",
+            message: "phase1_after_analysis_stream",
+            data: [
+                "analysisLen": "\(analysisText.count)",
+                "shouldClarify": shouldRequestClarifications ? "1" : "0",
+                "rustPlanPhase": analysisRuntimeSnapshot?.plan?.phase.map { String(describing: $0) } ?? "nil",
+            ]
+        )
+        // #endregion
 
         await MainActor.run {
             guard self.conversationId == conversationId else { return }

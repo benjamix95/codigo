@@ -27,7 +27,10 @@ extension ChatPanelView {
             }
             guard !screeningPrompt.isEmpty else {
                 await MainActor.run {
-                    resetPlanFlowAfterAbortedPreflight(targetConversationId: conversationId)
+                    resetPlanFlowAfterAbortedPreflight(
+                        targetConversationId: conversationId,
+                        reason: "empty_screening_prompt_after_bridge"
+                    )
                 }
                 return .completed
             }
@@ -75,6 +78,19 @@ extension ChatPanelView {
                 ?? "Starting codebase analysis..."
             let skipFullPipeline = screeningSnapshot?.output?.skipFullPlanPipeline == true
                 || parsePlanScreeningDecision(from: screeningText) == .noPlanNeeded
+
+            // #region agent log
+            PlanFlowDebugNDJSONLog.append(
+                hypothesisId: "D",
+                location: "PartM_MultiTurnPlanFlowPhase0",
+                message: "phase0_after_screening_stream",
+                data: [
+                    "screenLen": "\(screeningText.count)",
+                    "skipFullPipeline": skipFullPipeline ? "1" : "0",
+                    "rustSkip": (screeningSnapshot?.output?.skipFullPlanPipeline == true) ? "1" : "0",
+                ]
+            )
+            // #endregion
 
             if skipFullPipeline {
                 let rustFlag = screeningSnapshot?.output?.skipFullPlanPipeline == true

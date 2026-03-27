@@ -136,24 +136,56 @@ extension ChatPanelView {
         userRequest: String,
         planIntentConversationId: UUID? = nil
     ) -> String {
-        planRuntimeAction(
+        let snap = planRuntimeAction(
             "plan_prepare_phase0_screening_prompt",
             text: userRequest,
             shouldRunInline: planShouldRunInline,
             planIntentConversationId: planIntentConversationId
-        )?.output?.generatedPrompt ?? ""
+        )
+        let prompt = snap?.output?.generatedPrompt ?? ""
+        // #region agent log
+        PlanFlowDebugNDJSONLog.append(
+            hypothesisId: "A",
+            location: "PartO_PlanPromptBuilders.buildPhase0ScreeningPrompt",
+            message: "phase0_generated_prompt",
+            data: [
+                "userReqLen": "\(userRequest.count)",
+                "genLen": "\(prompt.count)",
+                "nilSnap": snap == nil ? "1" : "0",
+                "nilGenPromptField": (snap?.output?.generatedPrompt == nil) ? "1" : "0",
+                "inline": planShouldRunInline ? "1" : "0",
+            ]
+        )
+        // #endregion
+        return prompt
     }
 
     internal func buildPhase1AnalysisPrompt(
         userRequest: String,
         planIntentConversationId: UUID? = nil
     ) -> String {
-        planRuntimeAction(
+        let snap = planRuntimeAction(
             "plan_prepare_phase1_analysis_prompt",
             text: userRequest,
             shouldRunInline: planShouldRunInline,
             planIntentConversationId: planIntentConversationId
-        )?.output?.generatedPrompt ?? ""
+        )
+        let prompt = snap?.output?.generatedPrompt ?? ""
+        // #region agent log
+        PlanFlowDebugNDJSONLog.append(
+            hypothesisId: "B",
+            location: "PartO_PlanPromptBuilders.buildPhase1AnalysisPrompt",
+            message: "phase1_generated_prompt",
+            data: [
+                "userReqLen": "\(userRequest.count)",
+                "genLen": "\(prompt.count)",
+                "nilSnap": snap == nil ? "1" : "0",
+                "nilGenPromptField": (snap?.output?.generatedPrompt == nil) ? "1" : "0",
+                "inline": planShouldRunInline ? "1" : "0",
+            ]
+        )
+        // #endregion
+        return prompt
     }
 
     internal func buildPostClarificationAnalysisPrompt(

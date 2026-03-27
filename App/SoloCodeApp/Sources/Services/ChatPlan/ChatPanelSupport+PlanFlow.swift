@@ -119,11 +119,27 @@ extension ChatPanelView {
     /// Quando un prefight del piano fallisce (es. prompt vuoto) restando sulla stessa conversazione,
     /// `cleanupPlanFlowAfterConversationSwitch` non fa nulla (non è un cambio thread). Serve reset esplicito.
     @MainActor
-    internal func resetPlanFlowAfterAbortedPreflight(targetConversationId: UUID) {
-        if shouldMutatePlanState(
+    internal func resetPlanFlowAfterAbortedPreflight(
+        targetConversationId: UUID,
+        reason: String
+    ) {
+        let sameThread = shouldMutatePlanState(
             targetConversationId: targetConversationId,
             currentConversationId: conversationId
-        ) {
+        )
+        // #region agent log
+        PlanFlowDebugNDJSONLog.append(
+            hypothesisId: "C",
+            location: "ChatPanelSupport+PlanFlow.resetPlanFlowAfterAbortedPreflight",
+            message: "preflight_abort",
+            data: [
+                "reason": String(reason.prefix(120)),
+                "sameThread": sameThread ? "1" : "0",
+                "phaseBefore": String(describing: planFlowPhase),
+            ]
+        )
+        // #endregion
+        if sameThread {
             planFlowPhase = .idle
             planningState = .idle
             planClarificationQuestionnaire = nil

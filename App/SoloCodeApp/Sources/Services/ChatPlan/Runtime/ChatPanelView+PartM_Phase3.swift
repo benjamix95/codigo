@@ -67,7 +67,10 @@ extension ChatPanelView {
         }
         guard !generationPrompt.isEmpty else {
             await MainActor.run {
-                resetPlanFlowAfterAbortedPreflight(targetConversationId: conversationId)
+                resetPlanFlowAfterAbortedPreflight(
+                    targetConversationId: conversationId,
+                    reason: "empty_phase3_generation_prompt_after_bridge"
+                )
             }
             return
         }

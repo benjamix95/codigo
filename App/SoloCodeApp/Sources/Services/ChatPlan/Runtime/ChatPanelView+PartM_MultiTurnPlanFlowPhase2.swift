@@ -69,7 +69,10 @@ extension ChatPanelView {
         }
         guard !questionPrompt.isEmpty else {
             await MainActor.run {
-                resetPlanFlowAfterAbortedPreflight(targetConversationId: conversationId)
+                resetPlanFlowAfterAbortedPreflight(
+                    targetConversationId: conversationId,
+                    reason: "empty_phase2_question_prompt_after_bridge"
+                )
             }
             return .completed
         }
