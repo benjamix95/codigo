@@ -64,10 +64,28 @@ extension ChatPanelView {
     internal func streamingStatusText(for message: ChatMessage) -> String {
         guard message.isStreaming, message.role == .assistant else { return "" }
         let scopedActivities = scopedTaskActivities(for: conversationId)
-        return TaskActivityStore.streamingStatusText(
+        let taskDerivedStatus = TaskActivityStore.streamingStatusText(
             isPaused: executionController.runState == .paused,
             activities: scopedActivities
         )
+        guard let conversationId,
+              let runtimeStatus = chatStore.taskStatusTexts[conversationId]?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+              !runtimeStatus.isEmpty,
+              taskDerivedStatus == "Thinking" || taskDerivedStatus.isEmpty
+        else {
+            return taskDerivedStatus
+        }
+        ChatLiveDebugNDJSON.appendThrottled(
+            gateKey: "chat-status-override:\(conversationId.uuidString.lowercased())",
+            message: "streaming_status_runtime_override",
+            data: [
+                "conversationId": conversationId.uuidString.lowercased(),
+                "taskDerivedStatus": taskDerivedStatus,
+                "runtimeStatus": runtimeStatus,
+            ]
+        )
+        return runtimeStatus
     }
 
     internal func updateSidebarTaskStatus() {

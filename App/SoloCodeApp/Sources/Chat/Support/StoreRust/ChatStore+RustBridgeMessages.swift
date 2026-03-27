@@ -223,6 +223,14 @@ extension ChatStore {
     @MainActor
     func setTaskStatus(_ text: String, for conversationId: UUID?) {
         guard let id = conversationId else { return }
+        ChatLiveDebugNDJSON.appendThrottled(
+            gateKey: "task-status:\(id.uuidString.lowercased())",
+            message: "set_task_status",
+            data: [
+                "conversationId": id.uuidString.lowercased(),
+                "statusText": text,
+            ]
+        )
         requireRustTaskRuntime("set_task_status") { request in
             request.conversationId = id.uuidString.lowercased()
             request.statusText = text

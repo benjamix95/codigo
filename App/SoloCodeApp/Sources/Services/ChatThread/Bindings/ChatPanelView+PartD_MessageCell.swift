@@ -3,6 +3,54 @@ import CoderEngine
 import SwiftUI
 import UniformTypeIdentifiers
 
+struct ChatStreamingFooterResolution: Equatable {
+    let shouldComputeText: Bool
+    let statusText: String
+    let detailText: String?
+    let isActuallyLoading: Bool
+    let usesSnapshot: Bool
+}
+
+func resolveChatStreamingFooterResolution(
+    displayMessage: ChatMessage,
+    isLastAssistant: Bool,
+    lastMessage: ChatMessage?,
+    isLoadingForCurrentConversation: Bool,
+    snapshotIsLoading: Bool,
+    snapshotActiveAssistantMessageId: UUID?,
+    snapshotStreamingStatusText: String,
+    snapshotStreamingDetailText: String?,
+    fallbackStatusText: String,
+    fallbackDetailText: String?
+) -> ChatStreamingFooterResolution {
+    let isActiveStreamingAssistant =
+        isLastAssistant && displayMessage.isStreaming && isLoadingForCurrentConversation
+    let shouldHideStreamingBarOnPreviousAssistant =
+        displayMessage.role == .assistant
+        && !isLastAssistant
+        && lastMessage?.role == .assistant
+        && (lastMessage?.isStreaming ?? false)
+        && isLoadingForCurrentConversation
+    let shouldComputeStreamingText = isActiveStreamingAssistant && !shouldHideStreamingBarOnPreviousAssistant
+    let usesSnapshot =
+        shouldComputeStreamingText
+        && snapshotIsLoading
+        && displayMessage.id == snapshotActiveAssistantMessageId
+    let statusText = shouldComputeStreamingText
+        ? (usesSnapshot && !snapshotStreamingStatusText.isEmpty ? snapshotStreamingStatusText : fallbackStatusText)
+        : ""
+    let detailText = shouldComputeStreamingText
+        ? (usesSnapshot && snapshotStreamingDetailText != nil ? snapshotStreamingDetailText : fallbackDetailText)
+        : nil
+    return ChatStreamingFooterResolution(
+        shouldComputeText: shouldComputeStreamingText,
+        statusText: statusText,
+        detailText: detailText,
+        isActuallyLoading: isActiveStreamingAssistant,
+        usesSnapshot: usesSnapshot
+    )
+}
+
 extension ChatPanelView {
     @ViewBuilder
     internal func chatMessageCell(
@@ -80,39 +128,48 @@ extension ChatPanelView {
                     let displayMessage = suppressPlanArtifacts
                         ? chatDisplayMessage(from: message, conversationId: conversationId)
                         : message
-                    let isActiveStreamingAssistant = isLastAssistant && snapshotIsLoading
-                    let shouldHideStreamingBarOnPreviousAssistant =
-                        message.role == .assistant
-                        && !isLastAssistant
-                        && lastMsg?.role == .assistant
-                        && (lastMsg?.isStreaming ?? false)
-                        && snapshotIsLoading
+                    let fallbackStreamingStatusText = streamingStatusText(for: displayMessage)
+                    let fallbackStreamingDetailText = streamingDetailText(
+                        for: displayMessage,
+                        conversationId: conversationId
+                    )
+                    let footerResolution = resolveChatStreamingFooterResolution(
+                        displayMessage: displayMessage,
+                        isLastAssistant: isLastAssistant,
+                        lastMessage: lastMsg,
+                        isLoadingForCurrentConversation: isLoadingForCurrentConversation,
+                        snapshotIsLoading: snapshotIsLoading,
+                        snapshotActiveAssistantMessageId: snapshotActiveAssistantMessageId,
+                        snapshotStreamingStatusText: snapshotStreamingStatusText,
+                        snapshotStreamingDetailText: snapshotStreamingDetailText,
+                        fallbackStatusText: fallbackStreamingStatusText,
+                        fallbackDetailText: fallbackStreamingDetailText
+                    )
+                    let _ = {
+                        guard footerResolution.shouldComputeText else { return }
+                        ChatLiveDebugNDJSON.appendThrottled(
+                            gateKey: "footer:\(conversationId.uuidString.lowercased()):\(displayMessage.id.uuidString.lowercased())",
+                            message: "streaming_footer_resolution",
+                            data: [
+                                "conversationId": conversationId.uuidString.lowercased(),
+                                "messageId": displayMessage.id.uuidString.lowercased(),
+                                "isLastAssistant": isLastAssistant ? "true" : "false",
+                                "messageIsStreaming": displayMessage.isStreaming ? "true" : "false",
+                                "isLoadingForConversation": isLoadingForCurrentConversation ? "true" : "false",
+                                "snapshotIsLoading": snapshotIsLoading ? "true" : "false",
+                                "usesSnapshot": footerResolution.usesSnapshot ? "true" : "false",
+                                "statusText": footerResolution.statusText,
+                                "detailText": footerResolution.detailText ?? "",
+                            ]
+                        )
+                    }()
                     // Use pre-computed trace events from the parent scope.
                     // This avoids accessing toolTraceStore inside the ForEach
                     // body, which would register per-cell SwiftUI dependencies.
                     let traceEvents = precomputedTraceEvents
-                    // Only compute streaming status/detail for the active
-                    // streaming turn. For all other messages, use stable
-                    // empty values to avoid accessing taskActivityStore
-                    // (which would cause SwiftUI dependency tracking and
-                    // re-render all cells on every activity change).
-                    let shouldComputeStreamingText = isActiveStreamingAssistant && !shouldHideStreamingBarOnPreviousAssistant
-                    let resolvedStreamingStatusText = shouldComputeStreamingText
-                        ? (
-                            displayMessage.id == snapshotActiveAssistantMessageId
-                                ? snapshotStreamingStatusText
-                                : ""
-                        ) : ""
-                    let resolvedStreamingDetailText: String? = shouldComputeStreamingText
-                        ? (
-                            displayMessage.id == snapshotActiveAssistantMessageId
-                                ? snapshotStreamingDetailText
-                                : nil
-                        ) : nil
-                    // Only the active streaming turn should receive
-                    // isActuallyLoading=true. For all others, pass false
-                    // to prevent EQ-MISS when the global loading state changes.
-                    let cellIsLoading = isActiveStreamingAssistant && snapshotIsLoading
+                    let resolvedStreamingStatusText = footerResolution.statusText
+                    let resolvedStreamingDetailText = footerResolution.detailText
+                    let cellIsLoading = footerResolution.isActuallyLoading
                     if displayMessage.role == .user {
                         MessageRow(
                             message: displayMessage,
@@ -142,13 +199,13 @@ extension ChatPanelView {
                             && !todoStore.displayTodosForChat(for: conversationId).isEmpty
                             && message.id == todoCardAssistantMessageId
                         let liveInlineActivities: [TaskActivity] =
-                            (isLastAssistant && snapshotIsLoading && displayMessage.id == snapshotActiveAssistantMessageId)
+                            (footerResolution.usesSnapshot)
                             ? snapshotInlineActivities : []
                         let liveSupervisorActivities: [TaskActivity] =
-                            (isLastAssistant && snapshotIsLoading && displayMessage.id == snapshotActiveAssistantMessageId)
+                            (footerResolution.usesSnapshot)
                             ? snapshotSupervisorActivities : []
                         let liveSubagentCards: [SwarmLiveCardState] =
-                            (isLastAssistant && snapshotIsLoading && displayMessage.id == snapshotActiveAssistantMessageId)
+                            (footerResolution.usesSnapshot)
                             ? snapshotLiveSubagentCards : []
                         ChatTurnView(
                             message: displayMessage,
