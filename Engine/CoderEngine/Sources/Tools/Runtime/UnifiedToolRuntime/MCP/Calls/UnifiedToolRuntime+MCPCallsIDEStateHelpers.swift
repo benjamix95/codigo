@@ -66,7 +66,7 @@ extension UnifiedToolRuntime {
             metadata["tool_call_id"] = call.id
             metadata["group_id"] = call.id
         }
-        for key in ["tool_call_id", "group_id", "swarm_id", "status", "mcp_server", "server_id", "mcp_tool"] {
+        for key in ["tool_call_id", "group_id", "swarm_id", "status", "mcp_server", "server_id", "mcp_tool", "error_code"] {
             if let value = completedPayload[key]?.trimmingCharacters(in: .whitespacesAndNewlines),
                !value.isEmpty {
                 metadata[key] = value

@@ -80,6 +80,7 @@ public enum CoderIDECanonicalToolRegistry {
 }
 
 public final class CoderIDECanonicalToolRegistryStore {
+    private let sessionScopedFamilies: Set<String> = ["plan", "review", "security", "bughunter"]
     public let allRecords: [CanonicalToolRecord]
     public let runtimeAliasesToCanonicalName: [String: String]
     public let allowedRuntimeToolNames: Set<String>
@@ -214,5 +215,13 @@ public final class CoderIDECanonicalToolRegistryStore {
 
     public func isUsable(_ availability: CanonicalToolAvailability) -> Bool {
         availability != .blocked
+    }
+
+    public func requiresExplicitSessionExposure(
+        for record: CanonicalToolRecord,
+        on surface: CanonicalToolSurface
+    ) -> Bool {
+        guard sessionScopedFamilies.contains(record.family) else { return false }
+        return isUsable(availability(for: record, on: surface))
     }
 }

@@ -73,4 +73,27 @@ final class CoderIDECanonicalToolRegistryTests: XCTestCase {
             "plan_create"
         )
     }
+
+    func testRegistryKnowsWhichFamiliesRequireExplicitMCPSessionExposure() {
+        let registry = CoderIDECanonicalToolRegistry.shared
+
+        XCTAssertTrue(
+            registry.requiresExplicitSessionExposure(
+                for: try XCTUnwrap(registry.record(forRuntimeName: "review_start")),
+                on: .app
+            )
+        )
+        XCTAssertTrue(
+            registry.requiresExplicitSessionExposure(
+                for: try XCTUnwrap(registry.record(forRuntimeName: "plan_create")),
+                on: .app
+            )
+        )
+        XCTAssertFalse(
+            registry.requiresExplicitSessionExposure(
+                for: try XCTUnwrap(registry.record(forRuntimeName: "read")),
+                on: .app
+            )
+        )
+    }
 }

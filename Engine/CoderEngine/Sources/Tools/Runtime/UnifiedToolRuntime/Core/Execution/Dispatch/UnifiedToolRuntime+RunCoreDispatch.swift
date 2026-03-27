@@ -8,6 +8,11 @@ extension UnifiedToolRuntime {
         startDate: Date
     ) async -> ToolResult {
         do {
+            try ensureCanonicalMCPSessionExposureIfNeeded(
+                normalizedName: normalizedName,
+                context: context
+            )
+
             if context.policy.enableMCP,
                Self.shouldPreferRustAlias(for: normalizedName),
                MCPNativeToolRegistry.shared.hasTools(),
@@ -37,13 +42,12 @@ extension UnifiedToolRuntime {
                 startDate: startDate
             )
         } catch let err as ToolRuntimeError {
-            let isMCP = context.policy.enableMCP && (
-                MCPNativeToolRegistry.shared.routing[normalizedName] != nil ||
-                MCPNativeToolRegistry.shared.aliasRoute(for: normalizedName) != nil ||
-                (Self.shouldPreferRustAlias(for: normalizedName) && MCPNativeToolRegistry.shared.hasTools()) ||
-                canFallbackToMCP(toolName: normalizedName, call: call)
+            let isMCP = isMCPFailureCandidate(
+                normalizedName: normalizedName,
+                call: call,
+                context: context
             )
-            let mcpPayload = isMCP ? ["is_mcp": "true"] : [String: String]()
+            let mcpPayload = mcpFailurePayload(for: normalizedName, isMCP: isMCP)
             return failure(
                 err.localizedDescription,
                 errorCode: err.errorCode,
@@ -51,13 +55,12 @@ extension UnifiedToolRuntime {
                 payload: mcpPayload
             )
         } catch {
-            let isMCP = context.policy.enableMCP && (
-                MCPNativeToolRegistry.shared.routing[normalizedName] != nil ||
-                MCPNativeToolRegistry.shared.aliasRoute(for: normalizedName) != nil ||
-                (Self.shouldPreferRustAlias(for: normalizedName) && MCPNativeToolRegistry.shared.hasTools()) ||
-                canFallbackToMCP(toolName: normalizedName, call: call)
+            let isMCP = isMCPFailureCandidate(
+                normalizedName: normalizedName,
+                call: call,
+                context: context
             )
-            let mcpPayload = isMCP ? ["is_mcp": "true"] : [String: String]()
+            let mcpPayload = mcpFailurePayload(for: normalizedName, isMCP: isMCP)
             return failure(
                 error.localizedDescription,
                 errorCode: "unknown",
@@ -214,6 +217,58 @@ extension UnifiedToolRuntime {
             }
             throw ToolRuntimeError.validation("Unsupported tool: \(normalizedName)")
         }
+    }
+
+    private func ensureCanonicalMCPSessionExposureIfNeeded(
+        normalizedName: String,
+        context: ToolExecutionContext
+    ) throws {
+        guard context.policy.enableMCP,
+              let record = CoderIDECanonicalToolRegistry.shared.record(forRuntimeName: normalizedName),
+              CoderIDECanonicalToolRegistry.shared.requiresExplicitSessionExposure(for: record, on: .app)
+        else {
+            return
+        }
+
+        let hasNativeRoute =
+            MCPNativeToolRegistry.shared.routing[normalizedName] != nil ||
+            MCPNativeToolRegistry.shared.aliasRoute(for: normalizedName) != nil ||
+            preferredRustAliasRoute(for: normalizedName) != nil
+        guard !hasNativeRoute else { return }
+
+        throw ToolRuntimeError.mcpUnavailable(
+            "Current MCP session does not expose required tool '\(record.mcpName)' for canonical tool '\(record.runtimeName)'"
+        )
+    }
+
+    private func mcpFailurePayload(for normalizedName: String, isMCP: Bool) -> [String: String] {
+        guard isMCP else { return [:] }
+        var payload = ["is_mcp": "true"]
+        if let route = preferredRustAliasRoute(for: normalizedName) {
+            payload["mcp_tool"] = route.toolName
+            payload["server_id"] = route.serverId
+        } else if let record = CoderIDECanonicalToolRegistry.shared.record(forRuntimeName: normalizedName) {
+            payload["mcp_tool"] = record.mcpName
+        }
+        return payload
+    }
+
+    private func isMCPFailureCandidate(
+        normalizedName: String,
+        call: ToolCall,
+        context: ToolExecutionContext
+    ) -> Bool {
+        guard context.policy.enableMCP else { return false }
+        if MCPNativeToolRegistry.shared.routing[normalizedName] != nil ||
+            MCPNativeToolRegistry.shared.aliasRoute(for: normalizedName) != nil ||
+            (Self.shouldPreferRustAlias(for: normalizedName) && MCPNativeToolRegistry.shared.hasTools()) ||
+            canFallbackToMCP(toolName: normalizedName, call: call) {
+            return true
+        }
+        guard let record = CoderIDECanonicalToolRegistry.shared.record(forRuntimeName: normalizedName) else {
+            return false
+        }
+        return CoderIDECanonicalToolRegistry.shared.requiresExplicitSessionExposure(for: record, on: .app)
     }
 
     private func runLegacyRustFirstFallbackIfNeeded(

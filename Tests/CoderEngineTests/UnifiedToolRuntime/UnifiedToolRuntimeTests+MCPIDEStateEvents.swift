@@ -106,6 +106,36 @@ extension UnifiedToolRuntimeTests {
         XCTAssertEqual(rawEvents["tool_validation_error"]?["tool"], "todo_write")
     }
 
+    func testSyntheticIDEStateEventsFromMCPFailurePreservesSpecificErrorCode() {
+        let call = ToolCall(
+            id: "tc-plan-fail",
+            name: "mcp_call",
+            args: [
+                "tool": "coderide_plan_create",
+                "goal": "Allineare session gating",
+            ],
+            sourceProvider: "test",
+            swarmId: nil,
+            scope: .agent
+        )
+        let completedPayload: [String: String] = [
+            "status": "failed",
+            "is_mcp": "true",
+            "mcp_tool": "coderide_plan_create",
+            "detail": "Current MCP session does not expose required tool 'coderide_plan_create'",
+            "error_code": "mcp_unavailable",
+        ]
+
+        let events = UnifiedToolRuntime.syntheticIDEStateEventsFromMCP(
+            call: call,
+            completedPayload: completedPayload
+        )
+        let rawEvents = rawEventsByType(events)
+
+        XCTAssertEqual(rawEvents["tool_validation_error"]?["error_code"], "mcp_unavailable")
+        XCTAssertEqual(rawEvents["tool_validation_error"]?["tool"], "plan_create")
+    }
+
     func testSyntheticIDEStateEventsFromMCPRejectsInvalidTodosJSON() {
         let call = ToolCall(
             id: "tc-invalid-todos",

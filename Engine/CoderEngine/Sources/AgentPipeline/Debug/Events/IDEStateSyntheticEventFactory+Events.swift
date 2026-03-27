@@ -25,13 +25,13 @@ extension IDEStateSyntheticEventFactory {
         func failureEvent(
             toolName: String,
             detail: String,
-            errorCode: String = "mcp_tool_call_failed"
+            errorCode: String? = nil
         ) -> IDEStateSyntheticEvent {
             wrapped("tool_validation_error", [
                 "title": "\(toolName) failed",
                 "detail": detail,
                 "status": "failed",
-                "error_code": errorCode,
+                "error_code": errorCode ?? metadata["error_code"] ?? "mcp_tool_call_failed",
                 "tool": toolName,
             ])
         }

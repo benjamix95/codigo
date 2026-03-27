@@ -558,6 +558,48 @@ final class UnifiedToolRuntimeMCPConsistencyTests: XCTestCase {
         XCTAssertEqual(completed?["status"], "failed")
         XCTAssertEqual(completed?["error_code"], "mcp_unavailable")
         XCTAssertEqual(completed?["is_mcp"], "true")
-        XCTAssertNil(completed?["mcp_tool"])
+        XCTAssertEqual(completed?["mcp_tool"], "coderide_grep")
+    }
+
+    func testSessionScopedCanonicalReviewToolFailsExplicitlyWhenCurrentSessionDoesNotExposeIt() async throws {
+        let registry = MCPNativeToolRegistry.shared
+        registry.clear()
+        defer { registry.clear() }
+
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let runtime = UnifiedToolRuntime()
+        let (call, ctx) = makeCall(name: "review_start", workspace: tmp)
+        let events = await runtime.execute(call, context: ctx)
+        let completed = extractPayload(events, matchingTool: "review_start")
+        let message = completed?["detail"] ?? completed?["output"] ?? ""
+
+        XCTAssertEqual(completed?["status"], "failed")
+        XCTAssertEqual(completed?["error_code"], "mcp_unavailable")
+        XCTAssertEqual(completed?["is_mcp"], "true")
+        XCTAssertEqual(completed?["mcp_tool"], "coderide_review_start")
+        XCTAssertTrue(message.contains("does not expose required tool 'coderide_review_start'"))
+    }
+
+    func testSessionScopedCanonicalPlanToolFailsExplicitlyWhenCurrentSessionDoesNotExposeIt() async throws {
+        let registry = MCPNativeToolRegistry.shared
+        registry.clear()
+        defer { registry.clear() }
+
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let runtime = UnifiedToolRuntime()
+        let (call, ctx) = makeCall(name: "plan_create", args: ["goal": "align runtime"], workspace: tmp)
+        let events = await runtime.execute(call, context: ctx)
+        let completed = extractPayload(events, matchingTool: "plan_create")
+        let message = completed?["detail"] ?? completed?["output"] ?? ""
+
+        XCTAssertEqual(completed?["status"], "failed")
+        XCTAssertEqual(completed?["error_code"], "mcp_unavailable")
+        XCTAssertEqual(completed?["is_mcp"], "true")
+        XCTAssertEqual(completed?["mcp_tool"], "coderide_plan_create")
+        XCTAssertTrue(message.contains("does not expose required tool 'coderide_plan_create'"))
     }
 }
