@@ -45,6 +45,9 @@ extension ChatPanelView {
         }
 
         let scoped = scopedTaskActivities(for: convId)
+        let latestAssistantUpdate = scoped.last(where: {
+            TaskActivityStore.normalizedEventType($0.type) == "assistant_update"
+        })
         let status = TaskActivityStore.streamingStatusText(
             isPaused: executionController.runState == .paused,
             activities: scoped
@@ -89,6 +92,56 @@ extension ChatPanelView {
             from: taskActivityStore.swarmCardStates(for: convId)
         )
 
+        // #region agent log
+        if latestAssistantUpdate != nil || snapshotStreamingStatusText == "Thinking" {
+            let assistantLogPresent = latestAssistantUpdate != nil
+            let assistantLogIsRunning: String = {
+                guard let u = latestAssistantUpdate else { return "nil" }
+                return "\(u.isRunning)"
+            }()
+            let assistantLogDetail = String((latestAssistantUpdate?.detail ?? "").prefix(120))
+            let assistantLogScope: String = {
+                guard let u = latestAssistantUpdate else { return "nil" }
+                return canonicalConversationScope(from: u.payload) ?? "nil"
+            }()
+            let h17Data: [String: String] = [
+                "conversationId": convId.uuidString,
+                "scopedCount": "\(scoped.count)",
+                "assistantUpdatePresent": "\(assistantLogPresent)",
+                "assistantUpdateIsRunning": assistantLogIsRunning,
+                "assistantUpdateDetail": assistantLogDetail,
+                "assistantUpdateConversationScope": assistantLogScope,
+                "computedStatus": status,
+                "computedDetail": detail ?? "",
+            ]
+            RuntimeEvidenceDebugLog.appendThrottled(
+                gateKey: "H17-live-snapshot-\(convId.uuidString)",
+                minInterval: 0.25,
+                hypothesisId: "H17",
+                location: "refreshLiveActivitySnapshot",
+                message: "live_snapshot_inputs",
+                data: h17Data
+            )
+        }
+        // #endregion
+
+        if snapshotStreamingStatusText != status || snapshotStreamingDetailText != detail {
+            // #region agent log
+            RuntimeEvidenceDebugLog.append(
+                hypothesisId: "H7",
+                location: "refreshLiveActivitySnapshot",
+                message: "chat_snapshot_status_updated",
+                data: [
+                    "conversationId": convId.uuidString,
+                    "status": status,
+                    "detail": detail ?? "",
+                    "previousStatus": snapshotStreamingStatusText,
+                    "previousDetail": snapshotStreamingDetailText ?? "",
+                    "activitiesCount": "\(scoped.count)",
+                ]
+            )
+            // #endregion
+        }
         snapshotActiveAssistantMessageId = activeAssistant.id
         snapshotStreamingStatusText = status
         snapshotStreamingDetailText = detail

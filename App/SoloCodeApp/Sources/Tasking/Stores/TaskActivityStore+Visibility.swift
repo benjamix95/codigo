@@ -296,7 +296,7 @@ extension TaskActivityStore {
         return trimmed
     }
 
-    private static func normalizedEventType(_ type: String) -> String {
+    internal static func normalizedEventType(_ type: String) -> String {
         let lowered = type
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
