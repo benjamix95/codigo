@@ -194,9 +194,13 @@ extension ChatPanelView {
                             showTopDivider: needsDivider
                         )
                     } else {
+                        let planScopedTodoItems = todoStore.displayPlanScopedTodos(
+                            for: conversationId,
+                            includeOperationalPlaceholders: false
+                        )
                         let shouldShowTodoCardInTurn =
                             shouldShowPlanTodosInChat
-                            && !todoStore.displayTodosForChat(for: conversationId).isEmpty
+                            && !planScopedTodoItems.isEmpty
                             && message.id == todoCardAssistantMessageId
                         let liveInlineActivities: [TaskActivity] =
                             (footerResolution.usesSnapshot)
@@ -219,7 +223,7 @@ extension ChatPanelView {
                             supervisorActivities: liveSupervisorActivities,
                             liveSubagentCards: liveSubagentCards,
                             todoItems: shouldShowTodoCardInTurn
-                                ? todoStore.displayTodosForChat(for: conversationId) : [],
+                                ? planScopedTodoItems : [],
                             conversationId: conversationId,
                             reasoningPolicyProviderId: resolvedTurnProviderId(for: conversationId),
                             shouldShowTodo: shouldShowTodoCardInTurn,

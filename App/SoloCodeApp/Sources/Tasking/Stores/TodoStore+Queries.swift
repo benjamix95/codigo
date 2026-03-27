@@ -102,6 +102,45 @@ extension TodoStore {
         return resolved
     }
 
+    /// Composer durante Plan: include todo operativi (placeholder) ancorati al thread.
+    func displayTodosForComposer(
+        for conversationId: UUID,
+        includeOperationalRuntimeTodos: Bool
+    ) -> [TodoItem] {
+        if includeOperationalRuntimeTodos {
+            return displayPlanScopedTodos(
+                for: conversationId,
+                includeOperationalPlaceholders: true
+            )
+        }
+        return displayTodosForChat(for: conversationId)
+    }
+
+    func displayPlanScopedTodos(
+        for conversationId: UUID?,
+        includeOperationalPlaceholders: Bool
+    ) -> [TodoItem] {
+        let canonical = canonicalTodos(for: conversationId)
+        guard includeOperationalPlaceholders, let conversationId else {
+            return canonical
+        }
+
+        let ops = todos.filter {
+            $0.isOperationalPlaceholder
+                && $0.status != .done
+                && $0.planConversationId == conversationId
+        }
+        let existing = Set(canonical.map(\.id))
+        let merged = canonical + ops.filter { !existing.contains($0.id) }
+        return merged.sorted { lhs, rhs in
+            if lhs.isPlanCanonical != rhs.isPlanCanonical { return lhs.isPlanCanonical && !rhs.isPlanCanonical }
+            let lo = lhs.planOrder ?? Int.max
+            let ro = rhs.planOrder ?? Int.max
+            if lo != ro { return lo < ro }
+            return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+        }
+    }
+
     func canonicalScopeFilter(for conversationId: UUID?) -> (TodoItem) -> Bool {
         guard let conversationId else {
             return { $0.isPlanCanonical }

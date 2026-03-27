@@ -95,6 +95,64 @@ final class TodoStoreTests: XCTestCase {
         XCTAssertEqual(scoped.map(\.planOrder), [0, 1, 2])
     }
 
+    func testDisplayTodosForComposerInPlanModeExcludesLegacyRuntimeTodos() {
+        let store = makeStore()
+        let conversationId = UUID()
+
+        store.upsertCanonicalPlanTodos(["Plan A", "Plan B"], conversationId: conversationId)
+        store.upsertFromAgent(
+            id: nil,
+            title: "Runtime legacy",
+            status: .pending,
+            priority: .medium,
+            notes: nil,
+            linkedFiles: [],
+            conversationId: conversationId
+        )
+        store.upsertFromAgent(
+            id: nil,
+            title: "Plan analyzing",
+            status: .inProgress,
+            priority: .medium,
+            notes: nil,
+            activeForm: "Plan analyzing",
+            isOperationalPlaceholder: true,
+            linkedFiles: [],
+            conversationId: conversationId
+        )
+
+        let displayed = store.displayTodosForComposer(
+            for: conversationId,
+            includeOperationalRuntimeTodos: true
+        )
+
+        XCTAssertEqual(displayed.map(\.title), ["Plan A", "Plan B", "Plan analyzing"])
+        XCTAssertFalse(displayed.contains { $0.title == "Runtime legacy" })
+    }
+
+    func testDisplayPlanScopedTodosForChatExcludesLegacyRuntimeTodos() {
+        let store = makeStore()
+        let conversationId = UUID()
+
+        store.upsertCanonicalPlanTodos(["Plan only"], conversationId: conversationId)
+        store.upsertFromAgent(
+            id: nil,
+            title: "Legacy runtime",
+            status: .pending,
+            priority: .medium,
+            notes: nil,
+            linkedFiles: [],
+            conversationId: conversationId
+        )
+
+        let displayed = store.displayPlanScopedTodos(
+            for: conversationId,
+            includeOperationalPlaceholders: false
+        )
+
+        XCTAssertEqual(displayed.map(\.title), ["Plan only"])
+    }
+
     func testPrepareCanonicalPlanTodosForBuildSetsFirstInProgressAndResetsOthers() {
         let store = makeStore()
         let conversationId = UUID()
