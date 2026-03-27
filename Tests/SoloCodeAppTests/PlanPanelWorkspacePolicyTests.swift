@@ -280,4 +280,25 @@ final class PlanPanelWorkspacePolicyTests: XCTestCase {
             )
         )
     }
+
+    func testNoContextHistoryCompatibilityAllowsSiblingConversationEntries() {
+        let entry = PlanHistoryEntry(
+            conversationId: UUID(),
+            contextId: nil,
+            contextFolderPath: nil,
+            title: "Sibling plan",
+            markdown: "# Plan",
+            options: [],
+            chosenPath: nil
+        )
+
+        XCTAssertTrue(
+            isPlanHistoryEntryCompatibleWithCurrentContext(
+                entry: entry,
+                currentConversationId: UUID(),
+                currentContextId: nil,
+                currentContextFolderPath: nil
+            )
+        )
+    }
 }

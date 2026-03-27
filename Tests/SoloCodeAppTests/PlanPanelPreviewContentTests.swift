@@ -124,4 +124,41 @@ final class PlanPanelPreviewContentTests: XCTestCase {
 
         XCTAssertEqual(content, "## Plan\n\nLive chosen")
     }
+
+    func testBuildChoicePrefersSelectedHistoryWhenLiveBoardIsNotPreferred() {
+        let liveBoard = PlanBoard(
+            goal: "Live goal",
+            options: [PlanOption(id: 1, title: "A", fullText: "## Plan\n\nLive option")],
+            chosenPath: "## Plan\n\nLive chosen",
+            steps: [],
+            updatedAt: .now
+        )
+
+        let choice = preferredPlanPanelBuildChoice(
+            preferLiveBoard: false,
+            liveBoard: liveBoard,
+            selectedHistoryBuildContent: "## Todo\n- [ ] Use history"
+        )
+
+        XCTAssertEqual(choice?.text, "## Todo\n- [ ] Use history")
+        XCTAssertEqual(choice?.isFallback, false)
+    }
+
+    func testBuildChoiceDoesNotFallBackToLiveBoardWhenSelectedHistoryIsUnbuildable() {
+        let liveBoard = PlanBoard(
+            goal: "Live goal",
+            options: [PlanOption(id: 1, title: "A", fullText: "## Plan\n\nLive option")],
+            chosenPath: "## Plan\n\nLive chosen",
+            steps: [],
+            updatedAt: .now
+        )
+
+        let choice = preferredPlanPanelBuildChoice(
+            preferLiveBoard: false,
+            liveBoard: liveBoard,
+            selectedHistoryBuildContent: nil
+        )
+
+        XCTAssertNil(choice)
+    }
 }

@@ -11,7 +11,8 @@ extension PlanHistoryStore {
         options: [PlanOption],
         chosenPath: String?,
         tags: [String],
-        sourceMessageId: UUID?
+        sourceMessageId: UUID?,
+        selectForConversation: Bool = true
     ) -> PlanHistoryEntry {
         let sanitizedMarkdown = String(markdown.prefix(configuredMaxMarkdownLength))
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -33,8 +34,10 @@ extension PlanHistoryStore {
         )
         entries.append(entry)
         _ = trimEntriesInMemory()
-        selectedEntryIdByConversation[conversationId] = entry.id
-        selectedEntryId = entry.id
+        if selectForConversation {
+            selectedEntryIdByConversation[conversationId] = entry.id
+            selectedEntryId = entry.id
+        }
         save()
 
         // Also write .md file to .solocode/plan/

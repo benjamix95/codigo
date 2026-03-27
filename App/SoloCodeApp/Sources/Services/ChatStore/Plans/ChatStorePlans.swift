@@ -83,11 +83,14 @@ func backfillPlanAttachmentsIfNeeded(historyStore: PlanHistoryStore) {
             )
             let existingByHash = historyStore.entries.first(where: { entry in
                 guard entry.conversationId == conv.id else { return false }
-                guard entry.sourceMessageId == msg.id else { return false }
+                guard entry.sourceMessageId == nil || entry.sourceMessageId == msg.id else { return false }
                 return normalizedPlanContentHash(entry.markdown) == normalizedHash
             })
             let entry: PlanHistoryEntry
             if let existingByHash {
+                if existingByHash.sourceMessageId == nil {
+                    historyStore.updateSourceMessageId(id: existingByHash.id, sourceMessageId: msg.id)
+                }
                 entry = existingByHash
             } else if let existing {
                 entry = existing
@@ -101,7 +104,8 @@ func backfillPlanAttachmentsIfNeeded(historyStore: PlanHistoryStore) {
                     options: opts,
                     chosenPath: nil,
                     tags: [],
-                    sourceMessageId: msg.id
+                    sourceMessageId: msg.id,
+                    selectForConversation: false
                 )
             }
             msg.planAttachment = PlanAttachment(

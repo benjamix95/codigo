@@ -110,9 +110,9 @@ func isPlanHistoryEntryCompatibleWithCurrentContext(
     currentContextId: UUID?,
     currentContextFolderPath: String?
 ) -> Bool {
-    guard let currentConversationId else { return false }
+    guard currentConversationId != nil else { return false }
     if currentContextId == nil && currentContextFolderPath == nil {
-        return entry.conversationId == currentConversationId
+        return true
     }
     let matchesContext = currentContextId != nil && entry.contextId == currentContextId
     let matchesFolder = currentContextFolderPath != nil && entry.contextFolderPath == currentContextFolderPath
@@ -226,6 +226,36 @@ func preferredPlanPanelDisplayContent(
         return first.fullText
     }
     return nil
+}
+
+func preferredPlanPanelBuildChoice(
+    preferLiveBoard: Bool,
+    liveBoard: PlanBoard?,
+    selectedHistoryBuildContent: String?
+) -> (text: String, isFallback: Bool)? {
+    let normalizedHistoryBuildContent = selectedHistoryBuildContent?
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    if !preferLiveBoard {
+        guard let normalizedHistoryBuildContent else { return nil }
+        guard !normalizedHistoryBuildContent.isEmpty,
+              let selectedHistoryBuildContent else {
+            return nil
+        }
+        return (selectedHistoryBuildContent, false)
+    }
+
+    guard let liveBoard else { return nil }
+    guard let liveBoardChoice = fallbackPlanBuildContent(
+        goal: liveBoard.goal,
+        chosenPath: liveBoard.chosenPath,
+        steps: liveBoard.steps
+    ) else {
+        return nil
+    }
+    let isFallback = liveBoard.chosenPath?
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .isEmpty ?? true
+    return (liveBoardChoice, isFallback)
 }
 
 func fallbackPlanBuildContent(

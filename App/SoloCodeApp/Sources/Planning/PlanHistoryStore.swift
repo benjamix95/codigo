@@ -54,10 +54,25 @@ final class PlanHistoryStore: ObservableObject {
         guard let convId = notification.userInfo?["conversationId"] as? UUID,
               let board = notification.userInfo?["board"] as? PlanBoard
         else { return }
-        guard let idx = entries.firstIndex(where: { $0.conversationId == convId })
+        let targetEntryId = selectedEntryIdByConversation[convId]
+        let matchingIndices = entries.indices.filter { entries[$0].conversationId == convId }
+        guard !matchingIndices.isEmpty else { return }
+        let idx = matchingIndices
+            .sorted { lhs, rhs in
+                let lhsEntry = entries[lhs]
+                let rhsEntry = entries[rhs]
+                if lhsEntry.id == targetEntryId { return true }
+                if rhsEntry.id == targetEntryId { return false }
+                return lhsEntry.createdAt > rhsEntry.createdAt
+            }
+            .first
+        guard let idx
         else { return }
         let markdown = boardToMarkdown(board)
+        entries[idx].title = sanitizeTitle(board.goal)
         entries[idx].markdown = String(markdown.prefix(configuredMaxMarkdownLength))
+        entries[idx].options = Array(board.options.prefix(maxPlanOptionsPersisted))
+        entries[idx].chosenPath = board.chosenPath
         entries[idx].updatedAt = .now
         save()
         writePlanFile(entry: entries[idx])

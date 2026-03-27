@@ -89,25 +89,14 @@ extension PlanPanelView {
             phase: planFlowPhase,
             planningState: planningState
         )
-        if let board = chatStore.planBoard(for: conversationId) {
-            if let liveBoardChoice = fallbackPlanBuildContent(
-                goal: board.goal,
-                chosenPath: board.chosenPath,
-                steps: board.steps
-            ) {
-                return (liveBoardChoice, board.chosenPath?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
-            }
-            if preferLiveBoard {
-                return nil
-            }
-        }
-        if let selected = selectedHistoryEntryForConversation() {
-            if let chosen = resolvedBuildContent(for: selected) {
-                return (chosen, false)
-            }
-            return nil
-        }
-        return nil
+        let selectedHistoryBuildContent = selectedHistoryEntryForConversation()
+            .flatMap(resolvedBuildContent(for:))
+        let liveBoard = chatStore.planBoard(for: conversationId)
+        return preferredPlanPanelBuildChoice(
+            preferLiveBoard: preferLiveBoard,
+            liveBoard: liveBoard,
+            selectedHistoryBuildContent: selectedHistoryBuildContent
+        )
     }
 
     func selectedOptionId(in options: [PlanOption]) -> Int? {

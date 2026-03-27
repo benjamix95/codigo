@@ -79,4 +79,59 @@ final class ChatStorePlanAttachmentTests: XCTestCase {
         let loaded = chat.conversation(for: conversationId)?.messages.first
         XCTAssertNotNil(loaded?.planAttachment)
     }
+
+    func testBackfillReusesLegacyHashMatchWithoutSelectingConversation() throws {
+        let message = ChatMessage(
+            role: .assistant,
+            content: """
+            ## Option 1: Robust fix
+            ## Todo
+            - [ ] Improve isolation
+            """,
+            isStreaming: false
+        )
+        let chat = ChatStore(userDefaults: isolatedDefaults)
+        chat.conversations = []
+        let conversationId = chat.createConversation(
+            contextId: nil,
+            contextFolderPath: nil,
+            mode: .agent
+        )
+        chat.addMessage(message, to: conversationId)
+
+        let suiteName = "ChatStorePlanAttachmentTests.\(UUID().uuidString)"
+        let isolatedDefaults = UserDefaults(suiteName: suiteName)!
+        isolatedDefaults.removePersistentDomain(forName: suiteName)
+        let isolatedHistoryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("planHistory-\(UUID().uuidString).json")
+        defer {
+            isolatedDefaults.removePersistentDomain(forName: suiteName)
+            try? FileManager.default.removeItem(at: isolatedHistoryURL)
+        }
+        let history = PlanHistoryStore(
+            userDefaults: isolatedDefaults,
+            storageURL: isolatedHistoryURL
+        )
+        let legacyEntry = history.createEntry(
+            conversationId: conversationId,
+            contextId: nil,
+            contextFolderPath: nil,
+            title: "Legacy entry",
+            markdown: message.content,
+            options: [],
+            chosenPath: nil,
+            tags: [],
+            sourceMessageId: nil,
+            selectForConversation: false
+        )
+        history.setSelectedEntry(id: nil, conversationId: conversationId)
+
+        chat.backfillPlanAttachmentsIfNeeded(historyStore: history)
+
+        XCTAssertEqual(history.entries.count, 1)
+        XCTAssertEqual(history.findEntry(id: legacyEntry.id)?.sourceMessageId, message.id)
+        XCTAssertNil(history.selectedEntryId(for: conversationId))
+        let loaded = chat.conversation(for: conversationId)?.messages.first
+        XCTAssertEqual(loaded?.planAttachment?.historyEntryId, legacyEntry.id)
+    }
 }
