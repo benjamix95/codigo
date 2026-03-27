@@ -80,6 +80,10 @@ struct SoloCodeApp: App {
     @AppStorage("tavily_api_key") var tavilyApiKey = ""
     @AppStorage("serper_api_key") var serperApiKey = ""
 
+    init() {
+        installAppProcessSignalGuardsIfNeeded()
+    }
+
     var body: some Scene {
         WindowGroup("") {
             rootContentView

@@ -17,13 +17,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     ]
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Ignore SIGHUP/SIGPIPE: the app orchestrates subprocesses over stdio
-        // pipes (CLI providers, MCP servers, LLDB). If a child exits while we
-        // still hold an in-flight read/write on those pipes, Darwin can deliver
-        // a signal to the parent process instead of surfacing a recoverable
-        // EPIPE/HUP error in Swift code.
-        signal(SIGHUP, SIG_IGN)
-        signal(SIGPIPE, SIG_IGN)
+        // Reinforce ignored parent-process signals at app launch. The same
+        // guard is installed earlier in SoloCodeApp.init() to close the gap
+        // before NSApplicationDelegate finishes bootstrapping.
+        installAppProcessSignalGuardsIfNeeded()
 
         NSApplication.shared.setActivationPolicy(.regular)
         disableWindowRestorationLoop()
