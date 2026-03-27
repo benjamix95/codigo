@@ -4,8 +4,6 @@ import SwiftUI
 // MARK: - ChatTurnAction
 
 /// Actions that ChatTurnView can dispatch to its parent.
-/// Replaces 7 separate closure parameters, enabling Equatable
-/// conformance on ChatTurnView (closures are not Equatable).
 enum ChatTurnAction: Equatable {
     case fileClicked(String)
     case reviewChanges
@@ -16,62 +14,13 @@ enum ChatTurnAction: Equatable {
     case delete
 }
 
-private struct ChatTurnLiveCardFingerprint: Equatable {
-    let snapshot: SubagentCardSnapshot
-    let isCollapsed: Bool
-    let hasUnreadSinceCollapse: Bool
-
-    init(card: SwarmLiveCardState) {
-        self.snapshot = SubagentCardSnapshot(from: card)
-        self.isCollapsed = card.isCollapsed
-        self.hasUnreadSinceCollapse = card.hasUnreadSinceCollapse
-    }
-}
-
-private struct ChatTurnSegmentView: View, Equatable {
+private struct ChatTurnSegmentView: View {
     let segment: ChatTurnInterleavedSegment
     let context: ProjectContext?
     let modeColor: Color
     let isLiveStreaming: Bool
     let workspaceHints: [String]
     let onAction: (ChatTurnAction) -> Void
-
-    static func == (lhs: ChatTurnSegmentView, rhs: ChatTurnSegmentView) -> Bool {
-        guard lhs.isLiveStreaming == rhs.isLiveStreaming,
-              lhs.workspaceHints == rhs.workspaceHints else { return false }
-
-        let lhsContextKey = lhs.context.map { "\($0.id.uuidString.lowercased())|\($0.folderPaths.joined(separator: "|"))" }
-        let rhsContextKey = rhs.context.map { "\($0.id.uuidString.lowercased())|\($0.folderPaths.joined(separator: "|"))" }
-        guard lhsContextKey == rhsContextKey else { return false }
-
-        switch (lhs.segment, rhs.segment) {
-        case let (.text(lhsId, lhsContent, lhsSequence), .text(rhsId, rhsContent, rhsSequence)):
-            return lhsId == rhsId && lhsContent == rhsContent && lhsSequence == rhsSequence
-
-        case let (.reasoning(lhsId, lhsText, lhsSequence), .reasoning(rhsId, rhsText, rhsSequence)):
-            return lhsId == rhsId && lhsText == rhsText && lhsSequence == rhsSequence
-
-        case let (.toolEvent(lhsId, lhsEvent, lhsSequence), .toolEvent(rhsId, rhsEvent, rhsSequence)):
-            return lhsId == rhsId && lhsEvent == rhsEvent && lhsSequence == rhsSequence
-
-        case let (.toolGroup(lhsId, lhsGroup, lhsSequence), .toolGroup(rhsId, rhsGroup, rhsSequence)):
-            return lhsId == rhsId && lhsGroup == rhsGroup && lhsSequence == rhsSequence
-
-        case let (.subagentLiveCard(lhsId, lhsCard, lhsSequence), .subagentLiveCard(rhsId, rhsCard, rhsSequence)):
-            return lhsId == rhsId
-                && ChatTurnLiveCardFingerprint(card: lhsCard) == ChatTurnLiveCardFingerprint(card: rhsCard)
-                && lhsSequence == rhsSequence
-
-        case let (.subagentSnapshot(lhsId, lhsSnapshot, lhsSequence), .subagentSnapshot(rhsId, rhsSnapshot, rhsSequence)):
-            return lhsId == rhsId && lhsSnapshot == rhsSnapshot && lhsSequence == rhsSequence
-
-        case let (.artifact(lhsId, lhsBlock, lhsSequence), .artifact(rhsId, rhsBlock, rhsSequence)):
-            return lhsId == rhsId && lhsBlock == rhsBlock && lhsSequence == rhsSequence
-
-        default:
-            return false
-        }
-    }
 
     var body: some View {
         switch segment {
@@ -139,7 +88,7 @@ private struct ChatTurnSegmentView: View, Equatable {
 
 // MARK: - ChatTurnView
 
-struct ChatTurnView: View, Equatable {
+struct ChatTurnView: View {
     let message: ChatMessage
     let context: ProjectContext?
     let modeColor: Color
@@ -163,28 +112,6 @@ struct ChatTurnView: View, Equatable {
     let showTopDivider: Bool
     /// Se valorizzato (es. piano mostrato come placeholder in chat), la copia usa questo testo invece di `message.exportMarkdownContent`.
     var clipboardMarkdownOverride: String? = nil
-
-    nonisolated static func == (lhs: ChatTurnView, rhs: ChatTurnView) -> Bool {
-        if lhs.message.id != rhs.message.id { return false }
-        if lhs.message.content != rhs.message.content { return false }
-        if lhs.message.reasoningText != rhs.message.reasoningText { return false }
-        if lhs.message.isStreaming != rhs.message.isStreaming { return false }
-        if lhs.isActuallyLoading != rhs.isActuallyLoading { return false }
-        if lhs.streamingStatusText != rhs.streamingStatusText { return false }
-        if lhs.streamingDetailText != rhs.streamingDetailText { return false }
-        if lhs.traceEvents.count != rhs.traceEvents.count { return false }
-        if lhs.inlineActivities.count != rhs.inlineActivities.count { return false }
-        if lhs.liveSubagentCards.count != rhs.liveSubagentCards.count { return false }
-        if lhs.todoItems.count != rhs.todoItems.count { return false }
-        if lhs.conversationId != rhs.conversationId { return false }
-        if lhs.reasoningPolicyProviderId != rhs.reasoningPolicyProviderId { return false }
-        if lhs.shouldShowTodo != rhs.shouldShowTodo { return false }
-        if lhs.canEdit != rhs.canEdit { return false }
-        if lhs.canDelete != rhs.canDelete { return false }
-        if lhs.showTopDivider != rhs.showTopDivider { return false }
-        if lhs.clipboardMarkdownOverride != rhs.clipboardMarkdownOverride { return false }
-        return true
-    }
 
     @State private var didCopyMessage = false
 

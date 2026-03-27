@@ -36,9 +36,10 @@ struct ActivityShimmerTrail: View {
 struct TextShimmerEffect: ViewModifier {
     let isActive: Bool
     @Environment(\.colorScheme) private var colorScheme
-    @State private var phase: CGFloat = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let trailWidth: CGFloat = 96
+    private let sweepPeriod: TimeInterval = 1.05
 
     private var shimmerStops: [Color] {
         // Su etichette tertiary/quaternary lo sweep troppo “flat” sparisce; sweep leggermente caldo/scuro legge meglio.
@@ -58,42 +59,34 @@ struct TextShimmerEffect: ViewModifier {
         ]
     }
 
-    private func startPhaseAnimation() {
-        phase = 0
-        withAnimation(
-            .linear(duration: 1.05)
-            .repeatForever(autoreverses: false)
-        ) {
-            phase = 1
-        }
-    }
-
+    @ViewBuilder
     func body(content: Content) -> some View {
-        if isActive {
-            content
-                .compositingGroup()
-                .overlay {
-                    GeometryReader { geo in
-                        let width = max(geo.size.width, 1)
-                        LinearGradient(
-                            colors: shimmerStops,
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                        .frame(width: trailWidth)
-                        .offset(x: phase * (width + trailWidth * 2) - trailWidth)
-                        .blendMode(colorScheme == .dark ? .screen : .softLight)
+        // TimelineView: in ScrollView/list la repeatForever su @State spesso non ridisegna;
+        // il tick del timeline aggiorna anche quando il padre applica Equatable o coalescing.
+        if isActive && !reduceMotion {
+            TimelineView(.animation(minimumInterval: 1.0 / 36.0)) { timeline in
+                let elapsed = timeline.date.timeIntervalSinceReferenceDate
+                let phase = CGFloat(
+                    elapsed.truncatingRemainder(dividingBy: sweepPeriod) / sweepPeriod
+                )
+                content
+                    .compositingGroup()
+                    .overlay {
+                        GeometryReader { geo in
+                            let width = max(geo.size.width, 1)
+                            LinearGradient(
+                                colors: shimmerStops,
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                            .frame(width: trailWidth)
+                            .offset(x: phase * (width + trailWidth * 2) - trailWidth)
+                            .blendMode(colorScheme == .dark ? .screen : .softLight)
+                        }
+                        .mask { content }
+                        .allowsHitTesting(false)
                     }
-                    .mask { content }
-                    .allowsHitTesting(false)
-                }
-                .onAppear { startPhaseAnimation() }
-                .onChange(of: isActive) { active in
-                    if active { startPhaseAnimation() }
-                }
-                .onChange(of: colorScheme) { _ in
-                    if isActive { startPhaseAnimation() }
-                }
+            }
         } else {
             content
         }
