@@ -15,6 +15,9 @@ extension ChatPanelView {
         guard !SwarmMetadata.isSwarmEvent(payload), let eventConversationId else {
             return
         }
+        guard shouldRouteDebugProjectionEvent(event, debugToggleEnabled: debugToggleEnabled) else {
+            return
+        }
         pipelineIntegrationService.applyOrBufferDebugEvent(event, for: eventConversationId)
     }
 
@@ -39,8 +42,7 @@ extension ChatPanelView {
 
     @MainActor
     internal func applyDebugProjectionEffects(_ effects: DebugProjectionUIEffects) {
-        guard effects.shouldEnableDebugMode || effects.shouldRevealDebugPanel else { return }
-        debugToggleEnabled = true
+        guard shouldApplyDebugProjectionEffects(effects, debugToggleEnabled: debugToggleEnabled) else { return }
         if effects.shouldRevealDebugPanel {
             showDebugPanel = true
         }

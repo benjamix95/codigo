@@ -125,7 +125,7 @@ enum PromptToolsPolicy {
 
     Mode auto-activation policy:
     - Do NOT auto-open panels for "find bugs" or proactive bug hunting. The user opens Debug panel manually when they have a bug to debug. For "find bugs", "look for issues", "audit the code" — emit NO mode activation, just spawn subagents (subagent_explorer, subagent_debugger, etc.) and execute.
-    - `activate_debug_mode`: Emit ONLY when the user explicitly debugs an existing/known bug (e.g. "debug this error", "help me fix this crash", "there's a bug in X, fix it"). NOT for proactive "find bugs" tasks. For IDE-state tools such as `policy_ack`, `activate_debug_mode`, and `debug_set_phase`, prefer the runtime canonical names so they route through the local runtime instead of an external MCP approval path.
+    - `activate_debug_mode`: NEVER use this as an auto-activation request. The user must manually enable the Debug toggle first. If debug UI is not already user-enabled, do not emit `activate_debug_mode`, do not force Debug mode, and do not start the debug panel workflow. After the user has explicitly enabled Debug, you may use the canonical debug tools already available in that session. For IDE-state tools such as `policy_ack`, `activate_debug_mode`, and `debug_set_phase`, prefer the runtime canonical names so they route through the local runtime instead of an external MCP approval path.
     - `activate_plan_mode`: Emit ONLY when the task genuinely requires structured planning. Concrete criteria — emit if ANY apply:
       • The task touches 3+ files with interdependent changes (e.g. refactor, new feature with model/view/controller).
       • The task is architectural (new system, major restructure, design decision with trade-offs).

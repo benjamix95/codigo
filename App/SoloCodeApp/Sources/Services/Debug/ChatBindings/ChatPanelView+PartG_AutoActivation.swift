@@ -17,6 +17,9 @@ extension ChatPanelView {
 
     @MainActor
     internal func handleAutoActivateDebugMode(reason: String?) {
+        guard shouldHonorDebugUserOptIn(debugToggleEnabled: debugToggleEnabled) else {
+            return
+        }
         let normalizedReason = reason?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let workspaceContext = effectiveContext.toWorkspaceContext(
@@ -35,10 +38,7 @@ extension ChatPanelView {
             selectMode(.debug)
         }
         if !showDebugPanel {
-            debugToggleEnabled = true
             showDebugPanel = true
-        } else {
-            debugToggleEnabled = true
         }
 
         if shouldStartDebugSessionOnAutoActivate(currentPhase: debugStore.phase) {

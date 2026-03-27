@@ -144,6 +144,9 @@ extension ChatPanelView {
 
         for event in envelope.events {
             if DebugProjectionEventConsumer.handles(event) {
+                guard shouldRouteDebugProjectionEvent(event, debugToggleEnabled: debugToggleEnabled) else {
+                    continue
+                }
                 routeDebugEvent(
                     event,
                     payload: envelope.payload,
@@ -153,6 +156,12 @@ extension ChatPanelView {
             }
             switch event {
             case .taskActivity(let activity):
+                guard shouldDisplayTaskActivity(
+                    type: activity.type,
+                    debugToggleEnabled: debugToggleEnabled
+                ) else {
+                    continue
+                }
                 let scopedActivity = activityWithConversationContext(
                     activity,
                     conversationId: conversationId

@@ -69,6 +69,13 @@ extension ChatPanelView {
             )
             return false
         }
+        guard shouldHonorDebugUserOptIn(debugToggleEnabled: debugToggleEnabled) else {
+            appendTechnicalErrorMessage(
+                "[Debug] Modalita' debug non attiva. Abilita prima il toggle debug manuale.",
+                in: targetConversationId
+            )
+            return false
+        }
         guard !pipelineIntegrationService.isRunning(for: targetConversationId) else {
             appendTechnicalErrorMessage(
                 "[Debug] Una pipeline e' gia' in esecuzione per questa conversazione.",
@@ -110,7 +117,6 @@ extension ChatPanelView {
         if coderMode != .debug {
             selectMode(.debug)
         }
-        debugToggleEnabled = true
         showDebugPanel = true
 
         let ctx = effectiveContext.toWorkspaceContext(

@@ -37,6 +37,13 @@ enum DebugNativePipelineIntent {
 extension ChatPanelView {
     @MainActor
     internal func executeDebugNativePipelineIntent(_ intent: DebugNativePipelineIntent) {
+        guard shouldHonorDebugUserOptIn(debugToggleEnabled: debugToggleEnabled) else {
+            appendTechnicalErrorMessage(
+                "[Debug native] Modalita' debug non attiva. Abilita prima il toggle debug manuale.",
+                in: conversationId
+            )
+            return
+        }
         guard debugStore.isNativeDebugEnabled else {
             appendTechnicalErrorMessage(
                 "[Debug native] \(debugStore.nativeDebugDisabledReason ?? "Native debug disabilitato.")",
@@ -82,7 +89,6 @@ extension ChatPanelView {
         if coderMode != .debug {
             selectMode(.debug)
         }
-        debugToggleEnabled = true
         showDebugPanel = true
 
         let ctx = effectiveContext.toWorkspaceContext(

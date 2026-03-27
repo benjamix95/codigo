@@ -105,6 +105,13 @@ extension ChatPanelView {
                 }
             }
             .onChangeCompat(of: showDebugPanel) { wasOpen, isShowing in
+                if isShowing && !debugToggleEnabled {
+                    showDebugPanel = false
+                    if coderMode == .debug && !debugStore.phase.isActive {
+                        selectMode(.agent)
+                    }
+                    return
+                }
                 if isShowing && showPlanPanel {
                     showPlanPanel = false
                 }
@@ -133,8 +140,13 @@ extension ChatPanelView {
                 guard !isRestoringThreadUIState else { return }
                 if isEnabled {
                     selectMode(.debug)
-                } else if coderMode == .debug && !debugStore.phase.isActive {
-                    selectMode(.agent)
+                } else {
+                    if showDebugPanel {
+                        showDebugPanel = false
+                    }
+                    if coderMode == .debug && !debugStore.phase.isActive {
+                        selectMode(.agent)
+                    }
                 }
             }
             .onChangeCompat(of: showPlanPanel) { wasOpen, isOpen in

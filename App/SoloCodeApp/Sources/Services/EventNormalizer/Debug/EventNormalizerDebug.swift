@@ -302,18 +302,8 @@ extension EventNormalizer {
 
     static func normalizeActivateDebugMode(payload: [String: String], timestamp: Date) -> [NormalizedEvent] {
         let reason = payload["reason"]
-        return [
-            .activateDebugMode(reason: reason),
-            .taskActivity(TaskActivity(
-                type: "activate_debug_mode",
-                title: "Debug mode auto-activated",
-                detail: reason,
-                payload: payload,
-                timestamp: timestamp,
-                phase: .executing,
-                isRunning: false
-            ))
-        ]
+        _ = timestamp
+        return [.activateDebugMode(reason: reason)]
     }
 
     static func debugGroupingId(payload: [String: String], defaultValue: String? = nil) -> String? {

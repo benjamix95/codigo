@@ -83,7 +83,11 @@ extension ChatPanelView {
             return
         }
 
-        let effectiveMode = ThreadProviderSelectionService.effectiveMode(for: conv)
+        let requestedMode = ThreadProviderSelectionService.effectiveMode(for: conv)
+        let effectiveMode = resolvedModeForConversation(
+            requestedMode: requestedMode,
+            debugToggleEnabled: debugToggleEnabled
+        )
         coderMode = effectiveMode
 
         if let resolved = ThreadProviderSelectionService.resolveProviderId(
@@ -98,12 +102,14 @@ extension ChatPanelView {
         case .codeReviewMultiSwarm, .plan:
             debugToggleEnabled = false
         case .debug:
-            debugToggleEnabled = true
             showDebugPanel = true
         case .browser:
             showBrowserPanel = true
         case .agent, .ide, .mcpServer:
             break
+        }
+        if !debugToggleEnabled {
+            showDebugPanel = false
         }
         checkProviderAuth()
     }
@@ -119,7 +125,11 @@ extension ChatPanelView {
             return
         }
         if ProviderSupport.isAgentCompatibleProvider(id: id) {
-            if showDebugPanel || debugStore.phase.isActive {
+            if shouldUseDebugUXContext(
+                coderMode: coderMode,
+                showDebugPanel: showDebugPanel,
+                debugToggleEnabled: debugToggleEnabled
+            ) || (debugToggleEnabled && debugStore.phase.isActive) {
                 coderMode = .debug
             } else {
                 coderMode = .agent
