@@ -79,7 +79,7 @@ extension ChatPanelView {
         )
         if updated {
             if todoStatus == .done {
-                _ = todoStore.advanceNextCanonicalTodoIfNeeded(conversationId: canonicalConversationId)
+                _ = todoStore.advanceNextExecutionTodoIfNeeded(conversationId: canonicalConversationId)
             }
             if let syncId = canonicalConversationId ?? targetConversationId,
                !todoStore.canonicalTodos(for: syncId).isEmpty {

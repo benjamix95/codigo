@@ -99,50 +99,6 @@ extension ChatPanelView {
         }
         await trySummarizeIfNeeded(ctx: ctx)
 
-        // After a turn that actually produced code edits (non-plan), ensure a review+test todo exists.
-        let isPlanBuildContext = (planFlowPhase == .building || planFlowPhase == .readyToBuild)
-        let reviewTodoTitle = "Code Review & Test"
-        let currentAssistantMessageId = chatStore.conversation(for: streamConversationId)?
-            .messages
-            .last(where: { $0.role == .assistant })?
-            .id
-        let turnTraceEvents: [ToolTraceEvent] = {
-            guard let currentAssistantMessageId else { return [] }
-            return toolTraceStore.events(
-                conversationId: streamConversationId,
-                assistantMessageId: currentAssistantMessageId
-            )
-        }()
-        if !isPlanBuildContext,
-           traceEventsContainSuccessfulCodeEdits(turnTraceEvents)
-        {
-            let isInScope = todoConversationScopeFilter(
-                todos: todoStore.todos,
-                conversationId: streamConversationId
-            )
-            let hasActiveReviewTodo = todoStore.todos.contains {
-                isInScope($0)
-                    && normalizedTodoTitle($0.title) == normalizedTodoTitle(reviewTodoTitle)
-                    && ($0.status == .pending || $0.status == .inProgress)
-            }
-            if !hasActiveReviewTodo {
-                let linkedFiles = touchedFilePathsFromTraceEvents(
-                    toolTraceStore.allEvents(conversationId: streamConversationId)
-                )
-                await MainActor.run {
-                    todoStore.upsertFromAgent(
-                        id: nil,
-                        title: reviewTodoTitle,
-                        status: .pending,
-                        priority: .high,
-                        notes: "Review all touched files and run tests",
-                        activeForm: "Reviewing code and running tests",
-                        linkedFiles: linkedFiles,
-                        conversationId: streamConversationId
-                    )
-                }
-            }
-        }
     }
 
     internal func createCheckpointBeforeTurn(

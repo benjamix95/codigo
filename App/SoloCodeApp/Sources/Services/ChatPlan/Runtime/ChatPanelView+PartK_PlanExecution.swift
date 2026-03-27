@@ -145,7 +145,10 @@ extension ChatPanelView {
                 conversationId: planConversationId,
                 text: choice
             )
-            let canonicalTodoTitles = selectionResponse?.state?.runtimeSnapshot?.plan?.canonicalTodos ?? []
+            let rawCanonicalTodoTitles = selectionResponse?.state?.runtimeSnapshot?.plan?.canonicalTodos ?? []
+            let canonicalTodoTitles = TodoExecutionFollowUpPolicy.normalizeExecutionTitles(
+                rawCanonicalTodoTitles
+            )
             guard !canonicalTodoTitles.isEmpty else {
                 appendTechnicalErrorMessage(
                     "[Plan] Build requires a todo checklist in the selected option.",

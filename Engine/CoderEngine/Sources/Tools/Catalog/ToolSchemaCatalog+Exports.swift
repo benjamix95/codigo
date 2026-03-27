@@ -68,3 +68,23 @@ enum ToolSchemaCatalog {
         ]
     }
 }
+
+public enum RuntimeTransportToolDefinitions {
+    public static func openAICompatibleJSON() -> String? {
+        jsonString(from: ToolSchemaCatalog.openAIFunctionTools)
+    }
+
+    public static func anthropicJSON() -> String? {
+        jsonString(from: ToolSchemaCatalog.anthropicTools)
+    }
+
+    private static func jsonString(from value: [[String: Any]]) -> String? {
+        guard JSONSerialization.isValidJSONObject(value),
+              let data = try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]),
+              let json = String(data: data, encoding: .utf8)
+        else {
+            return nil
+        }
+        return json
+    }
+}

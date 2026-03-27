@@ -231,7 +231,7 @@ extension PipelineIntegrationService {
                     NSLog("[PipelineIntegration] todo upsert failed for title: %@", todo.title)
                 }
                 if updated, todo.status == .done {
-                    _ = todoStore.advanceNextCanonicalTodoIfNeeded(
+                    _ = todoStore.advanceNextExecutionTodoIfNeeded(
                         conversationId: planId
                     )
                     let canonicalTodos = todoStore.canonicalTodos(for: planId)
@@ -371,25 +371,6 @@ extension PipelineIntegrationService {
             ],
             for: agentConversationId
         )
-
-        let reviewFollowUpTitle = "Code Review & Test"
-        let alreadyHasOpenReviewTodo = todoStore.todos.contains { item in
-            item.planConversationId == planId
-                && !item.isPlanCanonical
-                && item.title == reviewFollowUpTitle
-                && item.status != .done
-        }
-        if !alreadyHasOpenReviewTodo {
-            todoStore.upsertFromAgent(
-                id: nil,
-                title: reviewFollowUpTitle,
-                status: .pending,
-                priority: .high,
-                notes: "Review all pipeline changes and run tests",
-                linkedFiles: [],
-                conversationId: planId
-            )
-        }
 
         let canonicalTodos = todoStore.canonicalTodos(for: planId)
         chatStore?.syncPlanStepsFromCanonicalTodos(canonicalTodos, in: planId)

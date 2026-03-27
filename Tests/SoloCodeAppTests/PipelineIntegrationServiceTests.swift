@@ -172,6 +172,65 @@ final class PipelineIntegrationServiceTests: XCTestCase {
         XCTAssertTrue(service.cancelCurrentJob(for: conversationId))
     }
 
+    func testFinalizePlanBuildDoesNotCreateStandaloneRuntimeReviewTodo() {
+        let suiteName = "PipelineIntegrationServiceTests.finalize-plan.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let chatStore = ChatStore(userDefaults: defaults)
+        let todoStore = TodoStore(
+            storageKey: "CoderIDE.todos.tests.\(UUID().uuidString)",
+            userDefaults: defaults
+        )
+        let taskActivityStore = TaskActivityStore()
+        let swarmProgressStore = SwarmProgressStore()
+        let executionController = ExecutionController()
+        let service = PipelineIntegrationService()
+        service.configure(
+            chatStore: chatStore,
+            taskActivityStore: taskActivityStore,
+            swarmProgressStore: swarmProgressStore,
+            todoStore: todoStore,
+            executionController: executionController
+        )
+
+        let agentConversationId = chatStore.conversations[0].id
+        let planConversationId = chatStore.createConversation(
+            contextId: nil,
+            contextFolderPath: nil,
+            mode: .plan
+        )
+        chatStore.addMessage(
+            ChatMessage(role: .assistant, content: "", isStreaming: true),
+            to: agentConversationId
+        )
+
+        todoStore.upsertCanonicalPlanTodos(
+            ["Implement fix", TodoExecutionFollowUpPolicy.reviewTitle, TodoExecutionFollowUpPolicy.docWriterTitle],
+            conversationId: planConversationId
+        )
+
+        service.finalizePlanBuild(
+            agentConversationId: agentConversationId,
+            planConversationId: planConversationId,
+            durationMs: 100,
+            completedTasks: 1,
+            totalTasks: 1
+        )
+
+        let runtimeReviewTodos = todoStore.todos.filter {
+            !$0.isPlanCanonical
+                && $0.planConversationId == planConversationId
+                && $0.title == TodoExecutionFollowUpPolicy.reviewTitle
+        }
+        XCTAssertTrue(runtimeReviewTodos.isEmpty)
+        XCTAssertEqual(
+            todoStore.canonicalTodos(for: planConversationId).map(\.title),
+            ["Implement fix", TodoExecutionFollowUpPolicy.reviewTitle, TodoExecutionFollowUpPolicy.docWriterTitle]
+        )
+    }
+
     func testRawTodoWriteWithoutPlanAdvancesNextRuntimeTodoOnDone() {
         let suiteName = "PipelineIntegrationServiceTests.runtime-todo-advance.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

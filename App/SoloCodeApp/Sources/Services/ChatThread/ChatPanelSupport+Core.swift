@@ -121,38 +121,53 @@ func todoIDsToAutoCompleteAfterSubagentBatch(
     todos: [TodoItem],
     conversationId: UUID? = nil,
     includePendingReviewTodo: Bool = false,
-    excludeCanonicalTodos: Bool = false,
-    reviewTodoTitle: String = "Code Review & Test"
+    excludeCanonicalTodos: Bool = false
 ) -> [UUID] {
-    let normalizedReviewTitle = normalizedTodoTitle(reviewTodoTitle)
     let isInScope = todoConversationScopeFilter(todos: todos, conversationId: conversationId)
-    let inProgressCandidates = todos.filter {
+    let scopedCandidates = todos.filter {
         isInScope($0)
             && $0.source == .agent
             && !$0.isOperationalPlaceholder
-            && $0.status == .inProgress
             && (!excludeCanonicalTodos || !$0.isPlanCanonical)
     }
-    let prioritizedInProgress = inProgressCandidates.sorted { lhs, rhs in
+    let prioritizedInProgress = scopedCandidates
+        .filter { $0.status == .inProgress }
+        .sorted { lhs, rhs in
         let lhsHasActiveForm = !lhs.activeForm.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         let rhsHasActiveForm = !rhs.activeForm.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         if lhsHasActiveForm != rhsHasActiveForm { return lhsHasActiveForm && !rhsHasActiveForm }
         if lhs.updatedAt != rhs.updatedAt { return lhs.updatedAt > rhs.updatedAt }
         return lhs.createdAt > rhs.createdAt
     }
-    var ids = Set(prioritizedInProgress.prefix(1).map(\.id))
-    if includePendingReviewTodo,
-       let pendingReview = todos.first(where: {
-           isInScope($0)
-               && $0.source == .agent
-               && !$0.isOperationalPlaceholder
-               && $0.status == .pending
-               && normalizedTodoTitle($0.title) == normalizedReviewTitle
-       })
-    {
-        ids.insert(pendingReview.id)
+    if let active = prioritizedInProgress.first {
+        return [active.id]
     }
-    return Array(ids)
+
+    guard includePendingReviewTodo else { return [] }
+
+    let pendingOpenTodos = scopedCandidates
+        .filter { $0.status == .pending }
+        .sorted { lhs, rhs in
+            let lhsRank = TodoExecutionFollowUpPolicy.autoCompletionRank(for: lhs.title)
+            let rhsRank = TodoExecutionFollowUpPolicy.autoCompletionRank(for: rhs.title)
+            if lhsRank != rhsRank { return lhsRank < rhsRank }
+            if lhs.priority.rank != rhs.priority.rank { return lhs.priority.rank < rhs.priority.rank }
+            if lhs.createdAt != rhs.createdAt { return lhs.createdAt < rhs.createdAt }
+            return lhs.id.uuidString < rhs.id.uuidString
+        }
+
+    guard let nextPending = pendingOpenTodos.first,
+          TodoExecutionFollowUpPolicy.isReviewTitle(nextPending.title) else {
+        return []
+    }
+
+    let hasBlockingExecutableTodo = scopedCandidates.contains { item in
+        item.status != .done
+            && !TodoExecutionFollowUpPolicy.isExecutionFollowUpTitle(item.title)
+    }
+    guard !hasBlockingExecutableTodo else { return [] }
+
+    return [nextPending.id]
 }
 
 func shouldAutoCompletePendingReviewTodo(subagentBatchPayload: [String: String]) -> Bool {

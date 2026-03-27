@@ -34,11 +34,7 @@ extension TodoStore {
 
         guard !pool.isEmpty else { return false }
 
-        let ordered = pool.sorted { lhs, rhs in
-            if lhs.priority.rank != rhs.priority.rank { return lhs.priority.rank < rhs.priority.rank }
-            if lhs.createdAt != rhs.createdAt { return lhs.createdAt < rhs.createdAt }
-            return lhs.id.uuidString < rhs.id.uuidString
-        }
+        let ordered = orderedRuntimeExecutionTodos(pool)
 
         guard !ordered.contains(where: { $0.status == .inProgress }) else { return false }
         guard let nextPending = ordered.first(where: { $0.status == .pending }),

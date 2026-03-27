@@ -1,7 +1,7 @@
 import SwiftUI
 
 func hasVisibleComposerTodoOverlay(items: [TodoItem]) -> Bool {
-    items.contains { $0.status != .done && !$0.isOperationalPlaceholder }
+    items.contains { !$0.isOperationalPlaceholder }
 }
 
 func composerTodoAutoExpandSignature(items: [TodoItem]) -> String {

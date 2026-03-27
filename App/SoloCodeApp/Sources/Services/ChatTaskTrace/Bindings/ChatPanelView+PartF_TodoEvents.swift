@@ -75,7 +75,7 @@ extension ChatPanelView {
                 )
                 // #endregion
                 if todo.status == .done {
-                    _ = todoStore.advanceNextCanonicalTodoIfNeeded(conversationId: sourcePlanId)
+                    _ = todoStore.advanceNextExecutionTodoIfNeeded(conversationId: sourcePlanId)
                 }
                 let canonicalTodos = todoStore.canonicalTodos(for: sourcePlanId)
                 chatStore.syncPlanStepsFromCanonicalTodos(canonicalTodos, in: sourcePlanId)
@@ -95,6 +95,27 @@ extension ChatPanelView {
                 linkedFiles: todo.files,
                 conversationId: conversationId
             )
+            let missingFollowUps = TodoExecutionFollowUpPolicy.missingFinalFollowUpTitles(
+                in: todoStore.todos,
+                conversationId: conversationId
+            )
+            for title in missingFollowUps {
+                let isReview = TodoExecutionFollowUpPolicy.isReviewTitle(title)
+                todoStore.upsertFromAgent(
+                    id: nil,
+                    title: title,
+                    status: .pending,
+                    priority: isReview ? .high : .medium,
+                    notes: isReview
+                        ? "Review all changed files and run tests"
+                        : "Document the completed work, bugs found, verification, and changelog",
+                    activeForm: isReview
+                        ? "Reviewing code and running tests"
+                        : "Writing documentation for the completed work",
+                    linkedFiles: [],
+                    conversationId: conversationId
+                )
+            }
             if todo.status == .done {
                 let effectiveAfterUpsert = conversationId
                     ?? todoStore.planConversationIdForRuntimeTodoAfterUpsert(

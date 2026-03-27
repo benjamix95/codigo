@@ -2,8 +2,8 @@ import XCTest
 @testable import CoderIDE
 
 final class ComposerTodoOverlayStateTests: XCTestCase {
-    func testHasVisibleComposerTodoOverlayRequiresActiveNonPlaceholderTodo() {
-        XCTAssertFalse(
+    func testHasVisibleComposerTodoOverlayKeepsCompletedTodosVisibleButHidesPlaceholders() {
+        XCTAssertTrue(
             hasVisibleComposerTodoOverlay(
                 items: [
                     TodoItem(title: "Completato", status: .done),
@@ -12,11 +12,10 @@ final class ComposerTodoOverlayStateTests: XCTestCase {
             )
         )
 
-        XCTAssertTrue(
+        XCTAssertFalse(
             hasVisibleComposerTodoOverlay(
                 items: [
-                    TodoItem(title: "In corso", status: .inProgress),
-                    TodoItem(title: "Completato", status: .done),
+                    TodoItem(title: "Placeholder", status: .inProgress, isOperationalPlaceholder: true),
                 ]
             )
         )

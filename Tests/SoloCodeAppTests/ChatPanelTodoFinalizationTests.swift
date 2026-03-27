@@ -63,7 +63,7 @@ final class ChatPanelTodoFinalizationTests: XCTestCase {
         )
     }
 
-    func testSubagentBatchAutoCompletionIncludesInProgressAndPendingReviewTodo() {
+    func testSubagentBatchAutoCompletionPrefersInProgressTodoBeforePendingReviewTodo() {
         let inProgress = TodoItem(id: UUID(), title: "Implement fix", status: .inProgress, source: .agent)
         let pendingReview = TodoItem(id: UUID(), title: "Code Review & Test", status: .pending, source: .agent)
         let done = TodoItem(id: UUID(), title: "Done item", status: .done, source: .agent)
@@ -73,8 +73,8 @@ final class ChatPanelTodoFinalizationTests: XCTestCase {
             includePendingReviewTodo: true
         )
 
-        XCTAssertTrue(ids.contains(inProgress.id))
-        XCTAssertTrue(ids.contains(pendingReview.id))
+        XCTAssertEqual(ids, [inProgress.id])
+        XCTAssertFalse(ids.contains(pendingReview.id))
         XCTAssertFalse(ids.contains(done.id))
     }
 
@@ -117,6 +117,19 @@ final class ChatPanelTodoFinalizationTests: XCTestCase {
             includePendingReviewTodo: false
         )
         XCTAssertFalse(ids.contains(pendingReview.id))
+    }
+
+    func testSubagentBatchAutoCompletionCompletesPendingReviewOnlyWhenExecutableWorkIsAlreadyDone() {
+        let pendingReview = TodoItem(id: UUID(), title: "Code Review & Test", status: .pending, source: .agent)
+        let pendingDoc = TodoItem(id: UUID(), title: "Doc Writer", status: .pending, source: .agent)
+
+        let ids = todoIDsToAutoCompleteAfterSubagentBatch(
+            todos: [pendingReview, pendingDoc],
+            includePendingReviewTodo: true
+        )
+
+        XCTAssertEqual(ids, [pendingReview.id])
+        XCTAssertFalse(ids.contains(pendingDoc.id))
     }
 
     func testShouldAutoCompletePendingReviewTodoRequiresReviewerAndTestWriter() {
@@ -166,7 +179,7 @@ final class ChatPanelTodoFinalizationTests: XCTestCase {
         )
 
         XCTAssertTrue(ids.contains(inProgressA.id))
-        XCTAssertTrue(ids.contains(reviewA.id))
+        XCTAssertFalse(ids.contains(reviewA.id))
         XCTAssertFalse(ids.contains(inProgressB.id))
     }
 

@@ -35,20 +35,19 @@ extension TodoStore {
     }
 
     func sortedCanonicalFirstTodos(_ items: [TodoItem]? = nil) -> [TodoItem] {
-        (items ?? userVisibleTodos).filter { !$0.isOperationalPlaceholder }.sorted { lhs, rhs in
-            if lhs.isPlanCanonical != rhs.isPlanCanonical { return lhs.isPlanCanonical }
-            if lhs.isPlanCanonical, rhs.isPlanCanonical {
-                let lhsScope = lhs.planConversationId?.uuidString ?? ""
-                let rhsScope = rhs.planConversationId?.uuidString ?? ""
-                if lhsScope != rhsScope { return lhsScope < rhsScope }
+        let filtered = (items ?? userVisibleTodos).filter { !$0.isOperationalPlaceholder }
+        let canonical = filtered.filter(\.isPlanCanonical).sorted { lhs, rhs in
+            let lhsScope = lhs.planConversationId?.uuidString ?? ""
+            let rhsScope = rhs.planConversationId?.uuidString ?? ""
+            if lhsScope != rhsScope { return lhsScope < rhsScope }
 
-                let lhsOrder = lhs.planOrder ?? Int.max
-                let rhsOrder = rhs.planOrder ?? Int.max
-                if lhsOrder != rhsOrder { return lhsOrder < rhsOrder }
-            }
-            if lhs.priority.rank != rhs.priority.rank { return lhs.priority.rank < rhs.priority.rank }
+            let lhsOrder = lhs.planOrder ?? Int.max
+            let rhsOrder = rhs.planOrder ?? Int.max
+            if lhsOrder != rhsOrder { return lhsOrder < rhsOrder }
             return lhs.createdAt < rhs.createdAt
         }
+        let runtime = orderedRuntimeExecutionTodos(filtered.filter { !$0.isPlanCanonical })
+        return canonical + runtime
     }
 
     func canonicalTodos(for conversationId: UUID?) -> [TodoItem] {

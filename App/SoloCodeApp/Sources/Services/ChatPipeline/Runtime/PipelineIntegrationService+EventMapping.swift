@@ -186,7 +186,7 @@ extension PipelineIntegrationService {
                     )
                 }
                 if updated {
-                    _ = todoStore.advanceNextCanonicalTodoIfNeeded(
+                    _ = todoStore.advanceNextExecutionTodoIfNeeded(
                         conversationId: planId
                     )
                     let canonicalTodos = todoStore.canonicalTodos(for: planId)

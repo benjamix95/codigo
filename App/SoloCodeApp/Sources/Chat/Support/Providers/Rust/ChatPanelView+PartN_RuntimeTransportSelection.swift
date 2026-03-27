@@ -1,6 +1,17 @@
 import Foundation
 import CoderEngine
 
+func mainChatRuntimeToolDefinitionsJSON(for backend: MainChatProviderBackendBridge) -> String? {
+    switch backend {
+    case .openaiApi, .googleApi:
+        return RuntimeTransportToolDefinitions.openAICompatibleJSON()
+    case .anthropicApi:
+        return RuntimeTransportToolDefinitions.anthropicJSON()
+    case .codexCli, .claudeCli, .geminiCli, .kiloCli:
+        return nil
+    }
+}
+
 extension ChatPanelView {
     internal func resolveMainChatTransportProvider(
         selectedProvider: any LLMProvider,
@@ -91,7 +102,7 @@ extension ChatPanelView {
                 model: resolved.model,
                 apiKey: resolved.apiKey,
                 baseURL: resolved.baseURL,
-                toolDefinitionsJson: nil,
+                toolDefinitionsJson: mainChatRuntimeToolDefinitionsJSON(for: resolved.backend),
                 extraHeaders: resolved.extraHeaders,
                 codexPath: cfg.resolvedCodexPath(),
                 codexSandbox: resolved.codexSandbox,

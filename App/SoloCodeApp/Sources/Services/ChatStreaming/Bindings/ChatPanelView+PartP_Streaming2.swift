@@ -127,8 +127,13 @@ extension ChatPanelView {
             ),
             excludeCanonicalTodos: excludeCanonicalTodos
         )
+        var didMutate = false
         for id in targetIDs {
             todoStore.setStatus(id: id, status: targetStatus)
+            didMutate = true
+        }
+        if didMutate, targetStatus == .done {
+            _ = todoStore.advanceNextRuntimeTodoIfNeeded(conversationId: conversationId)
         }
     }
 

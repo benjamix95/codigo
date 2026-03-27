@@ -275,6 +275,28 @@ final class RustMainChatProviderFactoryTests: XCTestCase {
         XCTAssertEqual(resolution.config.claudeAllowedTools, ["Read", "Glob", "Grep"])
     }
 
+    func testRuntimeTransportToolDefinitionsJSONIsPresentForAPIRuntimes() throws {
+        let openAI = try XCTUnwrap(mainChatRuntimeToolDefinitionsJSON(for: .openaiApi))
+        XCTAssertTrue(openAI.contains("\"debug_set_phase\""))
+        XCTAssertTrue(openAI.contains("\"policy_ack\""))
+        XCTAssertTrue(openAI.contains("\"activate_debug_mode\""))
+
+        let anthropic = try XCTUnwrap(mainChatRuntimeToolDefinitionsJSON(for: .anthropicApi))
+        XCTAssertTrue(anthropic.contains("\"debug_set_phase\""))
+        XCTAssertTrue(anthropic.contains("\"policy_ack\""))
+        XCTAssertTrue(anthropic.contains("\"activate_debug_mode\""))
+
+        let google = try XCTUnwrap(mainChatRuntimeToolDefinitionsJSON(for: .googleApi))
+        XCTAssertTrue(google.contains("\"debug_set_phase\""))
+    }
+
+    func testRuntimeTransportToolDefinitionsJSONRemainsNilForCLIRuntimes() {
+        XCTAssertNil(mainChatRuntimeToolDefinitionsJSON(for: .codexCli))
+        XCTAssertNil(mainChatRuntimeToolDefinitionsJSON(for: .claudeCli))
+        XCTAssertNil(mainChatRuntimeToolDefinitionsJSON(for: .geminiCli))
+        XCTAssertNil(mainChatRuntimeToolDefinitionsJSON(for: .kiloCli))
+    }
+
     func testRustTransportBypassDoesNotTriggerForCodexWhenRuntimeEnabled() {
         var config = makeProviderFactoryConfig(codexPath: "")
         config.unifiedToolRuntimeEnabled = true
