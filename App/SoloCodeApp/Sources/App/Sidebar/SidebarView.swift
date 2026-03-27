@@ -22,6 +22,7 @@ struct SidebarView: View {
     @State var conversationToRename: Conversation?
     @State var showSkillsSheet = false
     @State var showRulesSheet = false
+    @State var showWorkspaceRequiredAlert = false
     @State private var sidebarComplexLayoutReady = false
 
     @AppStorage("context_scope_mode") var contextScopeModeRaw = "auto"
@@ -52,5 +53,10 @@ struct SidebarView: View {
             }
         }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .alert("Nessun progetto aperto", isPresented: $showWorkspaceRequiredAlert) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Apri o aggiungi almeno una cartella reale nel workspace prima di creare un thread.")
+            }
     }
 }

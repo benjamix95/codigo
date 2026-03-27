@@ -1,6 +1,17 @@
 import SwiftUI
 import CoderEngine
 
+func isValidThreadCreationContext(_ context: ProjectContext?) -> Bool {
+    guard let context else { return false }
+    let effective = EffectiveContext(
+        contextId: context.id,
+        folderPaths: context.folderPaths,
+        isWorkspace: context.kind == .workspace,
+        context: context
+    )
+    return effective.hasSendableProjectContext
+}
+
 // MARK: - Computed State
 
 extension SidebarView {
@@ -57,6 +68,10 @@ extension SidebarView {
         workspaceStore.syncActiveWorkspace(with: projectContextStore.context(id: contextId))
 
         let context = projectContextStore.context(id: contextId)
+        guard isValidThreadCreationContext(context) else {
+            showWorkspaceRequiredAlert = true
+            return
+        }
         let folderScope = scopedFolderPath(for: context)
 
         // Reuse current empty thread if possible
@@ -86,6 +101,10 @@ extension SidebarView {
     func createThread(contextId: UUID?) {
         let effectiveContextId = contextId ?? activeContext?.id
         let context = projectContextStore.context(id: effectiveContextId)
+        guard isValidThreadCreationContext(context) else {
+            showWorkspaceRequiredAlert = true
+            return
+        }
         let folderScope = scopedFolderPath(for: context)
 
         // Azione esplicita "New Thread": crea sempre un nuovo thread. Il riuso di conversazioni

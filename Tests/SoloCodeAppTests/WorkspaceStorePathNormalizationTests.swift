@@ -176,7 +176,7 @@ final class WorkspaceStorePathNormalizationTests: XCTestCase {
 
         XCTAssertEqual(decoded.id, workspace.id)
         XCTAssertEqual(decoded.name, workspace.name)
-        XCTAssertEqual(decoded.folders, workspace.folderPaths)
+        XCTAssertEqual(decoded.folders.map(\.path), workspace.folderPaths)
         XCTAssertEqual(decoded.excludedPaths, workspace.excludedPaths)
     }
 

@@ -51,4 +51,37 @@ final class SidebarViewTests: XCTestCase {
         let hostingView = NSHostingView(rootView: view)
         XCTAssertNotNil(hostingView)
     }
+
+    func testThreadCreationContextValidationAcceptsRealDirectory() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let context = ProjectContext(
+            kind: .singleProject,
+            name: "Project",
+            folderPaths: [root.path],
+            isPinned: true
+        )
+
+        XCTAssertTrue(isValidThreadCreationContext(context))
+    }
+
+    func testThreadCreationContextValidationRejectsEmptyWorkspacePlaceholder() throws {
+        let parent = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let workspacePlaceholder = parent.appendingPathComponent("workspace", isDirectory: true)
+        try FileManager.default.createDirectory(at: workspacePlaceholder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: parent) }
+
+        let context = ProjectContext(
+            kind: .workspace,
+            name: "Workspace",
+            folderPaths: [workspacePlaceholder.path],
+            isPinned: true
+        )
+
+        XCTAssertFalse(isValidThreadCreationContext(context))
+    }
 }
