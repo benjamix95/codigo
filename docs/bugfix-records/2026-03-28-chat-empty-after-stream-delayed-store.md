@@ -33,6 +33,11 @@
 - **Evidenza:** run 2fa5b8 lunga con **solo** H12 `to:true`, mai H23/`to:false`: `snapshotIsLoading` e `taskLoading` restano `true` mentre H10 ticka — la chat “sparisce” **a streaming attivo**, non solo a fine task. Il coalesce **350ms** sullo stesso anchor buttava via troppi `scrollTo` consecutivi.
 - **Fix:** parametro `minCoalesceInterval` in `scheduleAutoScroll`; `handleStreamContentVersionChange` usa **120ms**. Log throttled **H24** (`autoscroll_bottom_executed`) per verificare che lo scroll parta durante lo stream.
 
+### Fix 5 — eager `VStack` sotto soglia messaggi (mar 2026)
+
+- **Evidenza:** con **H24** presente (`autoscroll_bottom_executed`) l’utente riproduce ancora timeline invisibile — `scrollTo` non è sufficiente; resta plausibile **LazyVStack** in `ScrollView` su macOS che non ridisegna il viewport fino a resize.
+- **Fix:** per `messages.count ≤ 160` la colonna timeline usa **`VStack`**; oltre la soglia **`LazyVStack`** come prima (`ChatPanelView+PartD_MessagesStack.swift`, `ChatMessagesTimelineStack`).
+
 ### Fix 5 — snapshot fermo mentre `streamContentVersion` ticka (H11)
 
 - **Evidenza:** `refresh_ran_but_snapshot_unchanged_while_active` (H11) con `freshLastContentLen` piatto (es. 569) per molti tick, poi `snapshot_state_replaced` quando `content` salta (es. 1036): durante lo stream il testo live sta spesso in **`primaryTextSnapshot`**, non in `content`.

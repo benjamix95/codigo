@@ -3,6 +3,31 @@ import CoderEngine
 import SwiftUI
 import UniformTypeIdentifiers
 
+private enum ChatMessagesTimelineLayout {
+    /// NDJSON 2fa5b8: con H24 (`scrollTo` eseguito) la timeline restava invisibile fino a resize — tipico
+    /// di `LazyVStack` in `ScrollView` su macOS. Sotto la soglia usiamo `VStack` (costo lineare, ok per
+    /// thread corti / streaming); sopra resta lazy per conversazioni molto lunghe.
+    static let eagerMessageCountUpperBound = 160
+}
+
+private struct ChatMessagesTimelineStack<Content: View>: View {
+    let useLazyLayout: Bool
+    @ViewBuilder private let content: () -> Content
+
+    init(useLazyLayout: Bool, @ViewBuilder content: @escaping () -> Content) {
+        self.useLazyLayout = useLazyLayout
+        self.content = content
+    }
+
+    var body: some View {
+        if useLazyLayout {
+            LazyVStack(alignment: .leading, spacing: 28, content: content)
+        } else {
+            VStack(alignment: .leading, spacing: 28, content: content)
+        }
+    }
+}
+
 extension ChatPanelView {
     internal func activeStreamingAssistantMessage(in conv: Conversation) -> ChatMessage? {
         guard snapshotIsLoading,
@@ -73,7 +98,9 @@ extension ChatPanelView {
             traceEventsByMessageId: precomputedTraceEvents,
             isLoading: snapshotIsLoading
         )
-        return LazyVStack(alignment: .leading, spacing: 28) {
+        return ChatMessagesTimelineStack(
+            useLazyLayout: messages.count > ChatMessagesTimelineLayout.eagerMessageCountUpperBound
+        ) {
             Color.clear
                 .frame(height: 1)
                 .id(chatScrollTopAnchorId)
