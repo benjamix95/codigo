@@ -25,6 +25,14 @@ func shouldAllowIdleRebuildFromMainBuildAction(
     phase == .idle && hasBuildChoice
 }
 
+func hasExecutablePlanBuildChoice(resolvedBuildContent: String?) -> Bool {
+    guard let resolvedBuildContent else { return false }
+    let normalized = resolvedBuildContent.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !normalized.isEmpty else { return false }
+    guard PlanOptionsParser.hasRequiredTodoHeader(normalized) else { return false }
+    return !PlanOptionsParser.extractTodosFromOptionText(normalized).isEmpty
+}
+
 func planBuildDisabledReason(
     phase: PlanFlowPhase,
     hasBuildChoice: Bool,

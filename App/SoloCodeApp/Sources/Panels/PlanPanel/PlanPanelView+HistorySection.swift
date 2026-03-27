@@ -89,9 +89,7 @@ extension PlanPanelView {
                                     buildHint = "Select an option before rebuilding."
                                     return
                                 }
-                                let hasRequiredTodoHeader = PlanOptionsParser.hasRequiredTodoHeader(choice)
-                                let extractedTodos = PlanOptionsParser.extractTodosFromOptionText(choice)
-                                guard hasRequiredTodoHeader, !extractedTodos.isEmpty else {
+                                guard isExecutableBuildChoice(choice) else {
                                     buildHint = "Build requires a todo checklist."
                                     return
                                 }
@@ -128,13 +126,10 @@ extension PlanPanelView {
                                 Button {
                                     if planHistoryStore.selectedEntryId == entry.id {
                                         planHistoryStore.setSelectedEntry(id: nil)
+                                        onHistoryEntrySelectedForBuild?(false)
                                     } else {
                                         planHistoryStore.setSelectedEntry(id: entry.id)
-                                        let choice = resolvedBuildContent(for: entry) ?? ""
-                                        if PlanOptionsParser.hasRequiredTodoHeader(choice),
-                                           !PlanOptionsParser.extractTodosFromOptionText(choice).isEmpty {
-                                            onHistoryEntrySelectedForBuild?()
-                                        }
+                                        onHistoryEntrySelectedForBuild?(canHistoryEntryTriggerReadyToBuild(entry))
                                     }
                                     historySelectionVersion &+= 1
                                 } label: {
@@ -153,7 +148,7 @@ extension PlanPanelView {
                                                     chosenPath: option.fullText
                                                 )
                                                 planHistoryStore.setSelectedEntry(id: entry.id)
-                                                onHistoryEntrySelectedForBuild?()
+                                                onHistoryEntrySelectedForBuild?(isExecutableBuildChoice(option.fullText))
                                                 historySelectionVersion &+= 1
                                                 buildHint = "Selected Option \(option.id)"
                                             } label: {

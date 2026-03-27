@@ -95,6 +95,24 @@ final class ChatPanelBuildBehaviorTests: XCTestCase {
         )
     }
 
+    func testExecutablePlanBuildChoiceRequiresTodoChecklist() {
+        let executable = """
+        ## Plan
+
+        ## Todo
+        - [ ] First
+        """
+        XCTAssertTrue(
+            hasExecutablePlanBuildChoice(resolvedBuildContent: executable)
+        )
+        XCTAssertFalse(
+            hasExecutablePlanBuildChoice(resolvedBuildContent: "## Plan\n\nNo checklist")
+        )
+        XCTAssertFalse(
+            hasExecutablePlanBuildChoice(resolvedBuildContent: nil)
+        )
+    }
+
     func testBuildPlanClarificationPromptIncludesCustomPrecedenceAndOptionalFinalNote() {
         let submission = PlanClarificationSubmission(
             answers: [

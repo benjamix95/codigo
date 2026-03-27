@@ -95,7 +95,7 @@ final class PlanPanelVisualSmokeTests: XCTestCase {
             onSubmitClarificationAnswers: { _ in },
             onBuild: { _, _, _ in },
             onStop: {},
-            onHistoryEntrySelectedForBuild: {}
+            onHistoryEntrySelectedForBuild: { _ in }
         )
         .environmentObject(ProviderRegistry())
         .environmentObject(PlanHistoryStore())

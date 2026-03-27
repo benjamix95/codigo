@@ -55,9 +55,12 @@ extension ChatPanelView {
                 lastTaskEndedByManualStop = true
                 interruptTask(for: conversationId, source: "plan_panel_stop")
             },
-            onHistoryEntrySelectedForBuild: {
-                if planFlowPhase == .idle, planningState == .idle {
+            onHistoryEntrySelectedForBuild: { hasBuildChoice in
+                guard planningState == .idle else { return }
+                if hasBuildChoice, planFlowPhase == .idle {
                     planFlowPhase = .readyToBuild
+                } else if !hasBuildChoice, planFlowPhase == .readyToBuild {
+                    planFlowPhase = .idle
                 }
             }
         )

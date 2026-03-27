@@ -2,6 +2,10 @@ import Foundation
 import SwiftUI
 
 extension PlanPanelView {
+    func isExecutableBuildChoice(_ text: String?) -> Bool {
+        hasExecutablePlanBuildChoice(resolvedBuildContent: text)
+    }
+
     func isPlanHistoryEntryAllowedForCurrentConversationThread(_ entry: PlanHistoryEntry) -> Bool {
         guard let currentConversationId = conversationId,
               let currentConversation = chatStore.conversation(for: currentConversationId) else {
@@ -61,6 +65,10 @@ extension PlanPanelView {
     func resolvedBuildContent(for entry: PlanHistoryEntry) -> String? {
         let chosen = entry.chosenPath?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return chosen.isEmpty ? nil : chosen
+    }
+
+    func canHistoryEntryTriggerReadyToBuild(_ entry: PlanHistoryEntry) -> Bool {
+        isExecutableBuildChoice(resolvedBuildContent(for: entry))
     }
 
     func firstOption(byId options: [PlanOption]) -> PlanOption? {

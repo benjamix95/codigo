@@ -2,6 +2,15 @@ import Foundation
 
 @MainActor
 extension TaskActivityStore {
+    func activitiesIncludingPending(for conversationId: UUID?) -> [TaskActivity] {
+        let merged = activities + pendingActivities
+        guard let conversationId else { return merged }
+        let scope = normalizedConversationScope(conversationId)
+        return merged.filter { activity in
+            canonicalConversationScope(from: activity.payload) == scope
+        }
+    }
+
     func activities(for conversationId: UUID?) -> [TaskActivity] {
         guard let conversationId else { return activities }
         let scope = normalizedConversationScope(conversationId)
@@ -20,7 +29,7 @@ extension TaskActivityStore {
 
     func planRelevantRecentActivities(limit: Int = 60, conversationId: UUID?) -> [TaskActivity] {
         guard let conversationId else { return planRelevantRecentActivities(limit: limit) }
-        let scoped = activities(for: conversationId)
+        let scoped = activitiesIncludingPending(for: conversationId)
             .filter(isPlanRelevantActivity(_:))
         guard limit > 0 else { return [] }
         return Array(scoped.suffix(limit))

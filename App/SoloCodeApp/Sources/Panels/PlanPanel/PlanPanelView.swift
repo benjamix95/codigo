@@ -31,8 +31,8 @@ struct PlanPanelView: View {
     let onSubmitClarificationAnswers: (PlanClarificationSubmission) -> Void
     let onBuild: (String, String?, Bool) -> Void
     let onStop: () -> Void
-    /// Called when the user selects a history entry with executable content (enables main Build button).
-    var onHistoryEntrySelectedForBuild: (() -> Void)? = nil
+    /// Called when the user changes history selection with buildable-content information.
+    var onHistoryEntrySelectedForBuild: ((Bool) -> Void)? = nil
 
     @State var planText: String = ""
     @State var isEditing = false
