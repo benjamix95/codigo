@@ -49,6 +49,10 @@ struct ThinkingBlockView: View {
     }
     private var thinkingTextColor: Color { DesignSystem.Colors.textTertiary }
     private var headerTextColor: Color { accentBarColor.opacity(0.9) }
+    /// In streaming il titolo deve restare leggibile: l’oro molto trasparente annulla lo shimmer sul testo.
+    private var headerTitleColor: Color {
+        isLiveStreaming ? DesignSystem.Colors.textSecondary : headerTextColor
+    }
 
     private var isShowingContent: Bool { isExpanded }
 
@@ -85,13 +89,17 @@ struct ThinkingBlockView: View {
                     .foregroundStyle(accentBarColor)
                 Text(isLiveStreaming ? "Thinking..." : "Thought process")
                     .font(.system(size: 10.5, weight: .semibold))
-                    .foregroundStyle(headerTextColor)
+                    .foregroundStyle(headerTitleColor)
                     .tracking(0.2)
                     .textShimmer(active: isLiveStreaming)
                 if !isShowingContent {
                     Text(previewLine)
                         .font(.system(size: 10))
-                        .foregroundStyle(DesignSystem.Colors.textQuaternary)
+                        .foregroundStyle(
+                            isLiveStreaming
+                                ? DesignSystem.Colors.textTertiary
+                                : DesignSystem.Colors.textQuaternary
+                        )
                         .lineLimit(1)
                         .truncationMode(.tail)
                         .textShimmer(active: isLiveStreaming)
@@ -140,6 +148,10 @@ struct ThinkingBlocksView: View {
     }
     private var thinkingTextColor: Color { DesignSystem.Colors.textTertiary }
     private var headerTextColor: Color { accentBarColor.opacity(0.9) }
+    private var headerTitleColor: Color {
+        isLiveStreaming ? DesignSystem.Colors.textSecondary : headerTextColor
+    }
+
     private var separatorColor: Color { .primary.opacity(0.06) }
     private var isShowingContent: Bool { isExpanded }
 
@@ -177,7 +189,7 @@ struct ThinkingBlocksView: View {
                     .foregroundStyle(accentBarColor)
                 Text(isLiveStreaming ? "Thinking..." : "Thought process")
                     .font(.system(size: 10.5, weight: .semibold))
-                    .foregroundStyle(headerTextColor)
+                    .foregroundStyle(headerTitleColor)
                     .tracking(0.2)
                     .textShimmer(active: isLiveStreaming)
                 if blocks.count > 1 {
@@ -188,7 +200,11 @@ struct ThinkingBlocksView: View {
                 if !isShowingContent {
                     Text(previewLine)
                         .font(.system(size: 10))
-                        .foregroundStyle(DesignSystem.Colors.textQuaternary)
+                        .foregroundStyle(
+                            isLiveStreaming
+                                ? DesignSystem.Colors.textTertiary
+                                : DesignSystem.Colors.textQuaternary
+                        )
                         .lineLimit(1)
                         .truncationMode(.tail)
                         .textShimmer(active: isLiveStreaming)
