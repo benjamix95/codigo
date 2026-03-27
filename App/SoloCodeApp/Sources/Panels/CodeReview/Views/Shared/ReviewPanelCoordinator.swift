@@ -218,7 +218,8 @@ extension CodeReviewPanelStore {
 }
 
 extension ReviewPanelCoordinator {
-    static func combinedPrompt(
+    /// `nonisolated`: può essere invocato da `Task.detached` durante l’avvio review (FFI può essere lenta).
+    nonisolated static func combinedPrompt(
         scope: ReviewScopeTarget,
         currentBranch: String,
         selectedModes: Set<CodeReviewPanelMode>,
@@ -236,16 +237,16 @@ extension ReviewPanelCoordinator {
             codebaseFilePaths: codebaseFilePaths
         )
     }
-    static func standardPrompt(scope: ReviewScopeTarget, customInstructions: String = "") -> String { rustPrompt(kind: "standard", scope: scope, customInstructions: customInstructions) }
-    static func securityAuditPrompt(scope: ReviewScopeTarget) -> String { rustPrompt(kind: "security_audit", scope: scope) }
-    static func bugFinderPrompt(scope: ReviewScopeTarget) -> String { rustPrompt(kind: "bug_finder", scope: scope) }
-    static func branchReviewPrompt(branch: String, currentBranch: String) -> String { rustPrompt(kind: "branch_review", scope: .branch(branch), currentBranch: currentBranch) }
-    static func commitRangePrompt(commits: [String]) -> String { rustPrompt(kind: "commit_range", scope: .commits(commits)) }
-    static func chatContextPrompt(userMessage: String, sessionSummary: String, findingsCount: Int, openCount: Int, activeSessionId: String?, conversationId: UUID?) -> String {
+    nonisolated static func standardPrompt(scope: ReviewScopeTarget, customInstructions: String = "") -> String { rustPrompt(kind: "standard", scope: scope, customInstructions: customInstructions) }
+    nonisolated static func securityAuditPrompt(scope: ReviewScopeTarget) -> String { rustPrompt(kind: "security_audit", scope: scope) }
+    nonisolated static func bugFinderPrompt(scope: ReviewScopeTarget) -> String { rustPrompt(kind: "bug_finder", scope: scope) }
+    nonisolated static func branchReviewPrompt(branch: String, currentBranch: String) -> String { rustPrompt(kind: "branch_review", scope: .branch(branch), currentBranch: currentBranch) }
+    nonisolated static func commitRangePrompt(commits: [String]) -> String { rustPrompt(kind: "commit_range", scope: .commits(commits)) }
+    nonisolated static func chatContextPrompt(userMessage: String, sessionSummary: String, findingsCount: Int, openCount: Int, activeSessionId: String?, conversationId: UUID?) -> String {
         rustPrompt(kind: "chat_context", userMessage: userMessage, sessionSummary: sessionSummary, findingsCount: findingsCount, openCount: openCount, activeSessionId: activeSessionId, conversationId: conversationId)
     }
 
-    private static func rustPrompt(
+    nonisolated private static func rustPrompt(
         kind: String,
         scope: ReviewScopeTarget = .uncommitted,
         currentBranch: String? = nil,

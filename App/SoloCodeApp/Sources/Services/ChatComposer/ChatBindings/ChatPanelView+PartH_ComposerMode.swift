@@ -70,14 +70,14 @@ extension ChatPanelView {
 
     internal var inputHint: String {
         switch coderMode {
-        case .agent: return "Agent can modify files and run commands"
+        case .agent: return "Agent can modify files, run commands, and proactively verify macOS UI with screenshots/AppleScript"
         case .codeReviewMultiSwarm:
             return
                 "Code Review: analysis → dynamic worker tasks → parallel fix → test → re-review loop"
         case .debug: return "Debug mode: MCP-first phase flow + structured debug tools"
         case .plan: return "Plan with options + custom response"
         case .ide: return "Ask about code or describe an edit"
-        case .browser: return "Browser mode: agent can navigate, test, and capture screenshots"
+        case .browser: return "Browser mode: agent can navigate, test, capture screenshots, and cross-check results with native macOS tools"
         case .mcpServer: return "Send to configured MCP server"
         }
     }

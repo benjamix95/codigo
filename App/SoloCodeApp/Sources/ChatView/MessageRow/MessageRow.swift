@@ -30,8 +30,8 @@ struct MessageRow: View {
     @State var editText = ""
     let userRowMaxWidth: CGFloat = 640
     let assistantRowMaxWidth: CGFloat = 860
-    let userImageThumbWidth: CGFloat = 140
-    let userImageThumbHeight: CGFloat = 100
+    let userImageThumbWidth: CGFloat = 280
+    let userImageThumbHeight: CGFloat = 180
 
     var isActivelyStreaming: Bool {
         message.isStreaming && isActuallyLoading

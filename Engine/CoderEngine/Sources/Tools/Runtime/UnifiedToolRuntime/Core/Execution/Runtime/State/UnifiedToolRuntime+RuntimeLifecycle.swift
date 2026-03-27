@@ -5,6 +5,10 @@ extension UnifiedToolRuntime {
         self.browserBridge = bridge
     }
 
+    public func setMacOSAutomationBridge(_ bridge: (any MacOSAutomationBridge)?) {
+        self.macOSAutomationBridge = bridge
+    }
+
     public func setTerminalBridge(_ bridge: (any TerminalBridge)?) {
         self.terminalBridge = bridge
     }

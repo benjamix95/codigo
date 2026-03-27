@@ -31,7 +31,13 @@ pub(crate) fn workspace_contains_file_named(workspace_path: &str, target_file_na
             if path.is_dir() {
                 if matches!(
                     file_name,
-                    ".git" | "DerivedData" | "build" | "node_modules" | ".build" | "dist" | "target"
+                    ".git"
+                        | "DerivedData"
+                        | "build"
+                        | "node_modules"
+                        | ".build"
+                        | "dist"
+                        | "target"
                 ) {
                     continue;
                 }

@@ -136,19 +136,16 @@ public struct SubagentPromptBuilder {
     private static let runtimeGatingReminder = """
 
     **Runtime gating:** Call only tools that actually appear in the current sub-agent session. The canonical names \
-    in this prompt describe the intended families; if the runtime exposes a `coderide_*` alias, use that exact alias. \
-    If a family is absent in this sub-agent runtime, continue with the closest listed tools and do not wait for \
-    IDE-only MCP features to appear.
+    in this prompt describe the intended families; prefer the runtime canonical names for local IDE-state tools and \
+    use a `coderide_*` alias only when the live sub-agent schema actually exposes that alias. If a family is absent \
+    in this sub-agent runtime, continue with the closest listed tools and do not wait for IDE-only MCP features to appear.
     """
 
     /// Guidance to use the host’s full tool list (CoderIDE MCP, skills, etc.), not a hand-picked subset.
     private static let fullCatalogReminder = """
             **Full catalog:** The session exposes a concrete function-calling list. Use **any** tool from that list \
-            when it materially helps, with the **exact** names shown (often `coderide_*` in CoderIDE). That includes \
-            all review tools (`coderide_review_*`), BugHunter (`coderide_bughunter_*`), every audit \
-            (`coderide_audit_security_*`, `coderide_audit_bug_*`, `coderide_audit_run_profile`, \
-            `coderide_audit_correlate_findings`, `coderide_audit_verify_bundle`, `coderide_audit_explain_finding`), \
-            workspace search/read, `skill`, diagnostics, web/MCP resources, and anything else you are permitted to invoke.
+            when it materially helps, with the **exact** names shown by that session. That includes review, BugHunter, \
+            audit, workspace search/read, `skill`, diagnostics, web/MCP resources, and anything else you are permitted to invoke.
             """
 
     private static func subagentPolicy(for role: SubagentRole) -> String {
@@ -188,6 +185,13 @@ public struct SubagentPromptBuilder {
             writeTail = """
             **Role:** You may use **mutating** tools (edit, bash, tests) per runtime policy. Still prefer the \
             broadest useful mix: all `coderide_*`, `skill`, MCP, and native tools in the live list.
+            **macOS UI verification:** If the task touches app/UI behavior, verification is part of the job. \
+            Use native host evidence proactively when helpful, even if the user did not explicitly ask. \
+            Prefer the dedicated `macos_*` tools first (`macos_focus_app`, `macos_capture_screenshot`, \
+            `macos_run_applescript`, `macos_list_ui_elements`, `macos_click`, `macos_press_key`, \
+            `macos_type_text`). Only fall back to `osascript`, `screencapture`, or small `swift` + \
+            CoreGraphics scripts when the dedicated tool surface is insufficient. Prefer screenshot-backed \
+            validation over claiming UI success from code inspection alone.
             """
         default:
             writeTail = ""
@@ -207,7 +211,13 @@ public struct SubagentPromptBuilder {
         let parts = families.compactMap { family -> String? in
             let records = registry.records(forFamily: family, availableOn: .subagents)
             guard !records.isEmpty else { return nil }
-            let names = records.map { "`\($0.runtimeName)` / `\($0.mcpName)`" }
+            let names = records.map {
+                let promptName = registry.preferredPromptName(
+                    forRuntimeName: $0.runtimeName,
+                    on: .subagents
+                )
+                return "`\(promptName)`"
+            }
             return "- \(family): " + names.joined(separator: ", ")
         }
         return parts.joined(separator: "\n            ")

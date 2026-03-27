@@ -94,7 +94,11 @@ fn simple_tokenize(text: &str, max_len: usize) -> (Vec<i64>, Vec<i64>) {
         .filter(|c| !c.is_whitespace() || *c == ' ')
         .map(|c| {
             let cp = c as i64;
-            if cp > 0 && cp < 30000 { cp } else { unk }
+            if cp > 0 && cp < 30000 {
+                cp
+            } else {
+                unk
+            }
         })
         .take(max_len - 2)
         .collect();

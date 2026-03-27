@@ -75,7 +75,13 @@ extension MessageToolTraceView {
             // Non-bash output (bash output is rendered inside InlineTerminalView)
             if !isBashLike, let output = event.payload["output"], !output.isEmpty {
                 if output.hasPrefix("data:image/png;base64,") {
-                    browserScreenshotBlock(base64: String(output.dropFirst("data:image/png;base64,".count)))
+                    let normalizedTool = MessageToolTraceToolIdentity.normalizedToolName(for: event)
+                    screenshotBlock(
+                        title: normalizedTool == "macos_capture_screenshot" ? "macOS Screenshot" : "Browser Screenshot",
+                        symbolName: normalizedTool == "macos_capture_screenshot" ? "macwindow" : "camera.viewfinder",
+                        tint: normalizedTool == "macos_capture_screenshot" ? DesignSystem.Colors.info : DesignSystem.Colors.browserColor,
+                        base64: String(output.dropFirst("data:image/png;base64,".count))
+                    )
                 } else {
                     codeBlock(label: "Output", value: String(output.prefix(4000)))
                 }
@@ -110,13 +116,18 @@ extension MessageToolTraceView {
     // MARK: - UI Components
 
     @ViewBuilder
-    func browserScreenshotBlock(base64: String) -> some View {
+    func screenshotBlock(
+        title: String,
+        symbolName: String,
+        tint: Color,
+        base64: String
+    ) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 4) {
-                Image(systemName: "camera.viewfinder")
+                Image(systemName: symbolName)
                     .font(.system(size: 9.5, weight: .medium))
-                    .foregroundStyle(DesignSystem.Colors.browserColor)
-                Text("Browser Screenshot")
+                    .foregroundStyle(tint)
+                Text(title)
                     .font(.system(size: 9.5, weight: .semibold))
                     .foregroundStyle(DesignSystem.Colors.textTertiary)
             }
@@ -125,7 +136,8 @@ extension MessageToolTraceView {
                 Image(nsImage: nsImage)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .frame(maxWidth: 480, maxHeight: 320)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(maxWidth: 860, maxHeight: 560, alignment: .leading)
                     .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: 6, style: .continuous)

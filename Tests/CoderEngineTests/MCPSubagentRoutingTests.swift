@@ -51,6 +51,9 @@ final class MCPSubagentRoutingTests: XCTestCase {
         let prompt = SubagentPromptBuilder.build(role: .debugger, task: "debug this")
         XCTAssertTrue(prompt.contains("Runtime gating"))
         XCTAssertTrue(prompt.contains("debug_set_phase"))
+        XCTAssertFalse(prompt.contains("coderide_debug_set_phase"))
+        XCTAssertFalse(prompt.contains("coderide_activate_debug_mode"))
+        XCTAssertFalse(prompt.contains("coderide_policy_ack"))
     }
 
     func testBackendResolverPrefersCodexForReadOnlyRole() {

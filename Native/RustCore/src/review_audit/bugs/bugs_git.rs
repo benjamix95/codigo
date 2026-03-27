@@ -116,7 +116,11 @@ pub(crate) fn run_bug_dependency_drift(
             json!({"signal_type":"pattern","promotion_gate":"strict_verified"}),
         ));
     }
-    let evidence = changed.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", ");
+    let evidence = changed
+        .iter()
+        .map(|s| s.as_str())
+        .collect::<Vec<_>>()
+        .join(", ");
     let finding = make_finding(
         "warning",
         "regression",

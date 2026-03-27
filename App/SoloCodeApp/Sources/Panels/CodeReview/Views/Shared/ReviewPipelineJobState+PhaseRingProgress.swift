@@ -28,7 +28,7 @@ extension ReviewPipelineJobState {
         #if DEBUG
         ReviewPanelDebugNDJSON.emitThrottled(
             key: "phaseRing",
-            minInterval: 0.4,
+            minInterval: 1.05,
             hypothesisId: "H_ring_zero",
             location: "ReviewPipelineJobState+PhaseRingProgress.displayProgressPercent",
             message: "phase_ring",
@@ -117,8 +117,13 @@ extension ReviewPipelineJobState {
         if gates.contains(where: { $0.title == "Patch" && $0.isReady }) {
             return 100
         }
-        let fromVerified = (Double(min(verifiedCount, v * 3)) / Double(v)) * 85.0
-        return min(100, max(0, Int(round(fromVerified))))
+        // Prima il fattore 85 bloccava l’anello a ~85% anche con tutti i verified e i tool completati (log H_ring_zero).
+        let fromVerified = (Double(min(verifiedCount, v * 3)) / Double(v)) * 100.0
+        let verifiedPct = min(100, max(0, Int(round(fromVerified))))
+        if let toolPct = toolExecutionWeightedPercent() {
+            return min(100, max(verifiedPct, toolPct))
+        }
+        return verifiedPct
     }
 
     private func publishReadyPhaseRingProgress() -> Int {

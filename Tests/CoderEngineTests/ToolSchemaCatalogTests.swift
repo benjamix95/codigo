@@ -70,6 +70,40 @@ final class ToolSchemaCatalogTests: XCTestCase {
         XCTAssertNotNil(codebaseSearch.properties["path"])
     }
 
+    func testCatalogIncludesNativeMacOSAutomationTools() throws {
+        func entry(_ name: String) -> ToolSchemaEntry? {
+            ToolSchemaCatalog.entries.first(where: { $0.name == name })
+        }
+
+        let focus = try XCTUnwrap(entry("macos_focus_app"))
+        XCTAssertNotNil(focus.properties["app_name"])
+        XCTAssertNotNil(focus.properties["bundle_id"])
+        XCTAssertTrue(focus.required.isEmpty)
+
+        let screenshot = try XCTUnwrap(entry("macos_capture_screenshot"))
+        XCTAssertNotNil(screenshot.properties["target"])
+        XCTAssertNotNil(screenshot.properties["app_name"])
+        XCTAssertNotNil(screenshot.properties["bundle_id"])
+
+        let applescript = try XCTUnwrap(entry("macos_run_applescript"))
+        XCTAssertTrue(applescript.required.contains("script"))
+        XCTAssertNotNil(applescript.properties["timeout_ms"])
+
+        let click = try XCTUnwrap(entry("macos_click"))
+        XCTAssertEqual(Set(click.required), Set(["x", "y"]))
+
+        let pressKey = try XCTUnwrap(entry("macos_press_key"))
+        XCTAssertEqual(pressKey.required, ["key"])
+        XCTAssertNotNil(pressKey.properties["modifiers"])
+
+        let typeText = try XCTUnwrap(entry("macos_type_text"))
+        XCTAssertEqual(typeText.required, ["text"])
+
+        let uiElements = try XCTUnwrap(entry("macos_list_ui_elements"))
+        XCTAssertNotNil(uiElements.properties["scope"])
+        XCTAssertNotNil(uiElements.properties["limit"])
+    }
+
     func testDebugCleanSchemaMentionsVariablesType() throws {
         let debugClean = try XCTUnwrap(ToolSchemaCatalog.entries.first(where: { $0.name == "debug_clean" }))
         let typeDescription = (debugClean.properties["type"]?["description"] as? String) ?? ""

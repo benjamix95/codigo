@@ -3,6 +3,8 @@ use app_core_protocol::main_chat_store::{
     MainChatStoreTimelineBlockSnapshot,
 };
 
+use crate::main_chat::markers::strip_coderide_markers_wire;
+
 pub fn assistant_target_index(
     conversation: &MainChatStoreConversationSnapshot,
     message_id: Option<&str>,
@@ -97,14 +99,14 @@ pub fn resolved_primary_text(message: &MainChatStoreMessageSnapshot) -> String {
 }
 
 pub fn sync_reasoning_block(message: &mut MainChatStoreMessageSnapshot, reasoning: &str) {
-    let trimmed = reasoning.trim();
+    let trimmed = strip_coderide_markers_wire(reasoning.trim(), true);
     if trimmed.is_empty() {
         return;
     }
 
     let blocks = message.blocks.get_or_insert_with(Vec::new);
     if let Some(index) = blocks.iter().position(|block| block.kind == "reasoning") {
-        blocks[index].text = trimmed.to_string();
+        blocks[index].text = trimmed.clone();
         blocks[index].title = Some("Thinking".to_string());
         blocks[index].is_collapsible = true;
         blocks[index].is_collapsed_by_default = true;
@@ -113,7 +115,7 @@ pub fn sync_reasoning_block(message: &mut MainChatStoreMessageSnapshot, reasonin
             id: "reasoning".to_string(),
             kind: "reasoning".to_string(),
             title: Some("Thinking".to_string()),
-            text: trimmed.to_string(),
+            text: trimmed,
             items: Vec::new(),
             metadata: Default::default(),
             is_collapsible: true,

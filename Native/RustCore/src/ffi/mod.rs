@@ -1,5 +1,6 @@
 mod cli_account_routing;
 pub(crate) mod common;
+mod embedding;
 mod main_chat;
 mod main_chat_ui;
 mod plan_state;
@@ -21,6 +22,5 @@ mod review_runtime_audit_stage;
 mod review_runtime_callbacks;
 mod review_runtime_task_candidates;
 mod review_session;
-mod embedding;
 mod search;
 mod todo_state;

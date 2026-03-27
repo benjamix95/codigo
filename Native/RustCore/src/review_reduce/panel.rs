@@ -59,6 +59,19 @@ pub fn derive_review_panel_state(snapshot: Value) -> Value {
         get_str(&snapshot, "phase"),
         Some("completed") | Some("failed")
     );
+    let findings_len = findings.len() as i64;
+    let verification_gate_ready = verification_gate_ready_json(
+        &snapshot,
+        verified_count,
+        publish_ready_count,
+        findings_len,
+    );
+    let patch_gate_ready = patch_gate_ready_json(
+        &snapshot,
+        verified_count,
+        publish_ready_count,
+        findings_len,
+    );
 
     json!({
         "liveCandidateIds": live_candidate_ids,
@@ -77,8 +90,8 @@ pub fn derive_review_panel_state(snapshot: Value) -> Value {
         "verifiedCount": verified_count,
         "publishedFindingCount": publish_ready_count,
         "hiddenFindingCount": hidden_count.max(0),
-        "verificationGateReady": verified_count > 0 || findings.is_empty(),
-        "patchGateReady": verified_count == publish_ready_count,
+        "verificationGateReady": verification_gate_ready,
+        "patchGateReady": patch_gate_ready,
         "bundleModes": bundle_modes(&snapshot),
         "toolExecutions": tools,
         "isTerminal": terminal && pipeline_phase == COMPLETED,
@@ -88,6 +101,56 @@ pub fn derive_review_panel_state(snapshot: Value) -> Value {
         "phaseLedger": phase_ledger,
         "fileLedger": file_ledger
     })
+}
+
+/// Allinea le gate allo Swift: durante analyzing/fixing/testing non sono “verde” solo perché non ci sono finding ancora.
+fn review_phase_is_active(snapshot: &Value) -> bool {
+    matches!(
+        get_str(snapshot, "phase"),
+        Some("analyzing") | Some("fixing") | Some("testing") | Some("re_reviewing")
+    )
+}
+
+fn verification_gate_ready_json(
+    snapshot: &Value,
+    verified_count: i64,
+    _publish_ready_count: i64,
+    findings_len: i64,
+) -> bool {
+    if verified_count > 0 {
+        return true;
+    }
+    if get_str(snapshot, "phase") == Some("completed") {
+        return true;
+    }
+    if review_phase_is_active(snapshot) {
+        return false;
+    }
+    if get_str(snapshot, "phase") == Some("failed") {
+        return findings_len == 0;
+    }
+    findings_len == 0
+}
+
+fn patch_gate_ready_json(
+    snapshot: &Value,
+    verified_count: i64,
+    publish_ready_count: i64,
+    findings_len: i64,
+) -> bool {
+    if verified_count > 0 {
+        return verified_count == publish_ready_count;
+    }
+    if get_str(snapshot, "phase") == Some("completed") {
+        return true;
+    }
+    if review_phase_is_active(snapshot) {
+        return false;
+    }
+    if get_str(snapshot, "phase") == Some("failed") {
+        return findings_len == 0;
+    }
+    findings_len == 0
 }
 
 fn array(snapshot: &Value, key: &str) -> Vec<Value> {
@@ -195,7 +258,7 @@ fn progress_percent(pipeline_phase: &str, verified_count: i64, publish_ready_cou
         }
         VERIFICATION => 45,
         AUDIT => 25,
-        DISCOVERY => 10,
+        DISCOVERY => 4,
         _ => 0,
     }
 }

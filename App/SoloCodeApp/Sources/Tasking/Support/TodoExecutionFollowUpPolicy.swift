@@ -47,21 +47,20 @@ enum TodoExecutionFollowUpPolicy {
     }
 
     static func runtimeOrderRank(for item: TodoItem) -> Int {
+        let followUpBase: Int = {
+            if isReviewTitle(item.title) { return 100 }
+            if isDocWriterTitle(item.title) { return 200 }
+            return 0
+        }()
         switch item.status {
         case .inProgress:
-            return 0
+            return followUpBase
         case .pending:
-            return isExecutionFollowUpTitle(item.title)
-                ? 200 + autoCompletionRank(for: item.title)
-                : 10
+            return followUpBase + 10
         case .blocked:
-            return isExecutionFollowUpTitle(item.title)
-                ? 300 + autoCompletionRank(for: item.title)
-                : 20
+            return followUpBase + 20
         case .done:
-            return isExecutionFollowUpTitle(item.title)
-                ? 400 + autoCompletionRank(for: item.title)
-                : 30
+            return followUpBase + 30
         }
     }
 

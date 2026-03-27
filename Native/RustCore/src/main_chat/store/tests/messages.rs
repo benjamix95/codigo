@@ -387,11 +387,12 @@ fn save_reasoning_strips_coderide_markers() {
         "save_reasoning",
     );
     request.conversation_id = Some("conv-r".to_string());
-    request.text = Some(
-        "Hello [CODERIDE:policy_ack|hash=abc123] tail".to_string(),
-    );
+    request.text = Some("Hello [CODERIDE:policy_ack|hash=abc123] tail".to_string());
     let snapshot = unwrap_snapshot(handle_action(request));
-    let msg = snapshot.conversations[0].messages.last().expect("assistant");
+    let msg = snapshot.conversations[0]
+        .messages
+        .last()
+        .expect("assistant");
     let rt = msg.reasoning_text.as_deref().unwrap_or("");
     assert!(!rt.contains("CODERIDE"));
     assert!(rt.contains("Hello"));

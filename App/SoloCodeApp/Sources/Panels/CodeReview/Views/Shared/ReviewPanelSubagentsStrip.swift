@@ -56,15 +56,32 @@ struct ReviewPanelSubagentsStrip: View {
         }
         .onAppear {
             logStripSnapshot("appear")
+            #if DEBUG
+            store.emitReviewSubagentStripDiagnostics(reason: "appear")
+            #endif
         }
         .onChange(of: cards.count) { _ in
             logStripSnapshot("cards_count_change")
+            #if DEBUG
+            store.emitReviewSubagentStripDiagnostics(reason: "cards_count_change")
+            #endif
         }
         .onChange(of: store.isRunning) { _ in
             logStripSnapshot("isRunning_toggle")
+            #if DEBUG
+            store.emitReviewSubagentStripDiagnostics(reason: "isRunning_toggle")
+            #endif
         }
         .onChange(of: store.isReviewLaunchPreparing) { _ in
             logStripSnapshot("preparing_toggle")
+            #if DEBUG
+            store.emitReviewSubagentStripDiagnostics(reason: "preparing_toggle")
+            #endif
+        }
+        .onChange(of: store.selectedSessionId) { _ in
+            #if DEBUG
+            store.emitReviewSubagentStripDiagnostics(reason: "selectedSession_change")
+            #endif
         }
         .onChange(of: cards.map(\.swarmId)) { ids in
             if let id = expandedSwarmId, !ids.contains(id) {

@@ -14,7 +14,10 @@ pub(crate) fn merge_audit_results(
         if let Some(arr) = r.get("findings").and_then(|x| x.as_array()) {
             findings.extend(arr.iter().cloned());
         }
-        coverage |= r.get("coverageAvailable").and_then(|v| v.as_bool()).unwrap_or(false);
+        coverage |= r
+            .get("coverageAvailable")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
         if let Some(a) = r.get("adaptersUsed").and_then(|x| x.as_array()) {
             for v in a {
                 if let Some(s) = v.as_str() {
@@ -43,13 +46,7 @@ pub(crate) fn merge_audit_results(
         "behavioral_impact": if findings.iter().any(|f| f.get("blocking").and_then(|b| b.as_bool()) == Some(true)) { "high_risk" } else { "mixed" }
     });
     pack_payload(
-        tool_name,
-        findings,
-        coverage,
-        summary,
-        metadata,
-        adapters,
-        clusters,
+        tool_name, findings, coverage, summary, metadata, adapters, clusters,
     )
 }
 

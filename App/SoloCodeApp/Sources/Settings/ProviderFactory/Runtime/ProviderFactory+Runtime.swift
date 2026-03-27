@@ -11,7 +11,8 @@ extension ProviderFactory {
         webSearchProvider: String? = nil,
         webSearchApiKeys: [String: String]? = nil,
         terminalBridge: (any TerminalBridge)? = nil,
-        browserBridge: (any BrowserBridge)? = nil
+        browserBridge: (any BrowserBridge)? = nil,
+        macOSAutomationBridge: (any MacOSAutomationBridge)? = nil
     ) -> UnifiedToolRuntime {
         let languageRuntimeBridge: (any RuntimeLanguageService)? = codebaseIndex.map {
             LanguageServiceRuntimeBridge(service: LanguageService(codebaseIndex: $0))
@@ -26,6 +27,7 @@ extension ProviderFactory {
             webSearchApiKeys: webSearchApiKeys,
             terminalBridge: terminalBridge,
             browserBridge: browserBridge,
+            macOSAutomationBridge: macOSAutomationBridge,
             languageService: languageRuntimeBridge
         )
     }

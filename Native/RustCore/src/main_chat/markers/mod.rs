@@ -3,6 +3,11 @@ mod sanitize;
 mod tests;
 mod thinking;
 
+/// Per store/UI: strip marker operativi da testo reasoning (pub(crate) verso `main_chat::store`).
+pub(crate) fn strip_coderide_markers_wire(content: &str, aggressive: bool) -> String {
+    sanitize::strip_coderide_markers(content, aggressive)
+}
+
 use app_core_protocol::main_chat_markers::{MainChatMarkersRequest, MainChatMarkersResponse};
 
 pub fn handle_request(request: MainChatMarkersRequest) -> MainChatMarkersResponse {

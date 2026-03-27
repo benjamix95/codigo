@@ -178,7 +178,13 @@ pub fn save_reasoning(
         return MainChatStoreResponse::error("missing_message", "assistant message not found");
     };
     if let Some(reasoning) = request.text.as_ref() {
-        conversation.messages[message_index].reasoning_text = Some(reasoning.trim().to_string());
+        let cleaned =
+            crate::main_chat::markers::strip_coderide_markers_wire(reasoning.trim(), true);
+        if cleaned.is_empty() {
+            conversation.messages[message_index].reasoning_text = None;
+        } else {
+            conversation.messages[message_index].reasoning_text = Some(cleaned);
+        }
     }
     MainChatStoreResponse::success(snapshot)
 }

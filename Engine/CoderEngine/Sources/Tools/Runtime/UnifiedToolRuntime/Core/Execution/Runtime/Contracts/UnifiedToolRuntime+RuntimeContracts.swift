@@ -173,6 +173,56 @@ public protocol BrowserBridge: AnyObject {
     func getCurrentURL() -> String?
 }
 
+public struct MacOSUIElementSnapshot: Sendable, Equatable, Codable {
+    public let role: String
+    public let name: String
+    public let help: String
+    public let x: Double
+    public let y: Double
+    public let width: Double
+    public let height: Double
+
+    public init(
+        role: String,
+        name: String,
+        help: String,
+        x: Double,
+        y: Double,
+        width: Double,
+        height: Double
+    ) {
+        self.role = role
+        self.name = name
+        self.help = help
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+    }
+}
+
+public enum MacOSAutomationBridgeError: LocalizedError, Sendable, Equatable {
+    case executionFailed(String)
+
+    public var errorDescription: String? {
+        switch self {
+        case .executionFailed(let message):
+            return message
+        }
+    }
+}
+
+@MainActor
+public protocol MacOSAutomationBridge: AnyObject {
+    func focusApp(appName: String?, bundleID: String?) async -> Bool
+    func captureScreenshot(target: String, appName: String?, bundleID: String?) async -> Data?
+    func runAppleScript(_ script: String, appName: String?, bundleID: String?, timeoutMs: Int?) async -> Result<String, MacOSAutomationBridgeError>
+    func click(x: Double, y: Double) async -> Bool
+    func pressKey(key: String, modifiers: [String]) async -> Bool
+    func typeText(_ text: String) async -> Bool
+    func listUIElements(appName: String?, bundleID: String?, scope: String, limit: Int) async -> [MacOSUIElementSnapshot]
+}
+
 public actor UnifiedToolRuntime {
     static let logger = Logger(subsystem: "com.solocode.CoderEngine", category: "UnifiedToolRuntime")
 
@@ -231,6 +281,8 @@ public actor UnifiedToolRuntime {
     weak var terminalBridge: (any TerminalBridge)?
     /// Browser bridge for integrated browser control
     weak var browserBridge: (any BrowserBridge)?
+    /// Native macOS automation bridge for AppleScript, screenshots, accessibility, and input events.
+    weak var macOSAutomationBridge: (any MacOSAutomationBridge)?
     /// Optional language service bridge (SourceKit-LSP + fallback orchestration).
     let languageService: (any RuntimeLanguageService)?
 
@@ -245,6 +297,7 @@ public actor UnifiedToolRuntime {
         webSearchApiKeys: [String: String]? = nil,
         terminalBridge: (any TerminalBridge)? = nil,
         browserBridge: (any BrowserBridge)? = nil,
+        macOSAutomationBridge: (any MacOSAutomationBridge)? = nil,
         languageService: (any RuntimeLanguageService)? = nil
     ) {
         self.executionController = executionController
@@ -256,6 +309,7 @@ public actor UnifiedToolRuntime {
         self.excludedPaths = excludedPaths
         self.terminalBridge = terminalBridge
         self.browserBridge = browserBridge
+        self.macOSAutomationBridge = macOSAutomationBridge
         self.languageService = languageService
 
         // Build web search service from provider + keys map

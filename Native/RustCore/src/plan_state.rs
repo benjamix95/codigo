@@ -644,8 +644,8 @@ fn parse_steps(raw: &str) -> Result<Vec<PlanStep>, String> {
     };
     let mut steps = Vec::with_capacity(items.len());
     for (index, item) in items.iter().enumerate() {
-        let linked_files = parse_value_string_array_dual(item, "linked_files", "linkedFiles")?
-            .unwrap_or_default();
+        let linked_files =
+            parse_value_string_array_dual(item, "linked_files", "linkedFiles")?.unwrap_or_default();
         let depends_on =
             parse_value_string_array_dual(item, "depends_on", "dependsOn")?.unwrap_or_default();
         steps.push(PlanStep {
@@ -984,10 +984,7 @@ mod tests {
             args.insert("status".to_string(), "pending".to_string());
             args.insert("linked_files".to_string(), "[not json".to_string());
             let err = step_upsert(&args).unwrap_err();
-            assert!(
-                err.contains("Invalid JSON"),
-                "unexpected error: {err}"
-            );
+            assert!(err.contains("Invalid JSON"), "unexpected error: {err}");
         });
     }
 

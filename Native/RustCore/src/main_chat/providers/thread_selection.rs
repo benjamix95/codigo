@@ -2,8 +2,7 @@ use app_core_protocol::thread_provider_selection::{
     ThreadProviderRegistryEntry, ThreadProviderSelectionRequest, ThreadProviderSelectionResponse,
 };
 
-const AGENT_PROVIDER_IDS: &[&str] =
-    &["codex-cli", "claude-cli", "gemini-cli", "kilo-cli"];
+const AGENT_PROVIDER_IDS: &[&str] = &["codex-cli", "claude-cli", "gemini-cli", "kilo-cli"];
 const AGENT_API_PROVIDER_IDS: &[&str] = &[
     "openai-api",
     "anthropic-api",

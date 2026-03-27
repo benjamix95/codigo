@@ -26,7 +26,10 @@ pub(super) fn flatten_app_server_params_to_payload(
     let mut out = BTreeMap::new();
     let Some(obj) = payload.as_object() else {
         if let Ok(s) = serde_json::to_string(payload) {
-            out.insert("payload_json".to_string(), truncate_utf8_prefix(&s, max_nested));
+            out.insert(
+                "payload_json".to_string(),
+                truncate_utf8_prefix(&s, max_nested),
+            );
         }
         return out;
     };

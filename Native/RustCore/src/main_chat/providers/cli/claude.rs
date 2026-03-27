@@ -167,7 +167,10 @@ fn consume_line(
         let event_type = string_value(&json["type"]).unwrap_or_else(|| "(no type)".to_string());
         crate::provider_stderr_eprintln!(
             "[CLAUDE_DEBUG] line#{} payload#{}: type={}, keys={:?}",
-            line_number, idx, event_type, top_keys
+            line_number,
+            idx,
+            event_type,
+            top_keys
         );
 
         // Emit turn_started before the first meaningful event so the
@@ -196,7 +199,10 @@ fn consume_line(
             }
             payload.insert("model".to_string(), "claude-cli".to_string());
             if payload.contains_key("input_tokens") && payload.contains_key("output_tokens") {
-                crate::provider_stderr_eprintln!("[CLAUDE_DEBUG] >>> EMITTING usage: {:?}", payload);
+                crate::provider_stderr_eprintln!(
+                    "[CLAUDE_DEBUG] >>> EMITTING usage: {:?}",
+                    payload
+                );
                 emit_raw(session_id, "usage", payload);
             }
         }
@@ -206,7 +212,10 @@ fn consume_line(
                 *received_stream_text
             );
             if let Some(result_text) = string_value(&json["result"]) {
-                crate::provider_stderr_eprintln!("[CLAUDE_DEBUG] result text length={}", result_text.len());
+                crate::provider_stderr_eprintln!(
+                    "[CLAUDE_DEBUG] result text length={}",
+                    result_text.len()
+                );
             }
             // Skip result text when streaming already provided it —
             // the result event contains the full combined text
@@ -220,7 +229,9 @@ fn consume_line(
                     emit_text_delta(session_id, &result);
                 }
             } else {
-                crate::provider_stderr_eprintln!("[CLAUDE_DEBUG] SKIPPING result text (already streamed)");
+                crate::provider_stderr_eprintln!(
+                    "[CLAUDE_DEBUG] SKIPPING result text (already streamed)"
+                );
             }
             continue;
         }
@@ -260,7 +271,9 @@ fn consume_line(
                                 ]),
                             );
                         } else {
-                            crate::provider_stderr_eprintln!("[CLAUDE_DEBUG] thinking_delta but no 'thinking' field!");
+                            crate::provider_stderr_eprintln!(
+                                "[CLAUDE_DEBUG] thinking_delta but no 'thinking' field!"
+                            );
                         }
                     }
                     if delta_type == "text_delta" {
@@ -272,13 +285,21 @@ fn consume_line(
                             );
                             emit_text_delta(session_id, &text);
                         } else {
-                            crate::provider_stderr_eprintln!("[CLAUDE_DEBUG] text_delta but no 'text' field!");
+                            crate::provider_stderr_eprintln!(
+                                "[CLAUDE_DEBUG] text_delta but no 'text' field!"
+                            );
                         }
                     }
                     if delta_type != "thinking_delta" && delta_type != "text_delta" {
-                        crate::provider_stderr_eprintln!("[CLAUDE_DEBUG] UNHANDLED delta type: {}", delta_type);
+                        crate::provider_stderr_eprintln!(
+                            "[CLAUDE_DEBUG] UNHANDLED delta type: {}",
+                            delta_type
+                        );
                         let delta_keys: Vec<String> = delta.keys().cloned().collect();
-                        crate::provider_stderr_eprintln!("[CLAUDE_DEBUG]   delta keys: {:?}", delta_keys);
+                        crate::provider_stderr_eprintln!(
+                            "[CLAUDE_DEBUG]   delta keys: {:?}",
+                            delta_keys
+                        );
                     }
                 } else {
                     crate::provider_stderr_eprintln!(
@@ -289,7 +310,9 @@ fn consume_line(
                     );
                 }
             } else {
-                crate::provider_stderr_eprintln!("[CLAUDE_DEBUG] stream_event but no 'event' field!");
+                crate::provider_stderr_eprintln!(
+                    "[CLAUDE_DEBUG] stream_event but no 'event' field!"
+                );
             }
             continue;
         }
@@ -318,7 +341,11 @@ fn consume_line(
                     .get("type")
                     .and_then(string_value)
                     .unwrap_or_else(|| "(no type)".to_string());
-                crate::provider_stderr_eprintln!("[CLAUDE_DEBUG] message.content[{}] type={}", bi, block_type);
+                crate::provider_stderr_eprintln!(
+                    "[CLAUDE_DEBUG] message.content[{}] type={}",
+                    bi,
+                    block_type
+                );
 
                 // Emit tool_finish from tool_result blocks in user messages.
                 // The result carries linesAdded/linesRemoved/output from the
@@ -407,7 +434,10 @@ fn consume_line(
                 }
                 if block_type == "tool_use" && is_assistant_message {
                     let name = block.get("name").and_then(string_value).unwrap_or_default();
-                    crate::provider_stderr_eprintln!("[CLAUDE_DEBUG] >>> EMITTING tool_use name={}", name);
+                    crate::provider_stderr_eprintln!(
+                        "[CLAUDE_DEBUG] >>> EMITTING tool_use name={}",
+                        name
+                    );
                     let mut payload = flatten_string_map(block);
                     // Merge nested `input` fields into the top-level payload
                     // so tool parameters (command, path, file_path, etc.)
@@ -417,7 +447,10 @@ fn consume_line(
                             .as_object()
                             .map(|o| o.keys().cloned().collect())
                             .unwrap_or_default();
-                        crate::provider_stderr_eprintln!("[CLAUDE_DEBUG]   tool input keys: {:?}", input_keys);
+                        crate::provider_stderr_eprintln!(
+                            "[CLAUDE_DEBUG]   tool input keys: {:?}",
+                            input_keys
+                        );
                         for (k, v) in flatten_string_map(input) {
                             payload.entry(k).or_insert(v);
                         }
@@ -428,7 +461,10 @@ fn consume_line(
                         .entry("status".to_string())
                         .or_insert_with(|| "running".to_string());
                     let normalized = normalize_tool_name(&name);
-                    crate::provider_stderr_eprintln!("[CLAUDE_DEBUG]   normalized tool name: {}", normalized);
+                    crate::provider_stderr_eprintln!(
+                        "[CLAUDE_DEBUG]   normalized tool name: {}",
+                        normalized
+                    );
 
                     // For subagent tools, inject swarm metadata so
                     // SwarmLiveReducer creates visible subagent cards.
@@ -444,12 +480,20 @@ fn consume_line(
                         let task_text = payload.get("task").cloned().unwrap_or_default();
                         let readable = subagent_readable_name(&task_text, &agent_label);
                         payload.entry("swarm_id".to_string()).or_insert(sid.clone());
-                        payload.entry("group_id".to_string()).or_insert(format!("swarm-{}", sid));
-                        payload.entry("agent_name".to_string()).or_insert(agent_label);
-                        payload.entry("readable_name".to_string()).or_insert(readable.clone());
+                        payload
+                            .entry("group_id".to_string())
+                            .or_insert(format!("swarm-{}", sid));
+                        payload
+                            .entry("agent_name".to_string())
+                            .or_insert(agent_label);
+                        payload
+                            .entry("readable_name".to_string())
+                            .or_insert(readable.clone());
                         payload.entry("role".to_string()).or_insert(role_name);
                         payload.entry("title".to_string()).or_insert(readable);
-                        payload.entry("detail".to_string()).or_insert("started".to_string());
+                        payload
+                            .entry("detail".to_string())
+                            .or_insert("started".to_string());
                         if !task_text.is_empty() {
                             let preview = truncate_str(&task_text, 500);
                             payload.entry("task_summary".to_string()).or_insert(preview);
@@ -478,13 +522,32 @@ fn consume_line(
                 // Log ALL fields
                 if let Some(obj) = json.as_object() {
                     let keys: Vec<String> = obj.keys().cloned().collect();
-                    crate::provider_stderr_eprintln!("[CLAUDE_DEBUG] task_started ALL keys: {:?}", keys);
+                    crate::provider_stderr_eprintln!(
+                        "[CLAUDE_DEBUG] task_started ALL keys: {:?}",
+                        keys
+                    );
                 }
-                let tool_use_id = json.get("tool_use_id").and_then(string_value).unwrap_or_default();
-                let task_id = json.get("task_id").and_then(string_value).unwrap_or_default();
-                let description = json.get("description").and_then(string_value).unwrap_or_default();
-                let prompt = json.get("prompt").and_then(string_value).unwrap_or_default();
-                crate::provider_stderr_eprintln!("[CLAUDE_DEBUG] task_started: id={} desc={}", task_id, description);
+                let tool_use_id = json
+                    .get("tool_use_id")
+                    .and_then(string_value)
+                    .unwrap_or_default();
+                let task_id = json
+                    .get("task_id")
+                    .and_then(string_value)
+                    .unwrap_or_default();
+                let description = json
+                    .get("description")
+                    .and_then(string_value)
+                    .unwrap_or_default();
+                let prompt = json
+                    .get("prompt")
+                    .and_then(string_value)
+                    .unwrap_or_default();
+                crate::provider_stderr_eprintln!(
+                    "[CLAUDE_DEBUG] task_started: id={} desc={}",
+                    task_id,
+                    description
+                );
                 if !tool_use_id.is_empty() {
                     let sid = make_swarm_id(&tool_use_id);
                     let readable = subagent_readable_name(&prompt, &description);
@@ -507,22 +570,50 @@ fn consume_line(
                 // Log ALL fields in task_progress so we can see what Claude sends
                 if let Some(obj) = json.as_object() {
                     let keys: Vec<String> = obj.keys().cloned().collect();
-                    crate::provider_stderr_eprintln!("[CLAUDE_DEBUG] task_progress ALL keys: {:?}", keys);
+                    crate::provider_stderr_eprintln!(
+                        "[CLAUDE_DEBUG] task_progress ALL keys: {:?}",
+                        keys
+                    );
                     for (k, v) in obj {
                         if let Some(s) = string_value(v) {
                             let preview = clip_utf8_prefix(&s, 200);
-                            crate::provider_stderr_eprintln!("[CLAUDE_DEBUG]   task_progress.{} = {}", k, preview);
+                            crate::provider_stderr_eprintln!(
+                                "[CLAUDE_DEBUG]   task_progress.{} = {}",
+                                k,
+                                preview
+                            );
                         }
                     }
                 }
-                let tool_use_id = json.get("tool_use_id").and_then(string_value).unwrap_or_default();
-                let description = json.get("description").and_then(string_value).unwrap_or_default();
-                let last_tool = json.get("last_tool_name").and_then(string_value).unwrap_or_default();
+                let tool_use_id = json
+                    .get("tool_use_id")
+                    .and_then(string_value)
+                    .unwrap_or_default();
+                let description = json
+                    .get("description")
+                    .and_then(string_value)
+                    .unwrap_or_default();
+                let last_tool = json
+                    .get("last_tool_name")
+                    .and_then(string_value)
+                    .unwrap_or_default();
                 // Check for content/output/text fields that might carry actual sub-agent output
-                let content = json.get("content").and_then(string_value).unwrap_or_default();
-                let output = json.get("output").and_then(string_value).unwrap_or_default();
-                let tool_input = json.get("tool_input").and_then(|v| serde_json::to_string(v).ok()).unwrap_or_default();
-                let tool_result = json.get("tool_result").and_then(string_value).unwrap_or_default();
+                let content = json
+                    .get("content")
+                    .and_then(string_value)
+                    .unwrap_or_default();
+                let output = json
+                    .get("output")
+                    .and_then(string_value)
+                    .unwrap_or_default();
+                let tool_input = json
+                    .get("tool_input")
+                    .and_then(|v| serde_json::to_string(v).ok())
+                    .unwrap_or_default();
+                let tool_result = json
+                    .get("tool_result")
+                    .and_then(string_value)
+                    .unwrap_or_default();
 
                 if !tool_use_id.is_empty() {
                     let sid = make_swarm_id(&tool_use_id);
@@ -562,7 +653,10 @@ fn consume_line(
                     let last_tool_ref = payload.get("tool").cloned().unwrap_or_default();
                     if !last_tool_ref.is_empty() {
                         let mut tool_payload = BTreeMap::new();
-                        tool_payload.insert("id".to_string(), payload.get("id").cloned().unwrap_or_default());
+                        tool_payload.insert(
+                            "id".to_string(),
+                            payload.get("id").cloned().unwrap_or_default(),
+                        );
                         tool_payload.insert("title".to_string(), last_tool_ref.clone());
                         tool_payload.insert("detail".to_string(), description.clone());
                         tool_payload.insert("status".to_string(), "completed".to_string());
@@ -585,18 +679,39 @@ fn consume_line(
                 // Log ALL fields
                 if let Some(obj) = json.as_object() {
                     let keys: Vec<String> = obj.keys().cloned().collect();
-                    crate::provider_stderr_eprintln!("[CLAUDE_DEBUG] task_notification ALL keys: {:?}", keys);
+                    crate::provider_stderr_eprintln!(
+                        "[CLAUDE_DEBUG] task_notification ALL keys: {:?}",
+                        keys
+                    );
                     for (k, v) in obj {
                         if let Some(s) = string_value(v) {
                             let preview = clip_utf8_prefix(&s, 300);
-                            crate::provider_stderr_eprintln!("[CLAUDE_DEBUG]   task_notification.{} = {}", k, preview);
+                            crate::provider_stderr_eprintln!(
+                                "[CLAUDE_DEBUG]   task_notification.{} = {}",
+                                k,
+                                preview
+                            );
                         }
                     }
                 }
-                let status = json.get("status").and_then(string_value).unwrap_or_default();
-                let tool_use_id = json.get("tool_use_id").and_then(string_value).unwrap_or_default();
-                let summary = json.get("summary").and_then(string_value).unwrap_or_default();
-                crate::provider_stderr_eprintln!("[CLAUDE_DEBUG] task_notification: status={} id={} summary={}", status, tool_use_id, summary);
+                let status = json
+                    .get("status")
+                    .and_then(string_value)
+                    .unwrap_or_default();
+                let tool_use_id = json
+                    .get("tool_use_id")
+                    .and_then(string_value)
+                    .unwrap_or_default();
+                let summary = json
+                    .get("summary")
+                    .and_then(string_value)
+                    .unwrap_or_default();
+                crate::provider_stderr_eprintln!(
+                    "[CLAUDE_DEBUG] task_notification: status={} id={} summary={}",
+                    status,
+                    tool_use_id,
+                    summary
+                );
                 if status == "completed" || status == "failed" {
                     let sid = make_swarm_id(&tool_use_id);
                     // Emit the summary as assistant text so it appears in the chat
@@ -626,11 +741,16 @@ fn consume_line(
             }
 
             // Log unhandled system subtypes
-            if subtype != "task_started" && subtype != "task_progress" && subtype != "task_notification"
-                && !subtype.is_empty() {
-                crate::provider_stderr_eprintln!("[CLAUDE_DEBUG] UNHANDLED system subtype: {} keys: {:?}",
+            if subtype != "task_started"
+                && subtype != "task_progress"
+                && subtype != "task_notification"
+                && !subtype.is_empty()
+            {
+                crate::provider_stderr_eprintln!(
+                    "[CLAUDE_DEBUG] UNHANDLED system subtype: {} keys: {:?}",
                     subtype,
-                    json.as_object().map(|o| o.keys().cloned().collect::<Vec<_>>())
+                    json.as_object()
+                        .map(|o| o.keys().cloned().collect::<Vec<_>>())
                 );
             }
         }
@@ -728,16 +848,58 @@ fn subagent_readable_name(task: &str, fallback: &str) -> String {
         return fallback.to_string();
     }
     let filler_words: std::collections::HashSet<&str> = [
-        "a", "an", "and", "are", "as", "at", "be", "by", "for", "from",
-        "i", "in", "into", "of", "on", "or", "the", "this", "to", "with",
-        "analyze", "check", "explore", "find", "inspect", "investigate",
-        "review", "search", "verify", "create", "implement", "write",
-        "build", "code", "debug", "fix", "test", "document",
-    ].iter().copied().collect();
+        "a",
+        "an",
+        "and",
+        "are",
+        "as",
+        "at",
+        "be",
+        "by",
+        "for",
+        "from",
+        "i",
+        "in",
+        "into",
+        "of",
+        "on",
+        "or",
+        "the",
+        "this",
+        "to",
+        "with",
+        "analyze",
+        "check",
+        "explore",
+        "find",
+        "inspect",
+        "investigate",
+        "review",
+        "search",
+        "verify",
+        "create",
+        "implement",
+        "write",
+        "build",
+        "code",
+        "debug",
+        "fix",
+        "test",
+        "document",
+    ]
+    .iter()
+    .copied()
+    .collect();
 
     let words: Vec<String> = task
         .chars()
-        .map(|c| if c.is_alphanumeric() || c == ' ' { c } else { ' ' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == ' ' {
+                c
+            } else {
+                ' '
+            }
+        })
         .collect::<String>()
         .split_whitespace()
         .filter(|w| !filler_words.contains(&w.to_lowercase().as_str()) && w.len() > 1)

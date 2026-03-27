@@ -184,7 +184,15 @@ public enum VerifiedFindingsPipelineStatusService {
         verifiedIds: Set<String>
     ) -> Bool {
         guard !verifiedIds.isEmpty else {
-            return snapshot.phase == .completed || snapshot.findings.isEmpty
+            // Evita gate “verde” a vuoto durante analyzing con 0 finding (log H_pipeline_jump: publish_ready+fase analyzing).
+            switch snapshot.phase {
+            case .completed:
+                return true
+            case .analyzing, .fixing, .testing, .reReviewing:
+                return false
+            case .idle, .failed:
+                return snapshot.findings.isEmpty
+            }
         }
         let findingsById = Dictionary(uniqueKeysWithValues: snapshot.findings.map { ($0.id, $0) })
         return verifiedIds.allSatisfy { id in
@@ -198,7 +206,14 @@ public enum VerifiedFindingsPipelineStatusService {
         verifiedIds: Set<String>
     ) -> Bool {
         guard !verifiedIds.isEmpty else {
-            return snapshot.phase == .completed || snapshot.findings.isEmpty
+            switch snapshot.phase {
+            case .completed:
+                return true
+            case .analyzing, .fixing, .testing, .reReviewing:
+                return false
+            case .idle, .failed:
+                return snapshot.findings.isEmpty
+            }
         }
         let findingsById = Dictionary(uniqueKeysWithValues: snapshot.findings.map { ($0.id, $0) })
         let patchesByFindingId = Dictionary(uniqueKeysWithValues: snapshot.patches.map { ($0.findingId, $0) })

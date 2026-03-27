@@ -319,7 +319,10 @@ mod tests {
         let ids: Vec<&str> = result.hits.iter().map(|h| h.chunk_id.as_str()).collect();
         assert!(ids.contains(&"c1"), "c1 should be in results");
         assert!(ids.contains(&"c3"), "c3 should be in results");
-        assert!(!ids.contains(&"c2"), "c2 should be excluded by negative query");
+        assert!(
+            !ids.contains(&"c2"),
+            "c2 should be excluded by negative query"
+        );
     }
 
     #[test]

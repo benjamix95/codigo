@@ -1,8 +1,8 @@
 //! FFI entry points for the trigram index.
 
-use crate::ffi::common::with_raw_json_input;
 use super::index::TrigramIndex;
 use super::search;
+use crate::ffi::common::with_raw_json_input;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::os::raw::c_char;

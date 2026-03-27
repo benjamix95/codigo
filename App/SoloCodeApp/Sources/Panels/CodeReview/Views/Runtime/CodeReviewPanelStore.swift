@@ -249,12 +249,11 @@ final class CodeReviewPanelStore: ObservableObject {
            !snapshot.findings.isEmpty || snapshot.isActive {
             self.selectedTab = .findings
         }
+        // Niente `scheduleDeferredMutation` qui: un async in più in coda al main thread ritarda/rallenta il refresh SwiftUI.
         self.taskActivityStoreCancellable = taskActivityStore.objectWillChange
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
-                self?.scheduleDeferredMutation { store in
-                    store.objectWillChange.send()
-                }
+                self?.objectWillChange.send()
             }
     }
 
@@ -345,6 +344,20 @@ final class CodeReviewPanelStore: ObservableObject {
     // MARK: - Tab Selection
 
     func selectTab(_ tab: CodeReviewTab) {
+        #if DEBUG
+        ReviewPanelDebugHangWatch.pokeMainAsyncLatency(label: "selectTab_before_\(tab.rawValue)")
+        ReviewPanelDebugNDJSON.emit(
+            hypothesisId: "H_ui_tab",
+            location: "CodeReviewPanelStore.selectTab",
+            message: "select_tab",
+            data: [
+                "tab": tab.rawValue,
+                "isRunning": isRunning,
+                "preparing": isReviewLaunchPreparing,
+                "pid": Int(ProcessInfo.processInfo.processIdentifier),
+            ]
+        )
+        #endif
         withAnimation(.snappy(duration: 0.15)) {
             if !applyPanelIntent("select_tab", value: tab.rawValue),
                !ReviewCoreBridge.isEnabled {

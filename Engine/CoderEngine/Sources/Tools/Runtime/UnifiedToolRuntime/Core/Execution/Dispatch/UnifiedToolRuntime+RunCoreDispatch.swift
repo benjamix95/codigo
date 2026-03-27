@@ -131,6 +131,20 @@ extension UnifiedToolRuntime {
             return await executeBrowserEvaluateJS(call: call, startDate: startDate)
         case "browser_get_content":
             return await executeBrowserGetContent(call: call, startDate: startDate)
+        case "macos_focus_app":
+            return await executeMacOSFocusApp(call: call, startDate: startDate)
+        case "macos_capture_screenshot":
+            return await executeMacOSCaptureScreenshot(call: call, startDate: startDate)
+        case "macos_run_applescript":
+            return await executeMacOSRunAppleScript(call: call, startDate: startDate)
+        case "macos_click":
+            return await executeMacOSClick(call: call, startDate: startDate)
+        case "macos_press_key":
+            return await executeMacOSPressKey(call: call, startDate: startDate)
+        case "macos_type_text":
+            return await executeMacOSTypeText(call: call, startDate: startDate)
+        case "macos_list_ui_elements":
+            return await executeMacOSListUIElements(call: call, startDate: startDate)
         case "parallel_apply":
             return try await executeParallelApply(call: call, context: context, startDate: startDate)
         case "regex_replace":

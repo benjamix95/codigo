@@ -98,6 +98,14 @@ struct UsageFooterView: View {
             scheduleRefresh()
             scheduleContextEstimateRefresh()
             gitPanelStore.refresh(workingDirectory: effectiveContext.primaryPath)
+            // #region agent log
+            logUsageFooterTier(hypothesisId: "H1", reason: "onAppear")
+            // #endregion
+        }
+        .onChange(of: resolvedTier) { newTier in
+            // #region agent log
+            logUsageFooterTier(hypothesisId: "H1", reason: "tier_change", tierOverride: newTier)
+            // #endregion
         }
         .onChange(of: effectiveProviderId) { _ in
             scheduleRefresh()
@@ -136,6 +144,12 @@ struct UsageFooterView: View {
         }
     }
 
+    /// Allineato a `providerUsageSection` in `UsageFooterView+UsageRows`: stessi provider con riga usage.
+    private var footerProviderHasUsageRow: Bool {
+        let pid = effectiveProviderId ?? ""
+        return pid == "codex-cli" || pid == "claude-cli" || pid == "gemini-cli" || pid.hasSuffix("-api")
+    }
+
     private func footerTierFlags(for tier: FooterTier) -> (
         showFooterBranchPicker: Bool,
         showProviderUsage: Bool,
@@ -147,11 +161,13 @@ struct UsageFooterView: View {
         case .full:
             return (true, true, true, true, true)
         case .medium:
-            return (true, false, true, true, true)
+            // Mostra usage provider (es. Codex 5h/settimana) anche con footer non “full”: prima era nascosto e restava solo il badge contesto modello (es. 1M).
+            return (true, true, true, true, true)
         case .compact:
-            return (true, false, true, true, false)
+            return (true, true, true, true, false)
         case .minimal:
-            return (false, false, false, false, false)
+            // Composer stretto: sotto ~700px il tier diventa minimal; senza usage qui la riga spariva mentre il pill modello (1M) restava.
+            return (false, footerProviderHasUsageRow, false, false, false)
         }
     }
 
@@ -195,4 +211,30 @@ struct UsageFooterView: View {
         guard nextTier != resolvedTier else { return }
         resolvedTier = nextTier
     }
+
+    // #region agent log
+    private func logUsageFooterTier(hypothesisId: String, reason: String, tierOverride: FooterTier? = nil) {
+        let tier = tierOverride ?? resolvedTier
+        let flags = footerTierFlags(for: tier)
+        let pid = effectiveProviderId ?? ""
+        let u = providerUsageStore.codexUsage
+        let p5 = u?.fiveHourPct.map { String(format: "%.1f", $0) } ?? "nil"
+        let pw = u?.weeklyPct.map { String(format: "%.1f", $0) } ?? "nil"
+        CursorSessionDebugNDJSON.append(
+            hypothesisId: hypothesisId,
+            location: "UsageFooterView.swift",
+            message: "footer_tier",
+            data: [
+                "reason": reason,
+                "tier": String(describing: tier),
+                "showProviderUsage": flags.showProviderUsage ? "1" : "0",
+                "providerId": pid,
+                "codexP5": p5,
+                "codexPw": pw,
+                "footerWidth": String(Int(availableWidth)),
+                "footerProviderHasUsageRow": footerProviderHasUsageRow ? "1" : "0",
+            ]
+        )
+    }
+    // #endregion
 }

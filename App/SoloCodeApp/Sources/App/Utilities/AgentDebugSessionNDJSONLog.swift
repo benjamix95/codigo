@@ -46,6 +46,17 @@ enum AgentDebugSessionNDJSONLog {
         return digest.map { String(format: "%02x", $0) }.joined()
     }
 
+    /// Se `configure` non è ancora stato chiamato (folder vuoti), scrive comunque qui.
+    private static func fallbackLogURL() -> URL? {
+        guard let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+        else { return nil }
+        let dir = base
+            .appendingPathComponent("SoloCode", isDirectory: true)
+            .appendingPathComponent("DebugNDJSON", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("chat-send-trace.ndjson", isDirectory: false)
+    }
+
     static func appendThrottled(
         gateKey: String,
         minInterval: TimeInterval = 0.45,
@@ -65,6 +76,10 @@ enum AgentDebugSessionNDJSONLog {
         append(hypothesisId: hypothesisId, location: location, message: message, data: data)
     }
 
+    /// Copia mirror nel repo (sessione Cursor debug `fba6fd`) oltre ad Application Support.
+    private static let cursorWorkspaceMirrorPath =
+        "/Users/benjaminstoica/SoloCode/.cursor/debug-fba6fd.log"
+
     static func append(
         hypothesisId: String,
         location: String,
@@ -72,7 +87,7 @@ enum AgentDebugSessionNDJSONLog {
         data: [String: String] = [:]
     ) {
         queue.async {
-            guard let url = logFileURL else { return }
+            let primaryURL = logFileURL ?? fallbackLogURL()
             let sid = sessionId
             let payload: [String: Any] = [
                 "sessionId": sid,
@@ -86,15 +101,22 @@ enum AgentDebugSessionNDJSONLog {
                   var line = String(data: json, encoding: .utf8)
             else { return }
             line.append("\n")
-            let path = url.path
-            if !FileManager.default.fileExists(atPath: path) {
-                FileManager.default.createFile(atPath: path, contents: Data(line.utf8))
-                return
+            let lineData = Data(line.utf8)
+            if let primaryURL {
+                Self.appendData(lineData, toPath: primaryURL.path)
             }
-            guard let handle = try? FileHandle(forWritingTo: url) else { return }
-            defer { try? handle.close() }
-            _ = try? handle.seekToEnd()
-            handle.write(Data(line.utf8))
+            Self.appendData(lineData, toPath: cursorWorkspaceMirrorPath)
         }
+    }
+
+    private static func appendData(_ data: Data, toPath path: String) {
+        if !FileManager.default.fileExists(atPath: path) {
+            FileManager.default.createFile(atPath: path, contents: data)
+            return
+        }
+        guard let handle = try? FileHandle(forWritingTo: URL(fileURLWithPath: path)) else { return }
+        defer { try? handle.close() }
+        _ = try? handle.seekToEnd()
+        handle.write(data)
     }
 }

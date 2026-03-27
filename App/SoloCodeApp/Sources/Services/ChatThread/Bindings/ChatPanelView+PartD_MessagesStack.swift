@@ -26,16 +26,10 @@ extension ChatPanelView {
         traceEventsByMessageId: [UUID: [ToolTraceEvent]],
         isLoading: Bool
     ) -> ChatMessagesBarrierFingerprint {
-        let lastMessage = messages.last
-        return .init(
+        buildChatMessagesBarrierFingerprint(
             conversationId: conversationId,
-            messageCount: messages.count,
-            lastMessageId: lastMessage?.id,
-            lastMessageContentLength: lastMessage?.content.count ?? 0,
-            lastMessageReasoningLength: lastMessage?.reasoningText?.count ?? 0,
-            lastMessageIsStreaming: lastMessage?.isStreaming ?? false,
-            lastMessageBlocksCount: lastMessage?.blocks?.count ?? 0,
-            lastMessageTraceEventsCount: lastMessage.flatMap { traceEventsByMessageId[$0.id]?.count } ?? 0,
+            messages: messages,
+            traceEventsByMessageId: traceEventsByMessageId,
             isLoading: isLoading
         )
     }

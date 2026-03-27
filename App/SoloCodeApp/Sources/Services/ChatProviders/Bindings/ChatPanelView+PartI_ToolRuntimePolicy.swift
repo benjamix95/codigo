@@ -169,5 +169,6 @@ extension ChatPanelView {
         checkProviderAuth()
         persistCodexConfigToToml()
         injectBrowserBridgeIntoProviders()
+        injectMacOSAutomationBridgeIntoProviders()
     }
 }

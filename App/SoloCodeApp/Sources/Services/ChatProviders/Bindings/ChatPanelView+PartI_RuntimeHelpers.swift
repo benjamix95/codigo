@@ -14,6 +14,16 @@ extension ChatPanelView {
         }
     }
 
+    internal func injectMacOSAutomationBridgeIntoProviders() {
+        for provider in providerRegistry.providers {
+            if let toolProvider = provider as? ToolEnabledLLMProvider {
+                Task {
+                    await toolProvider.setMacOSAutomationBridge(MacOSAutomationService.shared)
+                }
+            }
+        }
+    }
+
     internal func reregisterProviderPreservingSelection(id: String, provider: any LLMProvider) {
         let wasSelected = providerRegistry.selectedProviderId == id
         providerRegistry.unregister(id: id)

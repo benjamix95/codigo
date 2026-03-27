@@ -248,7 +248,9 @@ fn emit_reasoning_chunk(session_id: &str, text: &str) {
 
 fn int_from_json(value: Option<&Value>) -> Option<i64> {
     match value? {
-        Value::Number(number) => number.as_i64().or_else(|| number.as_f64().map(|f| f as i64)),
+        Value::Number(number) => number
+            .as_i64()
+            .or_else(|| number.as_f64().map(|f| f as i64)),
         Value::String(text) => text.trim().parse().ok(),
         _ => None,
     }

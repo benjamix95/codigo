@@ -291,8 +291,8 @@ fn spawn_worker(session_id: String, config: MainChatProviderSessionConfig) {
         // Wrap the entire worker in catch_unwind so that a Rust panic
         // (e.g. debug assertions on broken-pipe data) is converted to an
         // error instead of crashing the host Swift process.
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            match config.backend {
+        let result =
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| match config.backend {
                 MainChatProviderBackend::OpenaiApi => openai::run(&session_id, &config),
                 MainChatProviderBackend::GoogleApi => google::run(&session_id, &config),
                 MainChatProviderBackend::AnthropicApi => anthropic::run(&session_id, &config),
@@ -308,8 +308,7 @@ fn spawn_worker(session_id: String, config: MainChatProviderSessionConfig) {
                 MainChatProviderBackend::KiloCli => {
                     retry_cli(&session_id, &config, MainChatProviderBackend::KiloCli)
                 }
-            }
-        }));
+            }));
 
         let result = match result {
             Ok(inner) => inner,
@@ -319,15 +318,13 @@ fn spawn_worker(session_id: String, config: MainChatProviderSessionConfig) {
                     Err(panic_payload) => match panic_payload.downcast::<&'static str>() {
                         Ok(message) => (*message).to_string(),
                         Err(_) => {
-                            "internal panic (non-string payload; try RUST_BACKTRACE=1)"
-                                .to_string()
+                            "internal panic (non-string payload; try RUST_BACKTRACE=1)".to_string()
                         }
                     },
                 };
                 // #region agent log
                 {
-                    let log_path =
-                        "/Users/benjaminstoica/SoloCode/.cursor/debug-d56c92.log";
+                    let log_path = "/Users/benjaminstoica/SoloCode/.cursor/debug-d56c92.log";
                     if let Ok(mut f) = std::fs::OpenOptions::new()
                         .create(true)
                         .append(true)
@@ -345,11 +342,7 @@ fn spawn_worker(session_id: String, config: MainChatProviderSessionConfig) {
                             "data": { "detail": &detail },
                             "timestamp": ts,
                         });
-                        let _ = writeln!(
-                            f,
-                            "{}",
-                            serde_json::to_string(&line).unwrap_or_default()
-                        );
+                        let _ = writeln!(f, "{}", serde_json::to_string(&line).unwrap_or_default());
                     }
                 }
                 // #endregion

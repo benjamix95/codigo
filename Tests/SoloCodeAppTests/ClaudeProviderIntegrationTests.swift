@@ -35,17 +35,16 @@ final class ClaudeProviderIntegrationTests: XCTestCase {
         )
     }
 
-    func testCodexCLIStillRoutesTextToReasoningInAgentMode() {
-        // Codex CLI does NOT separate thinking from text,
-        // so agent mode must still route text → reasoning.
-        XCTAssertTrue(
+    func testCodexCLINeverRoutesTextToReasoningWhenReasoningUISuppressed() {
+        // Codex: reasoning UI è `.suppressed` — `text_delta` alimenta la bolla risposta, non il canale reasoning.
+        XCTAssertFalse(
             shouldRouteStreamingTextToReasoning(
                 coderMode: .agent,
                 hasOperationalActivityInTurn: false,
                 providerId: "codex-cli"
             )
         )
-        XCTAssertTrue(
+        XCTAssertFalse(
             shouldRouteStreamingTextToReasoning(
                 coderMode: .agent,
                 hasOperationalActivityInTurn: true,

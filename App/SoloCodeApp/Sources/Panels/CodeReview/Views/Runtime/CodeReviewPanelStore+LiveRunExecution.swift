@@ -31,30 +31,87 @@ extension CodeReviewPanelStore {
     ) async {
         isReviewLaunchPreparing = !isRunning
         if isReviewLaunchPreparing {
+            #if DEBUG
+            ReviewPanelDebugHangWatch.cancelProbes()
+            ReviewPanelDebugHangWatch.pokeMainAsyncLatency(label: "startReview_after_preparing_flag")
+            ReviewPanelDebugHangWatch.armForReviewPanel(store: self)
+            #endif
             await Task.yield()
+            #if DEBUG
+            ReviewPanelDebugHangWatch.pokeMainAsyncLatency(label: "startReview_after_first_yield")
+            #endif
         }
 
-        var codebasePromptPaths: [String]?
-        if case .codebase = scope {
-            let split = await gatherCodebaseIndexedPathsForRun(depth: reviewScanDepth)
-            pendingCodebaseWorkspaceIncludedPaths = split.workspaceIncludedPaths.isEmpty
-                ? nil
-                : split.workspaceIncludedPaths
-            codebasePromptPaths = split.promptPaths
-        } else {
-            pendingCodebaseWorkspaceIncludedPaths = nil
-            codebasePromptPaths = nil
-        }
+        let index = workspaceStore.codebaseIndex
+        let depth = reviewScanDepth
+        let branch = currentGitBranch
+        let custom = settings.customInstructions
 
         let resolvedPrompt: String
         if let promptOverride {
             resolvedPrompt = promptOverride
+            if case .codebase = scope {
+                #if DEBUG
+                let pathT0 = Date()
+                ReviewPanelDebugNDJSON.emit(
+                    hypothesisId: "H_prompt_path",
+                    location: "CodeReviewPanelStore+LiveRunExecution.startReview",
+                    message: "codebase_paths_only_begin",
+                    data: ["hint": "promptOverride"]
+                )
+                #endif
+                let (_, included) = await Task.detached(priority: .userInitiated) {
+                    await CodeReviewPanelStore.gatherCodebasePathsForLaunchIfNeeded(
+                        scope: scope,
+                        scanDepth: depth,
+                        codebaseIndex: index
+                    )
+                }.value
+                pendingCodebaseWorkspaceIncludedPaths = included
+                #if DEBUG
+                ReviewPanelDebugNDJSON.emit(
+                    hypothesisId: "H_prompt_path",
+                    location: "CodeReviewPanelStore+LiveRunExecution.startReview",
+                    message: "codebase_paths_only_end",
+                    data: ["ms": Int(Date().timeIntervalSince(pathT0) * 1000)]
+                )
+                #endif
+            } else {
+                pendingCodebaseWorkspaceIncludedPaths = nil
+            }
         } else {
-            resolvedPrompt = await buildPrompt(
-                scope: scope,
-                modes: modes,
-                precomputedCodebasePromptPaths: codebasePromptPaths
+            #if DEBUG
+            let promptT0 = Date()
+            ReviewPanelDebugNDJSON.emit(
+                hypothesisId: "H_prompt_build",
+                location: "CodeReviewPanelStore+LiveRunExecution.startReview",
+                message: "off_main_prompt_build_begin",
+                data: [
+                    "scopeKind": String(describing: scope),
+                    "depth": depth.rawValue,
+                ]
             )
+            #endif
+            let built = await Task.detached(priority: .userInitiated) {
+                await CodeReviewPanelStore.buildReviewLaunchPromptOffMainActor(
+                    scope: scope,
+                    modes: modes,
+                    scanDepth: depth,
+                    currentBranch: branch,
+                    customInstructions: custom,
+                    codebaseIndex: index
+                )
+            }.value
+            resolvedPrompt = built.prompt
+            pendingCodebaseWorkspaceIncludedPaths = built.workspaceIncludedPaths
+            #if DEBUG
+            ReviewPanelDebugNDJSON.emit(
+                hypothesisId: "H_prompt_build",
+                location: "CodeReviewPanelStore+LiveRunExecution.startReview",
+                message: "off_main_prompt_build_end",
+                data: ["ms": Int(Date().timeIntervalSince(promptT0) * 1000)]
+            )
+            #endif
         }
         let resolvedLabel = invocationLabel ?? reviewInvocationLabel(scope: scope, modes: modes)
 
@@ -152,6 +209,9 @@ extension CodeReviewPanelStore {
     }
 
     func cancelReview() {
+        #if DEBUG
+        ReviewPanelDebugHangWatch.cancelProbes()
+        #endif
         isReviewLaunchPreparing = false
         coordinator.cancelReview()
         completePanelRun(selectTab: .findings)

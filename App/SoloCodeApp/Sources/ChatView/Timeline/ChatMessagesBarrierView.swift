@@ -12,6 +12,26 @@ struct ChatMessagesBarrierFingerprint: Equatable {
     let isLoading: Bool
 }
 
+func buildChatMessagesBarrierFingerprint(
+    conversationId: UUID?,
+    messages: [ChatMessage],
+    traceEventsByMessageId: [UUID: [ToolTraceEvent]],
+    isLoading: Bool
+) -> ChatMessagesBarrierFingerprint {
+    let lastMessage = messages.last
+    return .init(
+        conversationId: conversationId,
+        messageCount: messages.count,
+        lastMessageId: lastMessage?.id,
+        lastMessageContentLength: lastMessage?.content.count ?? 0,
+        lastMessageReasoningLength: lastMessage?.reasoningText?.count ?? 0,
+        lastMessageIsStreaming: lastMessage?.isStreaming ?? false,
+        lastMessageBlocksCount: lastMessage?.blocks?.count ?? 0,
+        lastMessageTraceEventsCount: lastMessage.flatMap { traceEventsByMessageId[$0.id]?.count } ?? 0,
+        isLoading: isLoading
+    )
+}
+
 /// Equatable barrier that prevents parent body invalidations from
 /// cascading into the messages list. SwiftUI compares the `Fingerprint`
 /// before re-evaluating the content closure. If the fingerprint hasn't

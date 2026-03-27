@@ -157,12 +157,7 @@ mod tests {
 
     #[test]
     fn explain_finding_requires_fields() {
-        let e = run_audit(
-            "audit_explain_finding",
-            vec![],
-            ".",
-            AuditParams::default(),
-        );
+        let e = run_audit("audit_explain_finding", vec![], ".", AuditParams::default());
         assert!(e.is_err());
     }
 }

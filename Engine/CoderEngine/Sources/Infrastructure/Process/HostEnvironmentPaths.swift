@@ -14,7 +14,7 @@ public enum HostEnvironmentPaths {
     /// Antepone le directory Homebrew esistenti al `PATH` se assenti, così subprocess (MCP, CLI) trovano `rg`.
     public static func augmentedPATH(existing: String?) -> String {
         let current = existing ?? ""
-        var segments = current.split(separator: ":").map(String.init).filter { !$0.isEmpty }
+        let segments = current.split(separator: ":").map(String.init).filter { !$0.isEmpty }
         var seen = Set(segments)
         var prefix: [String] = []
         for dir in homebrewBinaryDirectories {

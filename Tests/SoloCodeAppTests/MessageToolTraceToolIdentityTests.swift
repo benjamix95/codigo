@@ -79,7 +79,7 @@ final class MessageToolTraceToolIdentityTests: XCTestCase {
             collapser: ToolTraceEventCollapser.collapseSupersededToolStates
         )
 
-        XCTAssertEqual(view.headerTitle(derived: derived), "1 file letto · read")
+        XCTAssertEqual(view.headerTitle(derived: derived), "1 file letto · Read workspace file")
     }
 
     private func makeEvent(

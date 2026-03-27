@@ -11,8 +11,28 @@ if [[ "$PROFILE_LOWER" == *release* ]]; then
   TARGET_PROFILE="release"
 fi
 
-if ! command -v cargo >/dev/null 2>&1 || ! command -v rustc >/dev/null 2>&1; then
-  echo "[rust-mcp] cargo/rustc non disponibili"
+resolve_rust_toolchain() {
+  if command -v cargo >/dev/null 2>&1 && command -v rustc >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if [[ -f "$HOME/.cargo/env" ]]; then
+    # shellcheck disable=SC1090
+    . "$HOME/.cargo/env"
+  fi
+
+  for dir in "$HOME/.cargo/bin" /usr/local/bin /opt/homebrew/bin; do
+    if [[ -x "$dir/cargo" && -x "$dir/rustc" ]]; then
+      export PATH="$dir:$PATH"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+if ! resolve_rust_toolchain; then
+  echo "[rust-mcp] cargo/rustc non disponibili nel PATH né in posizioni standard (~/.cargo/bin, /usr/local/bin, /opt/homebrew/bin)"
   exit 1
 fi
 

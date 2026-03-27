@@ -8,7 +8,11 @@ pub(crate) fn run_audit_profile(
     workspace_path: &str,
     profile_raw: Option<&str>,
 ) -> Result<Value, String> {
-    let profile = profile_raw.unwrap_or("quick").trim().to_lowercase().replace('-', "_");
+    let profile = profile_raw
+        .unwrap_or("quick")
+        .trim()
+        .to_lowercase()
+        .replace('-', "_");
     let tools: &[&str] = match profile.as_str() {
         "quick" => &[
             "audit_security_patterns",
@@ -42,7 +46,11 @@ pub(crate) fn run_audit_profile(
 
     let mut results = Vec::new();
     for t in tools {
-        results.push(dispatch_standard_audit(t, scope_files.clone(), workspace_path)?);
+        results.push(dispatch_standard_audit(
+            t,
+            scope_files.clone(),
+            workspace_path,
+        )?);
     }
     Ok(merge_audit_results(
         "audit_run_profile",
@@ -57,10 +65,18 @@ pub(crate) fn run_correlate_findings(
 ) -> Result<Value, String> {
     let mut results = Vec::new();
     for t in security_deep_tools() {
-        results.push(dispatch_standard_audit(t, scope_files.clone(), workspace_path)?);
+        results.push(dispatch_standard_audit(
+            t,
+            scope_files.clone(),
+            workspace_path,
+        )?);
     }
     for t in bug_hunt_deep_tools() {
-        results.push(dispatch_standard_audit(t, scope_files.clone(), workspace_path)?);
+        results.push(dispatch_standard_audit(
+            t,
+            scope_files.clone(),
+            workspace_path,
+        )?);
     }
     Ok(merge_audit_results(
         "audit_correlate_findings",
@@ -75,10 +91,18 @@ pub(crate) fn run_verify_bundle(
 ) -> Result<Value, String> {
     let mut results = Vec::new();
     for t in security_deep_tools() {
-        results.push(dispatch_standard_audit(t, scope_files.clone(), workspace_path)?);
+        results.push(dispatch_standard_audit(
+            t,
+            scope_files.clone(),
+            workspace_path,
+        )?);
     }
     for t in bug_hunt_deep_tools() {
-        results.push(dispatch_standard_audit(t, scope_files.clone(), workspace_path)?);
+        results.push(dispatch_standard_audit(
+            t,
+            scope_files.clone(),
+            workspace_path,
+        )?);
     }
     let merged = merge_audit_results("audit_verify_bundle_stage", "stage", results);
     let findings = merged

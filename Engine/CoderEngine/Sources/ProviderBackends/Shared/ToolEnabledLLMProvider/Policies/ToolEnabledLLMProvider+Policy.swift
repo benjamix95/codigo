@@ -122,6 +122,7 @@ extension ToolEnabledLLMProvider {
 
         ### Execution
         - **bash** — Run shell command. Args: `command`, `cwd`.
+        - **macOS native UI verification** — Use proactively when UI/app behavior must be validated, even if the user did not explicitly ask. Prefer the dedicated `macos_*` tools first: `macos_focus_app`, `macos_capture_screenshot`, `macos_run_applescript`, `macos_list_ui_elements`, `macos_click`, `macos_press_key`, `macos_type_text`. Fall back to shell + `osascript`, `screencapture`, or small `swift` + CoreGraphics scripts only when a dedicated tool does not cover the exact case. Do not claim UI success from code inspection alone when a native verification pass would materially reduce uncertainty.
         - **git_diff** — Show git diff. Args: `path`.
         - **run_tests** — Run tests. Args: `target`, `filter`.
         - **run_single_test** — Run a single test by name. Auto-detects project type (Swift/Node/Cargo/Go). Args: `test_name`, `file` (optional).

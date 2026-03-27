@@ -224,9 +224,21 @@ mod tests {
     #[test]
     fn basic_build_and_query() {
         let files = vec![
-            ("a.swift".to_string(), "func handleSearch() { }".to_string(), 1u64),
-            ("b.swift".to_string(), "func processData() { }".to_string(), 2u64),
-            ("c.swift".to_string(), "class SearchEngine { }".to_string(), 3u64),
+            (
+                "a.swift".to_string(),
+                "func handleSearch() { }".to_string(),
+                1u64,
+            ),
+            (
+                "b.swift".to_string(),
+                "func processData() { }".to_string(),
+                2u64,
+            ),
+            (
+                "c.swift".to_string(),
+                "class SearchEngine { }".to_string(),
+                3u64,
+            ),
         ];
         let index = TrigramIndex::build(&files);
         assert_eq!(index.file_count(), 3);
@@ -238,12 +250,17 @@ mod tests {
 
     #[test]
     fn no_false_negatives() {
-        let files = vec![
-            ("test.rs".to_string(), "fn hello_world() { println!(\"hello\") }".to_string(), 1u64),
-        ];
+        let files = vec![(
+            "test.rs".to_string(),
+            "fn hello_world() { println!(\"hello\") }".to_string(),
+            1u64,
+        )];
         let index = TrigramIndex::build(&files);
         let candidates = index.query_candidates("hello_world");
-        assert!(!candidates.is_empty(), "Must find the file containing the pattern");
+        assert!(
+            !candidates.is_empty(),
+            "Must find the file containing the pattern"
+        );
     }
 
     #[test]
@@ -260,12 +277,12 @@ mod tests {
 
     #[test]
     fn incremental_update() {
-        let files = vec![
-            ("a.rs".to_string(), "old content here".to_string(), 1u64),
-        ];
+        let files = vec![("a.rs".to_string(), "old content here".to_string(), 1u64)];
         let mut index = TrigramIndex::build(&files);
-        assert!(!index.query_candidates("new_function").is_empty() == false
-            || index.query_candidates("new_function").is_empty());
+        assert!(
+            !index.query_candidates("new_function").is_empty() == false
+                || index.query_candidates("new_function").is_empty()
+        );
 
         index.update_file("a.rs", "fn new_function() { }", 2);
         let candidates = index.query_candidates("new_function");

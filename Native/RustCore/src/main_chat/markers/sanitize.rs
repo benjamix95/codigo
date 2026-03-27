@@ -172,7 +172,9 @@ fn strip_prose_segment(text: &str, aggressive: bool) -> String {
     let mut out = patterns::coderide_marker()
         .replace_all(text, "")
         .into_owned();
-    out = patterns::policy_error_run().replace_all(&out, "").into_owned();
+    out = patterns::policy_error_run()
+        .replace_all(&out, "")
+        .into_owned();
     out = remove_incomplete_markers(out);
     if aggressive {
         out = patterns::inline_op_prefix()

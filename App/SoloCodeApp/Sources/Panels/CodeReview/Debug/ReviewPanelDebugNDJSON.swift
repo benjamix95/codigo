@@ -1,9 +1,14 @@
 import Foundation
 
 /// Log di debug review panel → NDJSON locale + print (solo DEBUG). Non rimuovere finché il flusso review non è stabile.
+/// Scrittura su file **in coda utility**: evita bloccare il main thread quando `emit` parte da body SwiftUI (`phase_ring`, ecc.).
 enum ReviewPanelDebugNDJSON {
     static let sessionId = "7e54b6"
     private static let path = "/Users/benjaminstoica/SoloCode/.cursor/debug-7e54b6.log"
+    private static let writeQueue = DispatchQueue(
+        label: "com.solocode.reviewPanelDebugNDJSON",
+        qos: .utility
+    )
     private static var lastThrottledEmit: [String: TimeInterval] = [:]
 
     /// Evita NDJSON ingest decine di volte per frame SwiftUI.
@@ -16,10 +21,17 @@ enum ReviewPanelDebugNDJSON {
         data: [String: Any]
     ) {
         #if DEBUG
-        let now = Date().timeIntervalSince1970
-        if let t = lastThrottledEmit[key], now - t < minInterval { return }
-        lastThrottledEmit[key] = now
-        emit(hypothesisId: hypothesisId, location: location, message: message, data: data)
+        writeQueue.async {
+            let now = Date().timeIntervalSince1970
+            if let t = lastThrottledEmit[key], now - t < minInterval { return }
+            lastThrottledEmit[key] = now
+            writePayload(
+                hypothesisId: hypothesisId,
+                location: location,
+                message: message,
+                data: data
+            )
+        }
         #endif
     }
 
@@ -30,6 +42,23 @@ enum ReviewPanelDebugNDJSON {
         data: [String: Any]
     ) {
         #if DEBUG
+        writeQueue.async {
+            writePayload(
+                hypothesisId: hypothesisId,
+                location: location,
+                message: message,
+                data: data
+            )
+        }
+        #endif
+    }
+
+    private static func writePayload(
+        hypothesisId: String,
+        location: String,
+        message: String,
+        data: [String: Any]
+    ) {
         let payload: [String: Any] = [
             "sessionId": sessionId,
             "hypothesisId": hypothesisId,
@@ -51,6 +80,5 @@ enum ReviewPanelDebugNDJSON {
         }
         let short = data.map { "\($0.key)=\($0.value)" }.joined(separator: " ")
         print("[ReviewPanelDEBUG] \(location) | \(message) | \(short)")
-        #endif
     }
 }

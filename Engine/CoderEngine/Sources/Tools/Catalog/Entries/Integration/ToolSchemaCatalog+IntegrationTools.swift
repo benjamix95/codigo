@@ -293,6 +293,75 @@ extension ToolSchemaCatalog {
             description: "Get the full HTML content of the current browser page.",
             properties: [:],
             required: []
+        ),
+
+        // MARK: Native macOS Automation Tools
+        ToolSchemaEntry(
+            name: "macos_focus_app",
+            description: "Bring a macOS app to the foreground using native Apple APIs. Defaults to the host app when no target is provided.",
+            properties: [
+                "app_name": ["type": "string", "description": "App display name, e.g. 'Solo Code' or 'Safari'"],
+                "bundle_id": ["type": "string", "description": "Bundle identifier, e.g. 'com.apple.Safari'"]
+            ],
+            required: []
+        ),
+        ToolSchemaEntry(
+            name: "macos_capture_screenshot",
+            description: "Capture a native macOS screenshot using Apple window/display APIs. Returns a base64-encoded PNG image.",
+            properties: [
+                "target": ["type": "string", "description": "Capture target", "enum": "screen,front_window,app"],
+                "app_name": ["type": "string", "description": "Optional app display name when target is front_window or app"],
+                "bundle_id": ["type": "string", "description": "Optional bundle identifier when target is front_window or app"]
+            ],
+            required: []
+        ),
+        ToolSchemaEntry(
+            name: "macos_run_applescript",
+            description: "Run AppleScript natively inside the host process. Use for menu automation, UI scripting, and app inspection.",
+            properties: [
+                "script": ["type": "string", "description": "AppleScript source to execute"],
+                "app_name": ["type": "string", "description": "Optional default target app name if the script body does not already declare one"],
+                "bundle_id": ["type": "string", "description": "Optional target app bundle identifier"],
+                "timeout_ms": ["type": "string", "description": "Optional script timeout in milliseconds"]
+            ],
+            required: ["script"]
+        ),
+        ToolSchemaEntry(
+            name: "macos_click",
+            description: "Simulate a native macOS mouse click at absolute screen coordinates using CoreGraphics events.",
+            properties: [
+                "x": ["type": "string", "description": "Absolute screen X coordinate in points"],
+                "y": ["type": "string", "description": "Absolute screen Y coordinate in points"]
+            ],
+            required: ["x", "y"]
+        ),
+        ToolSchemaEntry(
+            name: "macos_press_key",
+            description: "Send a native macOS key press using CoreGraphics events.",
+            properties: [
+                "key": ["type": "string", "description": "Key name or character, e.g. 'return', 'escape', 'd', 'p'"],
+                "modifiers": ["type": "string", "description": "Optional comma-separated modifiers, e.g. 'command,shift'"]
+            ],
+            required: ["key"]
+        ),
+        ToolSchemaEntry(
+            name: "macos_type_text",
+            description: "Type Unicode text using native macOS keyboard events.",
+            properties: [
+                "text": ["type": "string", "description": "Text to type into the focused UI element"]
+            ],
+            required: ["text"]
+        ),
+        ToolSchemaEntry(
+            name: "macos_list_ui_elements",
+            description: "List accessibility-visible UI elements for the front window or entire app. Returns compact structured metadata for inspection.",
+            properties: [
+                "app_name": ["type": "string", "description": "Optional app display name, defaults to the host app"],
+                "bundle_id": ["type": "string", "description": "Optional app bundle identifier"],
+                "scope": ["type": "string", "description": "Inspection scope", "enum": "front_window,entire_app"],
+                "limit": ["type": "string", "description": "Maximum number of UI elements to return (default: 80)"]
+            ],
+            required: []
         )
     ]
 }

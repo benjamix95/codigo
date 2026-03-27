@@ -18,6 +18,11 @@ struct ReviewPanelFindingsTab: View {
 
             tabContent(findings: findings)
         }
+        .onAppear {
+            #if DEBUG
+            ReviewPanelDebugHangWatch.logFindingsTabSurface(store: store)
+            #endif
+        }
     }
 
     @ViewBuilder

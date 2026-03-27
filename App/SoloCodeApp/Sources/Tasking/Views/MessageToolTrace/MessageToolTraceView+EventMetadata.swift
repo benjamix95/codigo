@@ -179,6 +179,20 @@ struct MessageToolTraceToolIdentity {
             return .init(symbolName: "globe", tint: DesignSystem.Colors.info)
         case "web_fetch":
             return .init(symbolName: "arrow.down.doc", tint: DesignSystem.Colors.info)
+        case "macos_focus_app":
+            return .init(symbolName: "app.badge", tint: DesignSystem.Colors.info)
+        case "macos_capture_screenshot":
+            return .init(symbolName: "macwindow", tint: DesignSystem.Colors.info)
+        case "macos_run_applescript":
+            return .init(symbolName: "terminal", tint: DesignSystem.Colors.info)
+        case "macos_click":
+            return .init(symbolName: "cursorarrow.click.2", tint: DesignSystem.Colors.info)
+        case "macos_press_key":
+            return .init(symbolName: "keyboard", tint: DesignSystem.Colors.info)
+        case "macos_type_text":
+            return .init(symbolName: "textbox", tint: DesignSystem.Colors.info)
+        case "macos_list_ui_elements":
+            return .init(symbolName: "list.bullet.rectangle", tint: DesignSystem.Colors.info)
         case "skill":
             return .init(symbolName: "sparkles", tint: DesignSystem.Colors.reviewColor)
         default:

@@ -20,10 +20,33 @@ extension TaskActivityStore {
             }
         }
         let resolvedConversationId = conversationId ?? snapshot.conversationId
+        #if DEBUG
+        let deriveT0 = Date()
+        #endif
         let derivedState = deriveReviewPanelState(
             snapshot: snapshot,
             conversationId: resolvedConversationId
         )
+        #if DEBUG
+        let deriveMs = Int(Date().timeIntervalSince(deriveT0) * 1000)
+        if deriveMs > 24 {
+            ReviewPanelDebugNDJSON.emit(
+                hypothesisId: "H_derive_slow",
+                location: "TaskActivityStore+CodeReview.ingestCodeReviewSnapshot",
+                message: "derive_review_panel_state_slow",
+                data: [
+                    "sessionId": snapshot.sessionId,
+                    "deriveMs": deriveMs,
+                    "findings": snapshot.findings.count,
+                    "candidates": snapshot.candidates.count,
+                ]
+            )
+        }
+        ReviewPanelDebugHangWatch.pokeMainAsyncLatency(
+            label: "post_ingest_derive",
+            hypothesisId: "H_main_after_derive"
+        )
+        #endif
         let verifiedEnvelope = derivedState.verifiedEnvelope
         let resolvedSnapshot = snapshot.copying(
             mutationSequence: snapshot.mutationSequence,
@@ -87,6 +110,37 @@ extension TaskActivityStore {
                 "phase": String(describing: resolvedSnapshot.phase),
                 "mutationSequence": Int(resolvedSnapshot.mutationSequence),
                 "findings": resolvedSnapshot.findings.count,
+            ]
+        )
+        let pipe = ReviewPipelineJobStateBuilder.build(
+            snapshot: resolvedSnapshot,
+            entryPoint: .panel
+        )
+        let vGate = pipe.gates.first { $0.title == "Verification" }?.isReady ?? false
+        let pGate = pipe.gates.first { $0.title == "Patch" }?.isReady ?? false
+        ReviewPanelDebugNDJSON.emitThrottled(
+            key: "pipelinePhaseTrace",
+            minInterval: 0.32,
+            hypothesisId: "H_pipeline_jump",
+            location: "TaskActivityStore+CodeReview.ingestCodeReviewSnapshot",
+            message: "pipeline_phase_trace",
+            data: [
+                "sessionId": resolvedSnapshot.sessionId,
+                "snapshotPhase": String(describing: resolvedSnapshot.phase),
+                "uiPipelinePhase": pipe.phase,
+                "stepsCompleted": pipe.stepsCompleted,
+                "stepsTotal": pipe.stepsTotal,
+                "findings": resolvedSnapshot.findings.count,
+                "candidates": resolvedSnapshot.candidates.count,
+                "verifiedCount": pipe.verifiedCount,
+                "candidateCount": pipe.candidateCount,
+                "verificationGateReady": vGate,
+                "patchGateReady": pGate,
+                "auditToolCoverage": resolvedSnapshot.audit.toolCoverage.count,
+                "toolsCompleted": pipe.toolsCompleted,
+                "toolsTotal": pipe.toolsTotal,
+                "activeWorkerCount": resolvedSnapshot.activeWorkerCount,
+                "hasAnalysisCompletedAt": resolvedSnapshot.analysisCompletedAt != nil,
             ]
         )
         #endif

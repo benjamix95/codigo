@@ -123,8 +123,16 @@ mod tests {
     #[test]
     fn grep_finds_matches() {
         let files = vec![
-            ("a.swift".to_string(), "func handleSearch() {\n    // search logic\n}".to_string(), 1u64),
-            ("b.swift".to_string(), "func processData() {\n    // data logic\n}".to_string(), 2u64),
+            (
+                "a.swift".to_string(),
+                "func handleSearch() {\n    // search logic\n}".to_string(),
+                1u64,
+            ),
+            (
+                "b.swift".to_string(),
+                "func processData() {\n    // data logic\n}".to_string(),
+                2u64,
+            ),
         ];
         let index = TrigramIndex::build(&files);
 
@@ -140,9 +148,11 @@ mod tests {
 
     #[test]
     fn grep_respects_max_results() {
-        let files = vec![
-            ("a.rs".to_string(), "aaa\naaa\naaa\naaa\naaa".to_string(), 1u64),
-        ];
+        let files = vec![(
+            "a.rs".to_string(),
+            "aaa\naaa\naaa\naaa\naaa".to_string(),
+            1u64,
+        )];
         let index = TrigramIndex::build(&files);
         let mut contents = HashMap::new();
         contents.insert(0u32, files[0].1.clone());

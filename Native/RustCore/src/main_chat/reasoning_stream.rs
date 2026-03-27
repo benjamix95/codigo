@@ -241,8 +241,13 @@ mod tests {
 
     #[test]
     fn reducer_appends_incremental_deltas_without_dropping_prefix() {
-        let first =
-            apply_stream_chunk("parol".to_string(), "g1".to_string(), MainChatReasoningState::default(), false, 0);
+        let first = apply_stream_chunk(
+            "parol".to_string(),
+            "g1".to_string(),
+            MainChatReasoningState::default(),
+            false,
+            0,
+        );
         let second = apply_stream_chunk("a".to_string(), "g1".to_string(), first, false, 0);
         assert_eq!(second.blocks[0].text, "parola");
     }

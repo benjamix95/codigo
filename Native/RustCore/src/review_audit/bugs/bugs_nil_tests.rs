@@ -10,8 +10,8 @@ pub(crate) fn run_bug_nil_crash_paths(
     workspace_path: &str,
 ) -> Result<Value, String> {
     let mut findings = Vec::new();
-    let re_force_unwrap = Regex::new(r"[A-Za-z0-9_)\]]!\s*(?:[\.,)\]\?:;]|$)")
-        .map_err(|e| format!("regex: {e}"))?;
+    let re_force_unwrap =
+        Regex::new(r"[A-Za-z0-9_)\]]!\s*(?:[\.,)\]\?:;]|$)").map_err(|e| format!("regex: {e}"))?;
     for (file, lines) in scoped_lines(scope_files, workspace_path)? {
         for (index, line) in lines.iter().enumerate() {
             let lower = line.to_lowercase();

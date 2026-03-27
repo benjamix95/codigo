@@ -246,6 +246,13 @@ extension ChatPanelView {
             refreshMessagesSnapshot()
         }
         .onChange(of: conversationId) { _ in
+            // Allinea subito allo store al cambio thread così la lista non passa da uno
+            // snapshot obsoleto / vuoto per un frame (flicker “chat sparita”).
+            if let cid = conversationId {
+                messagesConversationSnapshot = chatStore.conversation(for: cid)
+            } else {
+                messagesConversationSnapshot = nil
+            }
             refreshMessagesSnapshot()
         }
         .task(id: conversationId) {
