@@ -168,11 +168,7 @@ extension MarkdownContentView {
         )
         Text(attributed)
             .environment(\.openURL, OpenURLAction { url in
-                if url.isFileURL {
-                    onFileClicked(url.path)
-                    return .handled
-                }
-                return .systemAction(url)
+                MessageLinkRouter.open(url, onFileClicked: onFileClicked)
             })
             .font(
                 FontPreferences.resolveSansFont(

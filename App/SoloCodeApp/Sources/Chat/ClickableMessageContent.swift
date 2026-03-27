@@ -21,8 +21,7 @@ struct ClickableMessageContent: View {
     var body: some View {
         Text(buildAttributedString())
             .environment(\.openURL, OpenURLAction { url in
-                if url.isFileURL { onFileClicked(url.path); return .handled }
-                return .systemAction(url)
+                MessageLinkRouter.open(url, onFileClicked: onFileClicked)
             })
             .font(FontPreferences.resolveSansFont(
                 size: FontPreferences.sanitizeSize(uiSansFontSize + 2.5, kind: .sans),
