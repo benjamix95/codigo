@@ -96,7 +96,10 @@ extension ConversationFlowCoordinator {
                     orderedTextStreamIds: [],
                     textByStreamId: [:],
                     reasoningByGroupId: [:],
-                    artifacts: []
+                    artifacts: [],
+                    textSegments: [],
+                    timelineSegments: [],
+                    timelineNextSequence: 0
                 ),
                 mode: .directStream,
                 directStream: MainChatDirectStreamSnapshotBridge(

@@ -174,6 +174,9 @@ struct MainChatBridgeState: Codable {
     let textByStreamId: [String: String]
     let reasoningByGroupId: [String: String]
     let artifacts: [ChatArtifact]
+    let textSegments: [String]
+    let timelineSegments: [ChatTimelineSegment]
+    let timelineNextSequence: Int
 
     init(_ state: ChatTurnState) {
         self.conversationId = state.conversationId
@@ -190,6 +193,9 @@ struct MainChatBridgeState: Codable {
         self.textByStreamId = state.textByStreamId
         self.reasoningByGroupId = state.reasoningByGroupId
         self.artifacts = state.artifacts
+        self.textSegments = state.textSegments
+        self.timelineSegments = state.timelineSegments
+        self.timelineNextSequence = state.timelineNextSequence
     }
 
     init(
@@ -206,7 +212,10 @@ struct MainChatBridgeState: Codable {
         orderedTextStreamIds: [String],
         textByStreamId: [String: String],
         reasoningByGroupId: [String: String],
-        artifacts: [ChatArtifact]
+        artifacts: [ChatArtifact],
+        textSegments: [String] = [],
+        timelineSegments: [ChatTimelineSegment] = [],
+        timelineNextSequence: Int = 0
     ) {
         self.conversationId = conversationId
         self.assistantMessageId = assistantMessageId
@@ -222,6 +231,9 @@ struct MainChatBridgeState: Codable {
         self.textByStreamId = textByStreamId
         self.reasoningByGroupId = reasoningByGroupId
         self.artifacts = artifacts
+        self.textSegments = textSegments
+        self.timelineSegments = timelineSegments
+        self.timelineNextSequence = timelineNextSequence
     }
 
     var chatTurnState: ChatTurnState {
@@ -241,6 +253,9 @@ struct MainChatBridgeState: Codable {
         state.textByStreamId = textByStreamId
         state.reasoningByGroupId = reasoningByGroupId
         state.artifacts = artifacts
+        state.textSegments = textSegments
+        state.timelineSegments = timelineSegments
+        state.timelineNextSequence = timelineNextSequence
         return state
     }
 }

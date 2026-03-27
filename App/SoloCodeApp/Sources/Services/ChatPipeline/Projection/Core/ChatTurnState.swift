@@ -11,6 +11,18 @@ struct ChatTurnMetadata: Codable, Equatable {
     var isStreaming: Bool
 }
 
+enum ChatTimelineSegmentKind: String, Codable, Equatable {
+    case text
+    case reasoning
+    case toolUse
+}
+
+struct ChatTimelineSegment: Codable, Equatable {
+    var kind: ChatTimelineSegmentKind
+    var index: Int
+    var sequence: Int
+}
+
 struct ChatTurnState: Codable, Equatable {
     let conversationId: UUID
     let assistantMessageId: UUID
@@ -26,6 +38,9 @@ struct ChatTurnState: Codable, Equatable {
     var textByStreamId: [String: String]
     var reasoningByGroupId: [String: String]
     var artifacts: [ChatArtifact]
+    var textSegments: [String]
+    var timelineSegments: [ChatTimelineSegment]
+    var timelineNextSequence: Int
 
     init(
         conversationId: UUID,
@@ -49,6 +64,9 @@ struct ChatTurnState: Codable, Equatable {
         self.textByStreamId = [:]
         self.reasoningByGroupId = [:]
         self.artifacts = []
+        self.textSegments = []
+        self.timelineSegments = []
+        self.timelineNextSequence = 0
     }
 
     var primaryTextSnapshot: String {
@@ -70,24 +88,67 @@ struct ChatTurnState: Codable, Equatable {
 
     var blocks: [PersistedChatTimelineBlock] {
         var resolved: [PersistedChatTimelineBlock] = []
-        resolved.append(
-            PersistedChatTimelineBlock(
-                id: "primary-text",
-                kind: .primaryText,
-                text: primaryTextSnapshot
-            )
-        )
-        if let reasoning = reasoningTextSnapshot, !reasoning.isEmpty {
+        if !timelineSegments.isEmpty {
+            let reasoning = reasoningTextSnapshot
+            for segment in timelineSegments {
+                switch segment.kind {
+                case .text:
+                    guard textSegments.indices.contains(segment.index) else { continue }
+                    let text = textSegments[segment.index]
+                    guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                        continue
+                    }
+                    resolved.append(
+                        PersistedChatTimelineBlock(
+                            id: "text-seg-\(segment.index)",
+                            kind: .primaryText,
+                            text: text,
+                            sequence: segment.sequence
+                        )
+                    )
+                case .reasoning:
+                    guard let reasoning, !reasoning.isEmpty else { continue }
+                    resolved.append(
+                        PersistedChatTimelineBlock(
+                            id: "reasoning",
+                            kind: .reasoning,
+                            title: "Thinking",
+                            text: reasoning,
+                            isCollapsible: true,
+                            isCollapsedByDefault: true,
+                            sequence: segment.sequence
+                        )
+                    )
+                case .toolUse:
+                    resolved.append(
+                        PersistedChatTimelineBlock(
+                            id: "tool-marker-\(segment.sequence)",
+                            kind: .toolMarker,
+                            sequence: segment.sequence
+                        )
+                    )
+                }
+            }
+        } else {
             resolved.append(
                 PersistedChatTimelineBlock(
-                    id: "reasoning",
-                    kind: .reasoning,
-                    title: "Thinking",
-                    text: reasoning,
-                    isCollapsible: true,
-                    isCollapsedByDefault: true
+                    id: "primary-text",
+                    kind: .primaryText,
+                    text: primaryTextSnapshot
                 )
             )
+            if let reasoning = reasoningTextSnapshot, !reasoning.isEmpty {
+                resolved.append(
+                    PersistedChatTimelineBlock(
+                        id: "reasoning",
+                        kind: .reasoning,
+                        title: "Thinking",
+                        text: reasoning,
+                        isCollapsible: true,
+                        isCollapsedByDefault: true
+                    )
+                )
+            }
         }
         resolved.append(contentsOf: artifacts.map(\.timelineBlock))
         return resolved

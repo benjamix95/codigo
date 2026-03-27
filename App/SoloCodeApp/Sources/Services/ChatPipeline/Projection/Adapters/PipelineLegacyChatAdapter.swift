@@ -177,6 +177,36 @@ extension ChatPanelView {
             if let reasoning = message.reasoningText, !reasoning.isEmpty {
                 state.reasoningByGroupId["reasoning"] = reasoning
             }
+            let orderedBlocks = message.resolvedTimelineBlocks.sorted {
+                if $0.sequence != $1.sequence { return $0.sequence < $1.sequence }
+                return $0.id < $1.id
+            }
+            for block in orderedBlocks {
+                switch block.kind {
+                case .primaryText:
+                    let text = block.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !text.isEmpty else { continue }
+                    let index = state.textSegments.count
+                    state.textSegments.append(block.text)
+                    state.timelineSegments.append(
+                        ChatTimelineSegment(kind: .text, index: index, sequence: block.sequence)
+                    )
+                case .reasoning:
+                    guard !block.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                        continue
+                    }
+                    state.timelineSegments.append(
+                        ChatTimelineSegment(kind: .reasoning, index: 0, sequence: block.sequence)
+                    )
+                case .toolMarker:
+                    state.timelineSegments.append(
+                        ChatTimelineSegment(kind: .toolUse, index: 0, sequence: block.sequence)
+                    )
+                default:
+                    continue
+                }
+            }
+            state.timelineNextSequence = (state.timelineSegments.map(\.sequence).max() ?? -1) + 1
             state.artifacts = message.resolvedTimelineBlocks.compactMap { block in
                 switch block.kind {
                 case .primaryText, .reasoning:

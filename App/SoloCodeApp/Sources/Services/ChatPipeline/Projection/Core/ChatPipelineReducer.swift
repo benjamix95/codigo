@@ -34,12 +34,24 @@ enum ChatPipelineReducer {
         case .textDelta:
             let streamId = streamId(for: event)
             next = registerStream(streamId, in: next)
+            let delta = event.payload["delta"] ?? ""
             let current = next.textByStreamId[streamId, default: ""]
-            next.textByStreamId[streamId] = current + (event.payload["delta"] ?? "")
+            next.textByStreamId[streamId] = current + delta
+            ensureTextSegment(in: &next)
+            if let segmentIndex = currentTextSegmentIndex(in: next),
+               next.textSegments.indices.contains(segmentIndex) {
+                next.textSegments[segmentIndex] += delta
+            }
         case .textReplace:
             let streamId = streamId(for: event)
             next = registerStream(streamId, in: next)
-            next.textByStreamId[streamId] = event.payload["replacement"] ?? ""
+            let replacement = event.payload["replacement"] ?? ""
+            next.textByStreamId[streamId] = replacement
+            ensureTextSegment(in: &next)
+            if let segmentIndex = currentTextSegmentIndex(in: next),
+               next.textSegments.indices.contains(segmentIndex) {
+                next.textSegments[segmentIndex] = replacement
+            }
         case .reasoningDelta:
             let groupId = event.payload["group_id"] ?? "reasoning"
             let current = next.reasoningByGroupId[groupId]
@@ -51,6 +63,7 @@ enum ChatPipelineReducer {
             if !merged.isEmpty {
                 next.reasoningByGroupId[groupId] = merged
             }
+            ensureReasoningSegment(in: &next)
         case .mermaidArtifact:
             let title = event.payload["title"] ?? "Diagram"
             let code = event.payload["code"] ?? ""
@@ -67,6 +80,7 @@ enum ChatPipelineReducer {
             }
         case .commandsArtifact:
             if let command = event.payload["command"], !command.isEmpty {
+                ensureToolSegment(in: &next)
                 next = appendItemArtifact(
                     in: next,
                     id: "commands",
@@ -77,6 +91,7 @@ enum ChatPipelineReducer {
             }
         case .filesArtifact:
             if let path = event.payload["path"], !path.isEmpty {
+                ensureToolSegment(in: &next)
                 next = appendItemArtifact(
                     in: next,
                     id: "files",
@@ -109,6 +124,7 @@ enum ChatPipelineReducer {
             let title = event.payload["title"] ?? "Trace summary"
             let text = event.payload["detail"] ?? ""
             if !text.isEmpty {
+                ensureToolSegment(in: &next)
                 next = upsertArtifact(
                     in: next,
                     ChatArtifact(
@@ -126,6 +142,52 @@ enum ChatPipelineReducer {
         }
 
         return next
+    }
+
+    private static func ensureTextSegment(in state: inout ChatTurnState) {
+        let isLastText = state.timelineSegments.last?.kind == .text
+        if !isLastText {
+            let index = state.textSegments.count
+            state.textSegments.append("")
+            state.timelineSegments.append(
+                ChatTimelineSegment(
+                    kind: .text,
+                    index: index,
+                    sequence: state.timelineNextSequence
+                )
+            )
+            state.timelineNextSequence += 1
+        }
+    }
+
+    private static func currentTextSegmentIndex(in state: ChatTurnState) -> Int? {
+        state.timelineSegments.last(where: { $0.kind == .text })?.index
+    }
+
+    private static func ensureReasoningSegment(in state: inout ChatTurnState) {
+        if state.timelineSegments.last?.kind != .reasoning {
+            state.timelineSegments.append(
+                ChatTimelineSegment(
+                    kind: .reasoning,
+                    index: 0,
+                    sequence: state.timelineNextSequence
+                )
+            )
+            state.timelineNextSequence += 1
+        }
+    }
+
+    private static func ensureToolSegment(in state: inout ChatTurnState) {
+        if state.timelineSegments.last?.kind != .toolUse {
+            state.timelineSegments.append(
+                ChatTimelineSegment(
+                    kind: .toolUse,
+                    index: 0,
+                    sequence: state.timelineNextSequence
+                )
+            )
+            state.timelineNextSequence += 1
+        }
     }
 
     private static func streamId(for event: ChatPipelineEvent) -> String {
