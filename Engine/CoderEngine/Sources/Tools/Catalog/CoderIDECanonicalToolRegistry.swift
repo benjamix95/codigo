@@ -7,6 +7,12 @@ public enum CanonicalToolAvailability: String, Codable, Sendable {
     case mcpRequired = "mcp_required"
 }
 
+public enum CanonicalToolSurface: Sendable {
+    case app
+    case subagents
+    case providers
+}
+
 public struct CanonicalToolAvailabilityMatrix: Codable, Sendable {
     public let app: CanonicalToolAvailability
     public let subagents: CanonicalToolAvailability
@@ -168,5 +174,45 @@ public final class CoderIDECanonicalToolRegistryStore {
             supportsWorkspaceSandbox: profile.supportsWorkspaceSandbox,
             supportsNativeTools: profile.supportsNativeTools
         )
+    }
+
+    public func records(forFamily family: String, availableOn surface: CanonicalToolSurface? = nil) -> [CanonicalToolRecord] {
+        let normalizedFamily = family.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return allRecords
+            .filter { record in
+                guard record.family == normalizedFamily else { return false }
+                guard let surface else { return true }
+                return isUsable(availability(for: record, on: surface))
+            }
+            .sorted { $0.mcpName < $1.mcpName }
+    }
+
+    public func preferredPromptName(forRuntimeName name: String, preferMCP: Bool = true) -> String {
+        guard let record = record(forRuntimeName: name) else {
+            return name
+        }
+        return preferMCP ? record.mcpName : record.runtimeName
+    }
+
+    public func preferredPromptName(forMCPName name: String, preferMCP: Bool = true) -> String {
+        guard let record = record(forMCPName: name) else {
+            return name
+        }
+        return preferMCP ? record.mcpName : record.runtimeName
+    }
+
+    public func availability(for record: CanonicalToolRecord, on surface: CanonicalToolSurface) -> CanonicalToolAvailability {
+        switch surface {
+        case .app:
+            return record.availability.app
+        case .subagents:
+            return record.availability.subagents
+        case .providers:
+            return record.availability.providers
+        }
+    }
+
+    public func isUsable(_ availability: CanonicalToolAvailability) -> Bool {
+        availability != .blocked
     }
 }

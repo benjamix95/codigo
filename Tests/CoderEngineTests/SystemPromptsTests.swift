@@ -93,4 +93,11 @@ final class SystemPromptsTests: XCTestCase {
         let reviewer = SystemPrompts.reviewer
         XCTAssertTrue(reviewer.contains("Reviewer mode"))
     }
+
+    func testDebuggerModeMentionsSessionGatingAndCanonicalDebugTools() {
+        let debugger = SystemPrompts.debugger
+        XCTAssertTrue(debugger.contains("Tool gating"))
+        XCTAssertTrue(debugger.contains("coderide_debug_set_phase"))
+        XCTAssertTrue(debugger.contains("debug_panel"))
+    }
 }

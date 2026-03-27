@@ -1,26 +1,27 @@
 import Foundation
 
 enum PromptToolsPolicy {
-    static let toolUsage = """
+    static var toolUsage: String {
+        """
     Tool usage policy:
     - Prefer subagents for non-trivial tasks, especially when work can be parallelized (subagent_explorer, subagent_coder, etc.).
     - Avoid sequential work when parallel subagent work is possible. If a task has 2+ independent parts, split them into subagent calls in the same round.
     - Treat tools as first-class execution primitives: prefer tools over pure prose reasoning whenever evidence or action is needed.
-    - Use all available tools — not just Bash. Prefer canonical tool names (read, edit, write, bash, glob, grep, web_search/web_fetch, subagent_*, todo_write, plan_create/plan_step_upsert/plan_read/plan_request_user_input, skill, mcp_*).
-    - CRITICAL: Do NOT default to Bash for everything. Use the right tool for the job:
-      • File search → Glob, find_files (NOT `find` via Bash)
-      • Content search → Grep, semantic_search, codebase_search (NOT `grep` via Bash)
-      • Read files → Read, read_range (NOT `cat` via Bash)
-      • Edit files → str_replace, Edit (NOT `sed` via Bash)
-      • Web research → WebSearch, web_search, WebFetch, web_fetch (NOT `curl` via Bash)
-      • MCP tools → call native MCP tools directly by function name; use mcp_call only as fallback
-      • Subagents → subagent_* tools (MANDATORY for concurrent work — call 2–5 in the SAME round, each runs on a different backend: Codex, Claude, Gemini, OpenAI, Anthropic, etc.)
-      • Skills → skill tool (when Detected local skills match the task — doc, imagegen, transcribe, etc.)
-      • Progress tracking → TodoWrite (mandatory for multi-step tasks)
+    - Use only tools that are actually exposed in the current session schema. Do not invent hidden tools, fallback MCP wrappers, or provider-specific commands that are absent from the live tool list.
+    - Prefer canonical tool families from the registry instead of ad-hoc names:
+      • File tools → \(canonicalFamilyInlineSummary(family: "file"))
+      • Search tools → \(canonicalFamilyInlineSummary(family: "search"))
+      • Edit tools → \(canonicalFamilyInlineSummary(family: "edit"))
+      • Git/worktree tools → \(canonicalFamilyInlineSummary(family: "git"))
+      • Web tools → \(canonicalFamilyInlineSummary(family: "web"))
+      • Todo/plan tools → \(canonicalFamilyInlineSummary(family: "todo")), \(canonicalFamilyInlineSummary(family: "plan"))
+      • Subagent tools → \(canonicalFamilyInlineSummary(family: "subagent"))
+      • Review/security tools → call them only when their canonical family appears in the current schema
+      • Skills → \(canonicalFamilyInlineSummary(family: "skill"))
+    - CRITICAL: Do NOT default to Bash for everything. Use the right structured family first, then Bash only as a fallback when the current runtime truly lacks the needed structured tool.
     - ALWAYS read a file before editing it — never edit blind.
-    - If the tool schema exposes prefixed aliases (e.g. `coderide_read`, `coderide_grep`, `coderide_semantic_search`), treat them as equivalent canonical tools and prefer them over Bash.
-    - **CoderIDE MCP (server Rust):** when connected, the function-calling schema lists tools as `coderide_*` (e.g. `coderide_read`, `coderide_plan_create`, `coderide_review_start`). Use those **exact** names from the live tool list for this session. Unprefixed names (`read`, `grep`, `todo_write`) may appear in other runtimes but are not guaranteed here.
-    - **Runtime-dependent tools** (`parallel_apply`, `batch_read`, `git_status`, `TodoWrite`, `attempt_completion`, etc.) are only valid if they appear in the current session schema. If they are absent, use the closest `coderide_*` equivalent (e.g. `coderide_str_replace`, `coderide_git_diff`, `coderide_todo_write`) when present.
+    - If the tool schema exposes prefixed aliases (for example `coderide_read`, `coderide_grep`, `coderide_semantic_search`), those are just live aliases for the same canonical tool family. Use the exact alias shown by the session, not a guessed variant.
+    - **CoderIDE MCP (server Rust):** when connected, the function-calling schema lists tools as `coderide_*` (for example `\(canonicalToolName("read"))`, `\(canonicalToolName("plan_create"))`, `\(canonicalToolName("review_start"))`). Use those exact names from the live tool list for this session. Unprefixed names (`read`, `grep`, `todo_write`) may appear in other runtimes but are not guaranteed here.
     - For workspace discovery and file/content inspection, first use structured tools (`read`/`read_range`, `grep`, `semantic_search`, `codebase_search`). Use Bash (`cat`, `rg`, `grep`, `find`) only as a fallback when those tools fail in the current turn.
     - Use `str_replace` for all file edits. Only use `write` for brand new files or complete rewrites.
     - Use `semantic_search` for natural language queries ("where is auth handled?", "error handling flow"). It combines index, grep, and file name matching with semantic scoring.
@@ -33,31 +34,12 @@ enum PromptToolsPolicy {
     - If a tool fails, explain the likely cause and apply a concrete fallback.
     - Respect tool budget limits. If you hit the budget, summarize what you've done and what remains.
     - After file edits, verify with `read_lints` (fast, no build) or `diagnostics` (full build). Prefer `read_lints` for quick checks.
-    - Native CoderIDE MCP tools `coderide_run_tests` and `coderide_export_debug_bundle` appear in the function-calling schema when the CoderIDE MCP server is connected: call them by those exact names (optional args: filter, scheme for Xcode; workspace_roots comma-separated for export when the app uses multiple workspace roots). They are not duplicate “hidden” tools — same mechanism as `coderide_read` / `coderide_grep`.
-    - Use `parallel_apply` for multi-file edits when changes are independent.
-    - Use `apply_diff` for complex multi-line edits where str_replace would be cumbersome — pass a unified diff with @@ hunk headers.
-    - Use `batch_read` to read multiple files in one call (up to 20 files) instead of sequential reads.
-    - Use `diff_files` to compare two files side-by-side in unified diff format.
-    - Use `git_status` for a structured view of the working tree (branch, staged, unstaged, untracked, ahead/behind).
-    - Use `git_show` to inspect a specific commit's changes (defaults to HEAD).
-    - Use `code_context` to get complete context around a symbol — definition code, all references, and file imports in one call.
-    - Use `list_dir` with `recursive: true` for tree views, `sizes: true` for file sizes, and `depth` to control depth.
-    - Use `grep` with `output_mode: "files_only"` to get just file paths, or `"count"` for match counts. Use `glob` filter for targeted file patterns.
-    - Use `attempt_completion` to signal task completion with optional verification command.
+    - When present in the current schema, prefer `\(canonicalToolName("run_tests"))` for targeted verification and `\(canonicalToolName("export_debug_bundle"))` for exporting debug traces or bundles.
+    - Prefer `list_dir` for workspace tree discovery, `grep` for regex/text search, and `glob` / `find_files` for file matching. Keep these choices aligned with the live schema rather than memorized prompt aliases.
     - For multi-step tasks, plan your approach first, then execute systematically.
-    - Prefer structured tools (read_range, list_dir, git_diff, git_status, git_show, search_symbols, run_tests, build_project, diagnostics, read_lints, semantic_search, code_context, batch_read) over raw bash when available.
+    - Prefer structured tools from the canonical registry over raw Bash when available in this session.
     - If "Detected local skills" or AGENTS.md/SKILL.md are in the context, USE the `skill` tool when the task matches. Example: doc for DOCX, imagegen for images, transcribe for audio. Do NOT skip — invoke the skill.
-    - MCP tools from connected servers are registered as native function tools — call them directly by name, no discovery needed.
-    - Use `mcp_call` only for tools that aren't registered natively. Use `mcp_list_tools` only if you need to discover additional tools at runtime.
-    - If a native MCP tool call fails, try `mcp_reconnect` for the server, then retry. If reconnect fails, use `mcp_restart_server` for a full process restart.
-    - MCP Advanced Tools — use these for powerful MCP operations:
-      • `mcp_batch` — Execute multiple MCP tool calls IN PARALLEL. Use this whenever you need 2+ independent MCP tool calls — much faster than sequential `mcp_call`. Pass a JSON array of calls: [{"server": "...", "tool": "...", "args": {...}}, ...].
-      • `mcp_list_resources` / `mcp_read_resource` — Access contextual data exposed by MCP servers (files, database schemas, API specs, application state). Use `mcp_list_resources` to discover, then `mcp_read_resource` with the URI to read content.
-      • `mcp_subscribe` — Watch an MCP resource for changes. The system receives notifications when subscribed resources update.
-      • `mcp_list_prompts` / `mcp_get_prompt` — Use prompt templates from MCP servers. Prompts are pre-built message templates with arguments, useful for standardized interactions. Discover with `mcp_list_prompts`, then resolve with `mcp_get_prompt`.
-      • `mcp_logs` — Read structured logs from MCP servers. Filter by severity (debug/info/warning/error/critical). Use action='set_level' to store desired verbosity locally, action='clear' to reset the buffer.
-      • `mcp_health` — Now returns detailed metrics: uptime, call counts, latency (avg/p95), capabilities, error history. Use for diagnostics and monitoring.
-      • `mcp_restart_server` — Full server process restart (kill + reconnect). More aggressive than `mcp_reconnect`. Use when a server is unresponsive or in a bad state.
+    - MCP-native tools exposed by the host should be called directly by their live function names. If a wrapper or reconnect tool is absent from the current schema, do not instruct the model to use it.
     - Debug tools: comprehensive flow for systematic debugging. Follow this sequence:
 
       PHASE 1 — DESCRIBE (understand the problem):
@@ -148,61 +130,49 @@ enum PromptToolsPolicy {
     - Format: emit a raw event with type "activate_plan_mode" or "activate_debug_mode" and payload {"reason": "brief explanation"}.
 
     Code Review MCP tools — use these to interact with the code review system:
-    - `coderide_review_start` — Start a code review session. Args: scope (uncommitted/staged/against_ref), ref, max_workers (1-12), max_rounds (1-10), analysis_only, analysis_backend, execution_backend, optional unique session_id, optional conversation_id.
-    - `coderide_review_list_sessions` — List review sessions for the current conversation or across the workspace. Pass conversation_id to scope the list when needed.
-    - `coderide_review_status` — Get current review session status: phase, progress, findings count, blocking summary, active workers, round info, audit breakdown. Pass `conversation_id` for conversation-scoped sessions.
-    - `coderide_review_findings` — List findings with optional filters. Args: kind (verified/candidate), severity (critical/warning/suggestion/info), origin (reviewer/bugHunter/securityAuditor/audit_tool), category (correctness/regression/concurrency/security/tests/maintainability/performance/other), file (substring match), status (open/fix_applied/patch_ready/patch_applied/dismissed/wont_fix/rejected_false_positive/inconclusive), limit (integer, default 50). Pass `conversation_id` for conversation-scoped sessions.
-    - Patch workflow (strict order; do not skip gates): `coderide_review_verify_finding` → `coderide_review_prepare_patch` → `coderide_review_preview_patch` (read-only diff) → `coderide_review_apply_patch`. Only call `prepare_patch` after verification confirms a real bug; only call `apply_patch` when a verified patch artifact with a non-empty diff exists (mirror of the panel gates).
-    - `coderide_review_verify_finding` — Deep / Rust-backed verification for a finding before any patch work. Args: finding_id, session_id; optional conversation_id when scoped.
-    - `coderide_review_prepare_patch` — Generate patch plan and diff after the finding is verification-confirmed. Args: finding_id, session_id; optional conversation_id.
-    - `coderide_review_preview_patch` — Read-only inspect generated patch / diff. Args: finding_id, session_id; optional conversation_id.
-    - `coderide_review_apply_patch` — Apply the prepared, verified patch to the workspace. Args: finding_id, session_id; optional conversation_id.
-    - `coderide_review_verify_patch` — Validate patch safety (dry-run / checks) when policy requires an extra gate after prepare.
-    - `coderide_review_apply_fix` — Legacy / IDE-suggested one-shot fix path when the host exposes it; prefer the verify → prepare → preview → apply_patch sequence above when both exist.
-    - `coderide_review_dismiss` — Dismiss a finding. Args: finding_id (required), session_id (required), reason (false_positive/wont_fix/by_design/duplicate), conversation_id (required for conversation-scoped sessions).
-    - `coderide_review_configure` — Update runtime config. Args: session_id (required), max_workers, max_rounds, analysis_only, analysis_backend, execution_backend, conversation_id (required for conversation-scoped sessions).
-    - `coderide_review_diff_summary` — Get diff summary for files in scope. Args: file (optional), origin (optional), category (optional). Pass `conversation_id` for conversation-scoped sessions.
-    - `coderide_review_comment` — Add a comment to a finding. Args: finding_id (required), content (required), author (default: agent), session_id (required), conversation_id (required for conversation-scoped sessions).
+    \(canonicalFamilyPromptSection(title: "Review family", family: "review"))
     BugHunter MCP tools — use these for deep proactive bug hunting on uncommitted work, fresh commits, and correlated commit windows:
-    - `coderide_bughunter_start`
-    - `coderide_bughunter_status`
-    - `coderide_bughunter_findings`
-    - `coderide_bughunter_autofix_preview`
-    - `coderide_bughunter_autofix_apply`
-    - `coderide_bughunter_autofix_commit`
-    - `coderide_bughunter_commit_window`
-    - `coderide_bughunter_install_hook`
-    - `coderide_bughunter_uninstall_hook`
-    - `coderide_bughunter_run_history`
-    - `coderide_bughunter_explain_cluster`
+    \(canonicalFamilyPromptSection(title: "BugHunter family", family: "bughunter"))
     BugHunter policy:
     - Prefer BugHunter for post-commit bug scans, uncommitted bug scans, and correlated regression hunting.
     - Keep BugHunter findings strict: verified bugs need strong evidence or multi-signal confirmation.
     - Default autofix path is preview first; only apply or commit when the workflow or user explicitly requests it.
     Audit MCP tools — use these for deterministic read-only security/bug hunting, and combine them with `skill` when a matching skill exists:
-    - `coderide_audit_security_secrets`
-    - `coderide_audit_security_dependencies`
-    - `coderide_audit_security_patterns`
-    - `coderide_audit_security_dataflow`
-    - `coderide_audit_security_authz`
-    - `coderide_audit_security_crypto`
-    - `coderide_audit_security_deserialization`
-    - `coderide_audit_security_surface`
-    - `coderide_audit_security_supply_chain`
-    - `coderide_audit_bug_diff_risks`
-    - `coderide_audit_bug_test_gaps`
-    - `coderide_audit_bug_hotspots`
-    - `coderide_audit_bug_nil_crash_paths`
-    - `coderide_audit_bug_state_machine`
-    - `coderide_audit_bug_concurrency`
-    - `coderide_audit_bug_error_handling`
-    - `coderide_audit_bug_api_contracts`
-    - `coderide_audit_bug_test_impact`
-    - `coderide_audit_bug_dependency_drift`
-    - `coderide_audit_bug_diff_semantics`
-    - `coderide_audit_run_profile`
-    - `coderide_audit_correlate_findings`
-    - `coderide_audit_verify_bundle`
-    - `coderide_audit_explain_finding`
+    \(canonicalFamilyPromptSection(title: "Audit family", family: "audit"))
     """
+    }
+
+    private static func canonicalFamilyPromptSection(title: String, family: String) -> String {
+        let records = CoderIDECanonicalToolRegistry.shared.records(forFamily: family, availableOn: .app)
+        guard !records.isEmpty else {
+            return "- No \(title.lowercased()) tools registered in the canonical registry."
+        }
+        let lines = records.map { record in
+            let summary = shortDescription(record.description)
+            return "- `\(record.mcpName)` — \(summary)"
+        }
+        return lines.joined(separator: "\n    ")
+    }
+
+    private static func canonicalFamilyInlineSummary(family: String, limit: Int = 6) -> String {
+        let records = CoderIDECanonicalToolRegistry.shared.records(forFamily: family, availableOn: .app)
+        guard !records.isEmpty else {
+            return "none registered"
+        }
+        let names = records.prefix(limit).map { "`\($0.runtimeName)`" }
+        let suffix = records.count > limit ? ", ..." : ""
+        return names.joined(separator: ", ") + suffix
+    }
+
+    private static func canonicalToolName(_ runtimeName: String) -> String {
+        "`\(CoderIDECanonicalToolRegistry.shared.preferredPromptName(forRuntimeName: runtimeName))`"
+    }
+
+    private static func shortDescription(_ description: String) -> String {
+        let marker = " Usage:"
+        if let range = description.range(of: marker) {
+            return String(description[..<range.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return description.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 }

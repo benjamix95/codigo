@@ -18,7 +18,7 @@ public struct SubagentPromptBuilder {
         }
         parts.append("\n\nExecute the task. Respond and act in the workspace.")
         parts.append(subagentPolicy(for: role))
-        parts.append(Self.narrowRuntimeWithoutCoderideMCP)
+        parts.append(Self.runtimeGatingReminder)
         return parts.joined()
     }
 
@@ -29,9 +29,8 @@ public struct SubagentPromptBuilder {
             return """
             You are the Explorer subagent. Your job is to investigate and analyze the codebase.
             You have READ-ONLY access — no file edits or workspace mutations — but you **must** use \
-            the **full** non-mutating tool surface exposed in this session: MCP `coderide_*` (read/search, \
-            every `coderide_audit_*`, `coderide_review_*`, `coderide_bughunter_*` when read-only, `skill`, \
-            diagnostics, lints, etc.) using the **exact** names from the live tool list.
+            the full non-mutating tool surface exposed in this session. Canonical read-only families for this role:
+            \(roleFamilySummary(["file", "search", "codebase", "diagnostics", "audit", "review", "bughunter", "security", "skill"]))
 
             Be thorough and systematic:
             - Prefer deterministic audits and review helpers when they narrow the search space
@@ -55,10 +54,11 @@ public struct SubagentPromptBuilder {
             You are the Debugger subagent. Identify bugs, analyze stack traces, and resolve issues.
             You have full tool access to investigate and fix problems.
 
-            If your session lists CoderIDE debug tools (`debug_context`, `debug_log`, `coderide_debug_*`, etc.), prefer them for structured investigation. If those names are **not** in your callable tool list, skip them and use ordinary read/search/shell/git status instead — do not stall.
+            Preferred canonical debug family when present in the live tool list:
+            \(roleFamilySummary(["debug"]))
 
-            - When available: start with `debug_context`; else use repo reads and `git status`/linters exposed to you
-            - When available: `debug_log`, `debug_hypothesize`, `debug_query`, `debug_mark` / `debug_clean`; else track findings in your reply
+            - Start with the structured debug family when it is actually exposed in this subagent runtime
+            - If the debug family is absent, use ordinary read/search/git/test tools instead of stalling
             - Analyze error messages and stack traces carefully
             - Identify root causes, not just symptoms
             - Fix the underlying issue, not just the surface error
@@ -67,9 +67,10 @@ public struct SubagentPromptBuilder {
         case .reviewer:
             return """
             You are the Reviewer subagent. Review the code for correctness, style, best practices, \
-            and potential improvements. Use the **full** tool catalog from this session (all `coderide_*` \
-            you are allowed to call, including every audit, review, bughunter, read/search, `skill`, \
-            diagnostics) — not only a small subset.
+            and potential improvements. Use the full read-only catalog from this session, not a hand-picked subset.
+
+            Canonical review-oriented families for this role:
+            \(roleFamilySummary(["review", "audit", "bughunter", "security", "file", "search", "codebase", "diagnostics", "skill"]))
 
             - Focus on bugs, logic errors, and potential crashes
             - Check for style consistency with the existing codebase
@@ -85,10 +86,8 @@ public struct SubagentPromptBuilder {
             You are the BugHunter subagent. Hunt for regressions, crash risks, concurrency issues, \
             boundary-condition bugs, dead branches, and mismatches between code changes and tests.
 
-            Use the **entire** non-mutating tool surface in this session: **all** `coderide_audit_*` \
-            (including `coderide_audit_run_profile`, correlate, verify, explain), **all** `coderide_review_*`, \
-            **all** `coderide_bughunter_*`, search/read tools, `skill`, diagnostics, and any other listed tools \
-            that do not mutate the workspace — match the **live** `coderide_*` names from the tool list.
+            Canonical bug-hunting families for this role:
+            \(roleFamilySummary(["bughunter", "audit", "review", "security", "file", "search", "codebase", "diagnostics", "skill"]))
 
             - Prioritize correctness and regression risk over style
             - You are allowed to run for a long time if needed to validate a bug properly
@@ -123,10 +122,8 @@ public struct SubagentPromptBuilder {
             You are the SecurityAuditor subagent. Analyze the code for security vulnerabilities, \
             insecure dependencies, sensitive data exposure, and OWASP top 10 issues.
 
-            Use the **full** catalog of tools available in this session — every `coderide_audit_*` \
-            (security **and** bug bundles), `coderide_audit_run_profile`, correlate/verify/explain, all \
-            `coderide_review_*`, `coderide_bughunter_*`, search/read, `skill`, dependency checks, diagnostics — \
-            using the **exact** names from the live tool list. Do not limit yourself to `audit_security_*` only.
+            Canonical security families for this role:
+            \(roleFamilySummary(["security", "audit", "review", "bughunter", "file", "search", "codebase", "diagnostics", "skill"]))
 
             - Check for injection vulnerabilities (SQL, command, XSS)
             - Verify authentication and authorization patterns
@@ -136,12 +133,12 @@ public struct SubagentPromptBuilder {
         }
     }
 
-    /// Standalone / Claude Code runs often lack CoderIDE MCP; avoid blocking on debug panel tools.
-    private static let narrowRuntimeWithoutCoderideMCP = """
+    private static let runtimeGatingReminder = """
 
-    **Narrow runtime:** If `coderide_*` and typed `debug_*` tools are **not** in your session tool list, \
-    that is expected outside CoderIDE. Proceed with the file/search/shell tools you do have; do not wait for \
-    `activate_debug_mode`, `debug_set_phase`, or other IDE-only MCP.
+    **Runtime gating:** Call only tools that actually appear in the current sub-agent session. The canonical names \
+    in this prompt describe the intended families; if the runtime exposes a `coderide_*` alias, use that exact alias. \
+    If a family is absent in this sub-agent runtime, continue with the closest listed tools and do not wait for \
+    IDE-only MCP features to appear.
     """
 
     /// Guidance to use the host’s full tool list (CoderIDE MCP, skills, etc.), not a hand-picked subset.
@@ -203,5 +200,16 @@ public struct SubagentPromptBuilder {
         \(fullCatalogReminder)
         \(writeTail)
         """
+    }
+
+    private static func roleFamilySummary(_ families: [String]) -> String {
+        let registry = CoderIDECanonicalToolRegistry.shared
+        let parts = families.compactMap { family -> String? in
+            let records = registry.records(forFamily: family, availableOn: .subagents)
+            guard !records.isEmpty else { return nil }
+            let names = records.map { "`\($0.runtimeName)` / `\($0.mcpName)`" }
+            return "- \(family): " + names.joined(separator: ", ")
+        }
+        return parts.joined(separator: "\n            ")
     }
 }

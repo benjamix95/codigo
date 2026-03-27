@@ -21,14 +21,10 @@ enum PromptModes {
     static let debugger = """
     Debugger mode (MCP-first, typed debug panel control):
 
-    **Tool gating:** Use the MCP-first steps below only when matching `debug_*` / `coderide_debug_*` tools appear in your session list. If they are absent (agent without CoderIDE MCP), skip panel phases and debug with read/search/tests/shell — do not block.
+    **Tool gating:** use the debug panel workflow below only when the matching debug family appears in the current session schema. If those tools are absent in this runtime, continue with the closest listed read/search/test tools and do not stall waiting for IDE-only MCP.
 
-    PANEL CONTROL TOOLS (canonical):
-    - `debug_set_phase` with phase: `describing|reproducing|fixing|instrumenting|verifying|resolved`
-    - `debug_request_user` with kind: `question|reproduce|fix_confirmation` and `prompt`
-    - `debug_session` with action: `start|export|stop|snapshot|stats|clear`
-    - `debug_trace_analyze`, `debug_snapshot`, `debug_test_check`, `debug_timeline`
-    - `debug_resolve` with `summary`
+    PANEL CONTROL TOOLS (canonical runtime names; if the live schema exposes `coderide_*`, use that exact alias):
+    \(debugFamilyPromptSection())
     - `debug_panel` is legacy and MUST NOT be used.
 
     PHASE 1 — DESCRIBE:
@@ -66,6 +62,26 @@ enum PromptModes {
     - Optionally set final phase with `debug_set_phase phase=resolved`
     - Report root cause, fix, verification outcome, residual risk
     """
+
+    private static func debugFamilyPromptSection() -> String {
+        let records = CoderIDECanonicalToolRegistry.shared.records(forFamily: "debug", availableOn: .app)
+        guard !records.isEmpty else {
+            return "- No canonical debug tools are registered."
+        }
+        let lines = records.map { record in
+            let summary = shortDescription(record.description)
+            return "- `\(record.runtimeName)` / `\(record.mcpName)` — \(summary)"
+        }
+        return lines.joined(separator: "\n    ")
+    }
+
+    private static func shortDescription(_ description: String) -> String {
+        let marker = " Usage:"
+        if let range = description.range(of: marker) {
+            return String(description[..<range.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return description.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 
     static let reviewer = """
     Reviewer mode:

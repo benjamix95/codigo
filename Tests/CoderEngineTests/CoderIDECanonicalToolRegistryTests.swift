@@ -56,4 +56,21 @@ final class CoderIDECanonicalToolRegistryTests: XCTestCase {
         XCTAssertFalse(unknown.supportsReadonlySubagent)
         XCTAssertFalse(unknown.supportsWriteSubagent)
     }
+
+    func testRegistryFiltersFamilyBySurfaceAndFormatsPreferredPromptNames() {
+        let registry = CoderIDECanonicalToolRegistry.shared
+
+        let debugRecords = registry.records(forFamily: "debug", availableOn: .subagents)
+        XCTAssertFalse(debugRecords.isEmpty)
+        XCTAssertTrue(debugRecords.contains { $0.runtimeName == "debug_set_phase" })
+
+        XCTAssertEqual(
+            registry.preferredPromptName(forRuntimeName: "debug_set_phase"),
+            "coderide_debug_set_phase"
+        )
+        XCTAssertEqual(
+            registry.preferredPromptName(forMCPName: "coderide_plan_create", preferMCP: false),
+            "plan_create"
+        )
+    }
 }
