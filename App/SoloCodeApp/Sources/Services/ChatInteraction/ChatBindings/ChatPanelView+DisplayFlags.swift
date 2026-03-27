@@ -1,5 +1,37 @@
 import SwiftUI
 
+func shouldShowLegacyTodoCardInChat(
+    coderMode: CoderMode,
+    planToggleEnabled: Bool,
+    planFlowPhase: PlanFlowPhase,
+    planningState: PlanningState,
+    hasSwarmSteps: Bool,
+    hasLiveSwarmCards: Bool,
+    hasPipelineProgress: Bool
+) -> Bool {
+    let planSurfaceActive =
+        coderMode == .plan
+        || planToggleEnabled
+        || planFlowPhase == .analyzing
+        || planFlowPhase == .questioning
+        || planFlowPhase == .generating
+        || planFlowPhase == .proposalReady
+        || planFlowPhase == .readyToBuild
+        || planFlowPhase == .building
+
+    if planSurfaceActive {
+        return false
+    }
+    if case .awaitingClarification = planningState { return false }
+    if case .awaitingChoice = planningState { return false }
+
+    return shouldShowLiveTodoCardInChat(
+        hasSwarmSteps: hasSwarmSteps,
+        hasLiveSwarmCards: hasLiveSwarmCards,
+        hasPipelineProgress: hasPipelineProgress
+    )
+}
+
 extension ChatPanelView {
     internal func wireTodoPlanBidirectionalSync() {
         guard todoStore.onCanonicalTodoStatusChange == nil else { return }
@@ -36,7 +68,11 @@ extension ChatPanelView {
         let hasSwarmSteps = !swarmProgressStore.steps(for: conversationId).isEmpty
         let hasLiveSwarmCards = !taskActivityStore.swarmCardStates(for: conversationId).isEmpty
         let hasPipelineProgress = pipelineIntegrationService.isRunning(for: conversationId)
-        return shouldShowLiveTodoCardInChat(
+        return shouldShowLegacyTodoCardInChat(
+            coderMode: coderMode,
+            planToggleEnabled: planToggleEnabled,
+            planFlowPhase: planFlowPhase,
+            planningState: planningState,
             hasSwarmSteps: hasSwarmSteps,
             hasLiveSwarmCards: hasLiveSwarmCards,
             hasPipelineProgress: hasPipelineProgress

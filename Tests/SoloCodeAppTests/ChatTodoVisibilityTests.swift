@@ -418,4 +418,43 @@ final class ChatTodoVisibilityTests: XCTestCase {
         )
     }
 
+    func testLegacyTodoCardHiddenDuringPlanSurface() {
+        XCTAssertFalse(
+            shouldShowLegacyTodoCardInChat(
+                coderMode: .plan,
+                planToggleEnabled: false,
+                planFlowPhase: .proposalReady,
+                planningState: .idle,
+                hasSwarmSteps: true,
+                hasLiveSwarmCards: true,
+                hasPipelineProgress: true
+            )
+        )
+        XCTAssertFalse(
+            shouldShowLegacyTodoCardInChat(
+                coderMode: .agent,
+                planToggleEnabled: true,
+                planFlowPhase: .readyToBuild,
+                planningState: .awaitingChoice(planContent: "plan", options: []),
+                hasSwarmSteps: true,
+                hasLiveSwarmCards: false,
+                hasPipelineProgress: false
+            )
+        )
+    }
+
+    func testLegacyTodoCardVisibleForRegularAgentExecution() {
+        XCTAssertTrue(
+            shouldShowLegacyTodoCardInChat(
+                coderMode: .agent,
+                planToggleEnabled: false,
+                planFlowPhase: .idle,
+                planningState: .idle,
+                hasSwarmSteps: true,
+                hasLiveSwarmCards: false,
+                hasPipelineProgress: false
+            )
+        )
+    }
+
 }
