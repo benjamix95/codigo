@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/solocode-validate-xcode.sh"
+source "$SCRIPT_DIR/lib/solocode-validate-files.sh"
+
 TRIGGER=""
 WORKSPACE=""
 FILES_CSV=""
@@ -40,44 +44,29 @@ if [[ -n "${FILES_CSV:-}" ]]; then
   done < <(printf '%s\n' "$FILES_CSV" | tr ',' '\n')
 fi
 
-log() {
-  if [[ "$FORMAT" == "text" ]]; then
-    echo "$1"
-  fi
-}
-
-array_count() {
-  if [[ "$#" -eq 1 && -z "${1:-}" ]]; then
-    echo 0
-  else
-    echo "$#"
-  fi
-}
-
-json_escape() {
-  printf '%s' "$1" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))'
-}
-
+log() { [[ "$FORMAT" == "text" ]] && echo "$1"; }
+array_count() { [[ "$#" -eq 1 && -z "${1:-}" ]] && echo 0 || echo "$#"; }
+json_escape() { printf '%s' "$1" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))'; }
 fail() {
-  local stage="$1"
-  local message="$2"
-  if [[ "$FORMAT" == "json" ]]; then
-    printf '{"status":"failed","stage":"%s","message":%s}\n' "$stage" "$(json_escape "$message")"
-  else
-    echo "[FAILED] $stage: $message" >&2
-  fi
+  local stage="$1" message="$2"
+  [[ "$FORMAT" == "json" ]] \
+    && printf '{"status":"failed","stage":"%s","message":%s}\n' "$stage" "$(json_escape "$message")" \
+    || echo "[FAILED] $stage: $message" >&2
   exit 1
 }
+pass() { log "[PASSED] $1"; }
 
-pass() {
-  log "[PASSED] $1"
-}
-DERIVED_DATA_PATH="${TMPDIR%/}/solocode-validate-derived-data-$$"; SOURCE_PACKAGES_DIR="${TMPDIR%/}/solocode-validate-source-packages-$$"
+prepare_validation_xcode_paths "$WORKSPACE"
 
 build_for_testing() {
-  chmod -R u+w "$DERIVED_DATA_PATH" "$SOURCE_PACKAGES_DIR" 2>/dev/null || true; python3 -c 'import shutil,sys; [shutil.rmtree(path, ignore_errors=True) for path in sys.argv[1:]]' "$DERIVED_DATA_PATH" "$SOURCE_PACKAGES_DIR"
-  xcodebuild -resolvePackageDependencies -workspace "Solo Code.xcworkspace" -scheme "Solo Code-Debug" -clonedSourcePackagesDirPath "$SOURCE_PACKAGES_DIR" >/tmp/solocode-validate-resolve-packages.log 2>&1 \
-    || fail "packageResolve" "$(tail -n 60 /tmp/solocode-validate-resolve-packages.log)"
+  if should_resolve_packages "$WORKSPACE"; then
+    xcodebuild -resolvePackageDependencies -workspace "Solo Code.xcworkspace" -scheme "Solo Code-Debug" -clonedSourcePackagesDirPath "$SOURCE_PACKAGES_DIR" >/tmp/solocode-validate-resolve-packages.log 2>&1 \
+      || fail "packageResolve" "$(tail -n 60 /tmp/solocode-validate-resolve-packages.log)"
+    mark_package_resolution_ready
+    pass "packageResolve"
+  else
+    log "[SKIPPED] packageResolve"
+  fi
   xcodebuild build-for-testing \
     -workspace "Solo Code.xcworkspace" \
     -scheme "Solo Code-Debug" \
@@ -96,7 +85,8 @@ run_tests_without_building() {
   xcodebuild test-without-building \
     -workspace "Solo Code.xcworkspace" \
     -scheme "Solo Code-Debug" \
-    -destination "platform=macOS" -parallel-testing-enabled NO \
+    -destination "platform=macOS" \
+    -parallel-testing-enabled "$PARALLEL_TESTING_ENABLED" \
     -derivedDataPath "$DERIVED_DATA_PATH" -clonedSourcePackagesDirPath "$SOURCE_PACKAGES_DIR" \
     "$@" >"$log_file" 2>&1 \
     || fail "$stage" "$(tail -n 60 "$log_file")"
@@ -111,53 +101,14 @@ if [[ -n "$PATCH_FILE" && "$TRIGGER" != "reviewPatchPreview" ]]; then
   git apply --check "$PATCH_FILE" || fail "patchSafety" "git apply --check fallito per $PATCH_FILE"
   pass "patchSafety"
 fi
-is_code_file() {
-  local path="$1"
-  [[ "$path" == App/SoloCodeApp/Resources/* ]] && return 1
-  [[ "$path" == *".xcassets/"* ]] && return 1
-  [[ "$path" == App/SoloCodeApp/Resources/monaco/* ]] && return 1
-  [[ "$path" == *.swift || "$path" == *.sh || "$path" == *.rb || "$path" == *.rs ]] || return 1
-  return 0
-}
 
-line_count() {
-  python3 - "$1" <<'PY'
-from pathlib import Path
-import sys
-path = Path(sys.argv[1])
-text = path.read_text(encoding="utf-8")
-print(len(text.splitlines()) if text else 0)
-PY
-}
-
-for file in "${FILES[@]-}"; do
-  [[ -z "$file" ]] && continue
-  is_code_file "$file" || continue
-  [[ -f "$file" ]] || continue
-  lines="$(line_count "$file")"
-  if [[ "$lines" -gt 300 ]]; then
-    old_lines=""
-    if git cat-file -e "HEAD:$file" >/dev/null 2>&1; then
-      old_lines="$(git show "HEAD:$file" | python3 -c 'import sys; print(len(sys.stdin.read().splitlines()))')"
-    fi
-    if [[ -z "$old_lines" || "$old_lines" -le 300 || "$lines" -gt "$old_lines" ]]; then
-      fail "codeSize" "$file supera il limite 300 righe ($old_lines->$lines)."
-    fi
-  fi
-done
+if ! validate_code_size_limit "${FILES[@]-}"; then
+  fail "codeSize" "Uno o piu file toccati superano il limite 300 righe."
+fi
 pass "codeSize"
 
 ./scripts/validate_rust_cutover_boundary.sh --trigger "$TRIGGER" --workspace "$WORKSPACE" --files "$FILES_CSV" --format "$FORMAT" $([[ "$STAGED" == "true" ]] && printf '%s' --staged)
 pass "rustCutoverBoundary"
-
-xcodebuild build \
-  -workspace "Solo Code.xcworkspace" \
-  -scheme "$([[ "$TRIGGER" == "ciFull" ]] && echo "Solo Code-Release" || echo "Solo Code-Debug")" \
-  -destination "platform=macOS" \
-  -derivedDataPath "$DERIVED_DATA_PATH" \
-  -clonedSourcePackagesDirPath "$SOURCE_PACKAGES_DIR" >/tmp/solocode-validate-build.log 2>&1 \
-  || fail "build" "$(tail -n 40 /tmp/solocode-validate-build.log)"
-pass "build"
 
 TEST_ARGS=()
 need_engine_fallback="false"
@@ -260,14 +211,9 @@ test_args_seed_count="$(array_count "${TEST_ARGS[@]-}")"
 [[ "$test_args_seed_count" -eq 0 && "$native_only_validation" != "true" ]] && TEST_ARGS+=("-only-testing:CoderEngineTests")
 
 deduped_args=()
-for arg in "${TEST_ARGS[@]-}"; do
-  [[ -z "$arg" ]] && continue
-  skip="false"
-  for existing in "${deduped_args[@]-}"; do
-    [[ "$existing" == "$arg" ]] && skip="true"
-  done
-  [[ "$skip" == "false" ]] && deduped_args+=("$arg")
-done
+while IFS= read -r arg; do
+  [[ -n "$arg" ]] && deduped_args+=("$arg")
+done < <(dedupe_cli_args "${TEST_ARGS[@]-}")
 test_args_count="$(array_count "${deduped_args[@]-}")"
 if [[ "$test_args_count" -gt 0 ]]; then
   TEST_ARGS=("${deduped_args[@]}")
@@ -276,10 +222,32 @@ else
 fi
 
 if [[ "$test_args_count" -gt 0 ]]; then
+  if [[ "$TRIGGER" == "ciFull" ]]; then
+    xcodebuild build \
+      -workspace "Solo Code.xcworkspace" \
+      -scheme "Solo Code-Release" \
+      -destination "platform=macOS" \
+      -derivedDataPath "$DERIVED_DATA_PATH" \
+      -clonedSourcePackagesDirPath "$SOURCE_PACKAGES_DIR" >/tmp/solocode-validate-build.log 2>&1 \
+      || fail "build" "$(tail -n 40 /tmp/solocode-validate-build.log)"
+    pass "build"
+  fi
   build_for_testing
   run_tests_without_building targetedTests /tmp/solocode-validate-tests.log "${TEST_ARGS[@]}"
   pass "targetedTests"
 else
+  if [[ "$native_only_validation" == "true" && "$TRIGGER" != "ciFull" ]]; then
+    log "[SKIPPED] build"
+  else
+    xcodebuild build \
+      -workspace "Solo Code.xcworkspace" \
+      -scheme "$([[ "$TRIGGER" == "ciFull" ]] && echo "Solo Code-Release" || echo "Solo Code-Debug")" \
+      -destination "platform=macOS" \
+      -derivedDataPath "$DERIVED_DATA_PATH" \
+      -clonedSourcePackagesDirPath "$SOURCE_PACKAGES_DIR" >/tmp/solocode-validate-build.log 2>&1 \
+      || fail "build" "$(tail -n 40 /tmp/solocode-validate-build.log)"
+    pass "build"
+  fi
   log "[SKIPPED] targetedTests"
 fi
 
