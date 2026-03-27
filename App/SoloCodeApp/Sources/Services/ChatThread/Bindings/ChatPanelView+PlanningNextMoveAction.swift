@@ -6,7 +6,7 @@ extension ChatPanelView {
     /// se il thread è fermo e non c’era nulla da promuovere, invia un messaggio minimo al modello.
     @MainActor
     internal func performPlanningNextMoveUserAction() {
-        guard let cid = conversationId, effectiveContext.hasContext else { return }
+        guard let cid = conversationId, effectiveContext.hasSendableProjectContext else { return }
         let providerId = providerRegistry.selectedProviderId ?? "solocode"
 
         let promoted = todoStore.advanceNextCanonicalTodoIfNeeded(conversationId: cid)

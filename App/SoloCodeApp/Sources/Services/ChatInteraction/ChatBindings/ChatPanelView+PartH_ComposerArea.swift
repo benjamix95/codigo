@@ -31,7 +31,7 @@ extension ChatPanelView {
                 isConvertingHeic: $composerState.isConvertingHeic,
                 isInputFocused: $composerState.isInputFocused,
                 isProviderReady: isProviderReady,
-                isProjectContextAvailable: effectiveContext.hasContext,
+                isProjectContextAvailable: effectiveContext.hasSendableProjectContext,
                 isLoading: isLoadingForCurrentConversation,
                 planningState: planningState,
                 runtimeRunState: executionController.runState,

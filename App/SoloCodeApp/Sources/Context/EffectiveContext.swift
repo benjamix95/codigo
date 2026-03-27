@@ -34,8 +34,13 @@ struct EffectiveContext {
     let context: ProjectContext?
 
     var hasContext: Bool { !folderPaths.isEmpty }
+    var hasSendableProjectContext: Bool { !validatedSendFolderPaths.isEmpty }
     var primaryPath: String? { folderPaths.first }
     var activeRootPath: String? { context?.activeFolderPath ?? folderPaths.first }
+
+    private var validatedSendFolderPaths: [String] {
+        folderPaths.filter(Self.isValidSendFolderPath)
+    }
 
     /// Chiave stabile per onChange (NDJSON): stessa canonicalizzazione di `AgentDebugSessionNDJSONLog`.
     var agentDebugLogConfigurationKey: String {
@@ -52,6 +57,27 @@ struct EffectiveContext {
             .resolvingSymlinksInPath()
             .standardizedFileURL
             .path
+    }
+
+    private static func isValidSendFolderPath(_ path: String) -> Bool {
+        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: trimmed, isDirectory: &isDirectory), isDirectory.boolValue else {
+            return false
+        }
+        return !isLikelyPlaceholderWorkspaceDirectory(trimmed)
+    }
+
+    private static func isLikelyPlaceholderWorkspaceDirectory(_ path: String) -> Bool {
+        let url = URL(fileURLWithPath: path, isDirectory: true)
+        guard url.lastPathComponent.lowercased() == "workspace" else { return false }
+        let contents = (try? FileManager.default.contentsOfDirectory(
+            at: url,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        )) ?? []
+        return contents.isEmpty
     }
 
     var displayLabel: String {

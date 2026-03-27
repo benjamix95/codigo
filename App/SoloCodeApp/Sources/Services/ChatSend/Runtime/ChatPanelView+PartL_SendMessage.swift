@@ -41,7 +41,7 @@ extension ChatPanelView {
         guard !text.isEmpty || !attachedComposerAttachments.isEmpty else {
             return
         }
-        guard effectiveContext.hasContext else {
+        guard effectiveContext.hasSendableProjectContext else {
             showNoProjectOpenAlert = true
             return
         }
@@ -342,6 +342,32 @@ extension ChatPanelView {
         let prompt = attachmentBundle.fallbackPreamble.isEmpty
             ? basePrompt
             : "\(attachmentBundle.fallbackPreamble)\n\n\(basePrompt)"
+
+        // #region agent log
+        let sendProbeRoute = resolveMainChatSendExecutionRoute(
+            coderMode: coderMode,
+            isPlanMultiTurnFlow: (coderMode == .plan || shouldRunPlanInline) && planFlowPhase == .analyzing,
+            usesRustTransport: effectiveRuntimeProvider is MainChatRustTransportProvider
+        )
+        AgentDebugSessionNDJSONLog.append(
+            hypothesisId: "SEND",
+            location: "sendMessage",
+            message: "user_send_dispatching_turn",
+            data: [
+                "targetConversationId": targetConversationId.uuidString,
+                "selectedBinding": conversationId?.uuidString ?? "nil",
+                "assistantMessageId": standardAssistantMessageId.uuidString,
+                "providerId": effectiveRuntimeProvider.id,
+                "userTextLen": "\(text.count)",
+                "promptLen": "\(prompt.count)",
+                "coderMode": "\(coderMode)",
+                "planFlowPhase": "\(planFlowPhase)",
+                "resolvedRoute": "\(sendProbeRoute)",
+                "taskActiveChatStore": "\(chatStore.isTaskActive(for: targetConversationId))",
+                "pipelineRunning": "\(pipelineIntegrationService.isRunning(for: targetConversationId))",
+            ]
+        )
+        // #endregion
 
         executeSendMessageTurn(
             targetConversationId: targetConversationId,

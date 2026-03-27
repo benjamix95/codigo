@@ -227,4 +227,37 @@ final class ChatPanelBuildBehaviorTests: XCTestCase {
         XCTAssertEqual(capturedContextId, context.id)
         XCTAssertEqual(capturedFolderPath, "/tmp/lib")
     }
+
+    func testEffectiveContextSendGateAcceptsRealDirectory() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let effective = EffectiveContext(
+            contextId: UUID(),
+            folderPaths: [root.path],
+            isWorkspace: false,
+            context: nil
+        )
+
+        XCTAssertTrue(effective.hasSendableProjectContext)
+    }
+
+    func testEffectiveContextSendGateRejectsEmptyPlaceholderWorkspaceDirectory() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+            .appendingPathComponent("workspace", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root.deletingLastPathComponent()) }
+
+        let effective = EffectiveContext(
+            contextId: UUID(),
+            folderPaths: [root.path],
+            isWorkspace: false,
+            context: nil
+        )
+
+        XCTAssertFalse(effective.hasSendableProjectContext)
+    }
 }

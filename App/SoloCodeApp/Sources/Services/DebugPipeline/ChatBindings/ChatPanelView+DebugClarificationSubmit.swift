@@ -9,7 +9,7 @@ extension ChatPanelView {
     internal func submitDebugClarificationToAgent(_ answer: String) {
         let text = answer.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
-        guard effectiveContext.hasContext else {
+        guard effectiveContext.hasSendableProjectContext else {
             showNoProjectOpenAlert = true
             return
         }
