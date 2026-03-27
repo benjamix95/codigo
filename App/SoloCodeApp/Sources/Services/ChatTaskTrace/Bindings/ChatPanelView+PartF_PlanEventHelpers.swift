@@ -38,13 +38,15 @@ extension ChatPanelView {
     }
 
     @MainActor
+    @discardableResult
     func syncCanonicalTodoFromPlanStep(
         title: String?,
         status: PlanStepStatus,
-        targetConversationId: UUID?
-    ) {
+        targetConversationId: UUID?,
+        syncPlanBoard: Bool = true
+    ) -> UUID? {
         guard let title = title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty else {
-            return
+            return nil
         }
         let todoStatus: TodoStatus = {
             switch status {
@@ -81,11 +83,14 @@ extension ChatPanelView {
             if todoStatus == .done {
                 _ = todoStore.advanceNextExecutionTodoIfNeeded(conversationId: canonicalConversationId)
             }
-            if let syncId = canonicalConversationId ?? targetConversationId,
+            let syncId = canonicalConversationId ?? targetConversationId
+            if syncPlanBoard,
+               let syncId,
                !todoStore.canonicalTodos(for: syncId).isEmpty {
                 let canonicalTodos = todoStore.canonicalTodos(for: syncId)
                 chatStore.syncPlanStepsFromCanonicalTodos(canonicalTodos, in: syncId)
             }
+            return syncId
         } else if !isBuildScoped {
             todoStore.upsertFromAgent(
                 id: nil,
@@ -107,5 +112,6 @@ extension ChatPanelView {
                 _ = todoStore.advanceNextRuntimeTodoIfNeeded(conversationId: effectiveAfterUpsert)
             }
         }
+        return nil
     }
 }

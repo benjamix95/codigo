@@ -50,6 +50,15 @@ extension TodoStore {
         return canonical + runtime
     }
 
+    func cachedTodoChatDisplayScopeSnapshot() -> TodoChatDisplayScopeSnapshot {
+        if let cached = todoChatDisplayScopeCache {
+            return cached
+        }
+        let snapshot = TodoChatDisplayScopeSnapshot(visibleTodos: userVisibleTodos)
+        todoChatDisplayScopeCache = snapshot
+        return snapshot
+    }
+
     func canonicalTodos(for conversationId: UUID?) -> [TodoItem] {
         let canonical = userVisibleTodos.filter(\.isPlanCanonical)
         guard let conversationId else {
@@ -80,13 +89,12 @@ extension TodoStore {
             displayTodosCacheByConversationKey[cacheKey] = resolved
             return resolved
         }
-        let planScopeIds = Set(visible.compactMap(\.planConversationId))
+        let scopeSnapshot = cachedTodoChatDisplayScopeSnapshot()
         let inChat = visible.filter {
             TodoChatDisplayPolicy.itemAppearsInChat(
                 $0,
                 conversationId: conversationId,
-                visibleTodos: visible,
-                planScopeIds: planScopeIds
+                scopeSnapshot: scopeSnapshot
             )
         }
         resolved = sortedCanonicalFirstTodos(inChat)
@@ -112,6 +120,7 @@ extension TodoStore {
         guard let conversationId else {
             return { !$0.isPlanCanonical }
         }
+        let scopeSnapshot = cachedTodoChatDisplayScopeSnapshot()
         return { [self] item in
             guard !item.isPlanCanonical, !item.isOperationalPlaceholder else { return false }
             if item.planConversationId == conversationId { return true }
@@ -119,13 +128,10 @@ extension TodoStore {
                 if let touch = item.lastTouchedConversationId {
                     return touch == conversationId
                 }
-                let visible = self.userVisibleTodos
-                let planScopeIds = Set(visible.compactMap(\.planConversationId))
                 return TodoChatDisplayPolicy.itemAppearsInChat(
                     item,
                     conversationId: conversationId,
-                    visibleTodos: visible,
-                    planScopeIds: planScopeIds
+                    scopeSnapshot: scopeSnapshot
                 )
             }
             return false

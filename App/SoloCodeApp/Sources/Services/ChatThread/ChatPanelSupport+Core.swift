@@ -186,13 +186,12 @@ func todoConversationScopeFilter(
 ) -> (TodoItem) -> Bool {
     guard let conversationId else { return { _ in true } }
     let visible = todos.filter { !$0.isOperationalPlaceholder }
-    let planScopeIds = Set(visible.compactMap(\.planConversationId))
+    let scopeSnapshot = TodoChatDisplayScopeSnapshot(visibleTodos: visible)
     return { todo in
         TodoChatDisplayPolicy.itemAppearsInChat(
             todo,
             conversationId: conversationId,
-            visibleTodos: visible,
-            planScopeIds: planScopeIds
+            scopeSnapshot: scopeSnapshot
         )
     }
 }
@@ -216,7 +215,7 @@ func canScrollToTarget(
 
 func shouldInvalidateChatTimelineForLiveMutation(eventType: String) -> Bool {
     switch eventType {
-    case "todo_write", "todo_read", "plan_create", "plan_step_upsert", "plan_step_batch_update",
+    case "todo_write", "plan_create", "plan_step_upsert", "plan_step_batch_update",
         "plan_step_reorder", "plan_step_dependency_set", "plan_set_walkthrough",
         "plan_request_user_input":
         return true

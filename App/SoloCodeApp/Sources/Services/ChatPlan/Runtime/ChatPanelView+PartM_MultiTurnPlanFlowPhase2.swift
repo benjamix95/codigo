@@ -158,12 +158,6 @@ extension ChatPanelView {
                 targetConversationId: conversationId,
                 currentConversationId: self.conversationId
             ) else { return }
-            _ = planRuntimeAction(
-                "plan_prepare_phase3_generation_prompt",
-                text: planUserRequest,
-                shouldRunInline: shouldRunPlanInline,
-                planIntentConversationId: conversationId
-            )
             chatStore.addMessage(
                 ChatMessage(id: UUID(), role: .assistant, content: phase2Summary),
                 to: conversationId

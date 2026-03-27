@@ -70,13 +70,12 @@ enum TodoExecutionFollowUpPolicy {
     ) -> [TodoItem] {
         let visible = todos.filter { !$0.isOperationalPlaceholder }
         guard let conversationId else { return visible }
-        let planScopeIds = Set(visible.compactMap(\.planConversationId))
+        let scopeSnapshot = TodoChatDisplayScopeSnapshot(visibleTodos: visible)
         return visible.filter {
             TodoChatDisplayPolicy.itemAppearsInChat(
                 $0,
                 conversationId: conversationId,
-                visibleTodos: visible,
-                planScopeIds: planScopeIds
+                scopeSnapshot: scopeSnapshot
             )
         }
     }

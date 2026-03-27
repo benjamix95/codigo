@@ -52,12 +52,23 @@ extension ChatPanelView {
             fallbackConversationId: fallbackConversationId
         )
         if let targetId, let board = chatStore.planBoard(for: targetId) {
-            for step in board.steps {
-                syncCanonicalTodoFromPlanStep(
-                    title: step.title,
-                    status: step.status,
-                    targetConversationId: targetId
-                )
+            var syncIds = Set<UUID>()
+            todoStore.performBatchUpdates {
+                for step in board.steps {
+                    if let syncId = syncCanonicalTodoFromPlanStep(
+                        title: step.title,
+                        status: step.status,
+                        targetConversationId: targetId,
+                        syncPlanBoard: false
+                    ) {
+                        syncIds.insert(syncId)
+                    }
+                }
+            }
+            for syncId in syncIds {
+                let canonicalTodos = todoStore.canonicalTodos(for: syncId)
+                guard !canonicalTodos.isEmpty else { continue }
+                chatStore.syncPlanStepsFromCanonicalTodos(canonicalTodos, in: syncId)
             }
         }
         if shouldAutoOpenPlanPanel(trigger: .flowStarted, planToggleEnabled: planToggleEnabled), !showPlanPanel {
@@ -107,17 +118,28 @@ extension ChatPanelView {
             rawConversationId: rawConversationId,
             fallbackConversationId: fallbackConversationId
         )
-        for item in items {
-            let title = inferredPlanStepTitle(
-                candidate: item.title,
-                stepId: item.stepId,
-                conversationId: targetId
-            )
-            syncCanonicalTodoFromPlanStep(
-                title: title,
-                status: item.status,
-                targetConversationId: targetId
-            )
+        var syncIds = Set<UUID>()
+        todoStore.performBatchUpdates {
+            for item in items {
+                let title = inferredPlanStepTitle(
+                    candidate: item.title,
+                    stepId: item.stepId,
+                    conversationId: targetId
+                )
+                if let syncId = syncCanonicalTodoFromPlanStep(
+                    title: title,
+                    status: item.status,
+                    targetConversationId: targetId,
+                    syncPlanBoard: false
+                ) {
+                    syncIds.insert(syncId)
+                }
+            }
+        }
+        for syncId in syncIds {
+            let canonicalTodos = todoStore.canonicalTodos(for: syncId)
+            guard !canonicalTodos.isEmpty else { continue }
+            chatStore.syncPlanStepsFromCanonicalTodos(canonicalTodos, in: syncId)
         }
         if shouldInvalidateChatTimelineForLiveMutation(eventType: "plan_step_batch_update") {
             streaming.streamContentVersion &+= 1

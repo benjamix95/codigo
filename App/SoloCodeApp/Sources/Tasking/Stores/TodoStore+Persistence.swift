@@ -69,6 +69,10 @@ extension TodoStore {
     static let maxTodoCount = 50
 
     func saveTodos() {
+        if mutationBatchDepth > 0 {
+            needsSaveAfterBatch = true
+            return
+        }
         trimExcessTodos()
         do {
             let visibleTodos = userVisibleTodos

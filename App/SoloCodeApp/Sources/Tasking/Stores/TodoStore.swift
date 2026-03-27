@@ -12,8 +12,11 @@ final class TodoStore: ObservableObject {
     let userDefaults: UserDefaults
     var userVisibleTodosCache: [TodoItem]?
     var displayTodosCacheByConversationKey: [String: [TodoItem]] = [:]
+    var todoChatDisplayScopeCache: TodoChatDisplayScopeSnapshot?
     var lastSavedVisibleTodosData: Data?
     var sharedStateSyncTask: Task<Void, Never>?
+    var mutationBatchDepth = 0
+    var needsSaveAfterBatch = false
 
     /// Callback invoked when a canonical todo's status changes, enabling plan board sync.
     var onCanonicalTodoStatusChange: ((String, TodoStatus, UUID?) -> Void)?
@@ -43,6 +46,7 @@ final class TodoStore: ObservableObject {
 
     func invalidateQueryCaches() {
         userVisibleTodosCache = nil
+        todoChatDisplayScopeCache = nil
         displayTodosCacheByConversationKey.removeAll(keepingCapacity: true)
     }
 }

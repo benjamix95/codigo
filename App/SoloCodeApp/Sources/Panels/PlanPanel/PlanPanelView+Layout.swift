@@ -190,13 +190,16 @@ extension PlanPanelView {
             .filter { isPlanExecutionProviderIdAllowed($0.id) }
             .map(\.id)
         guard !ids.isEmpty else {
-            providerAuthCache = [:]
+            if !providerAuthCache.isEmpty {
+                providerAuthCache = [:]
+            }
             return
         }
         var cache: [String: Bool] = [:]
         for id in ids {
             cache[id] = providerRegistry.provider(for: id)?.isAuthenticated() ?? false
         }
+        guard cache != providerAuthCache else { return }
         providerAuthCache = cache
     }
 

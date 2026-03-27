@@ -6,54 +6,54 @@ import Foundation
 enum TodoChatDisplayPolicy {
     /// Allinea a `TodoStore.displayTodosForChat` per `conversationId` non nil.
     static func itemAppearsInChat(_ item: TodoItem, conversationId: UUID, visibleTodos: [TodoItem]) -> Bool {
-        let planScopeIds = Set(visibleTodos.compactMap(\.planConversationId))
+        let scopeSnapshot = TodoChatDisplayScopeSnapshot(visibleTodos: visibleTodos)
         return itemAppearsInChat(
             item,
             conversationId: conversationId,
-            visibleTodos: visibleTodos,
-            planScopeIds: planScopeIds
+            scopeSnapshot: scopeSnapshot
         )
     }
 
-    /// `planScopeIds` va calcolato una sola volta per snapshot (`Set(visibleTodos.compactMap(\.planConversationId))`).
     static func itemAppearsInChat(
         _ item: TodoItem,
         conversationId: UUID,
-        visibleTodos: [TodoItem],
-        planScopeIds: Set<UUID>
+        scopeSnapshot: TodoChatDisplayScopeSnapshot
     ) -> Bool {
         guard !item.isOperationalPlaceholder else { return false }
-        let scoped = visibleTodos.filter { $0.planConversationId == conversationId }
         let legacyMatch =
             item.planConversationId == nil
-            && includeInLegacyUnscopedBucket(item, conversationId: conversationId, planScopeIds: planScopeIds)
-        if !scoped.isEmpty {
+            && includeInLegacyUnscopedBucket(
+                item,
+                conversationId: conversationId,
+                scopeSnapshot: scopeSnapshot
+            )
+        if scopeSnapshot.hasScopedItems(for: conversationId) {
             return item.planConversationId == conversationId || legacyMatch
         }
-        let hasForeignScopedWork = planScopeIds.contains { $0 != conversationId }
-        if hasForeignScopedWork { return false }
+        if scopeSnapshot.hasForeignScopedWork(for: conversationId) { return false }
         return legacyMatch
     }
 
     private static func includeInLegacyUnscopedBucket(
         _ item: TodoItem,
         conversationId: UUID,
-        planScopeIds: Set<UUID>
+        scopeSnapshot: TodoChatDisplayScopeSnapshot
     ) -> Bool {
         if item.source == .agent, !item.isPlanCanonical, !item.isOperationalPlaceholder {
             if let touch = item.lastTouchedConversationId {
                 return touch == conversationId
             }
-            if planScopeIds.isEmpty {
+            if scopeSnapshot.planScopeIds.isEmpty {
                 return true
             }
-            if planScopeIds.count >= 2 {
-                guard let anchor = planScopeIds.min(by: { $0.uuidString < $1.uuidString }) else {
+            if scopeSnapshot.planScopeIds.count >= 2 {
+                guard let anchor = scopeSnapshot.legacyAnchorConversationId else {
                     return true
                 }
                 return conversationId == anchor
             }
-            return planScopeIds.count == 1 && planScopeIds.contains(conversationId)
+            return scopeSnapshot.planScopeIds.count == 1
+                && scopeSnapshot.planScopeIds.contains(conversationId)
         }
         return true
     }

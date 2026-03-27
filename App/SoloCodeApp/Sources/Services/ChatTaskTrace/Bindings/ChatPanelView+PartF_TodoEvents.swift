@@ -23,10 +23,12 @@ extension ChatPanelView {
                 recordExplicitTodoWrite(providerId: providerId, conversationId: conversationId)
                 return
             }
-            todoStore.clearAgentTodos(
-                conversationId: scopedConversationId,
-                includePlanCanonical: false
-            )
+            todoStore.performBatchUpdates {
+                todoStore.clearAgentTodos(
+                    conversationId: scopedConversationId,
+                    includePlanCanonical: false
+                )
+            }
             recordExplicitTodoWrite(providerId: providerId, conversationId: conversationId)
             return
         }
@@ -40,18 +42,11 @@ extension ChatPanelView {
             activeBuildAgentConversationId: activeBuildAgentConversationId
         ) {
             let sourcePlanId = activeBuildPlanConversationId ?? conversationId
-            var updated = todoStore.upsertCanonicalOnlyFromAgent(
-                id: todo.id,
-                title: todo.title,
-                status: todo.status,
-                priority: todo.priority,
-                notes: todo.notes,
-                activeForm: todo.activeForm,
-                linkedFiles: todo.files,
-                conversationId: sourcePlanId
-            )
-            if !updated {
-                updated = todoStore.upsertCanonicalFromExecutionFallback(
+            var updated = false
+            todoStore.performBatchUpdates {
+                updated = todoStore.upsertCanonicalOnlyFromAgent(
+                    id: todo.id,
+                    title: todo.title,
                     status: todo.status,
                     priority: todo.priority,
                     notes: todo.notes,
@@ -59,11 +54,21 @@ extension ChatPanelView {
                     linkedFiles: todo.files,
                     conversationId: sourcePlanId
                 )
-            }
-            if updated, let sourcePlanId {
-                if todo.status == .done {
+                if !updated {
+                    updated = todoStore.upsertCanonicalFromExecutionFallback(
+                        status: todo.status,
+                        priority: todo.priority,
+                        notes: todo.notes,
+                        activeForm: todo.activeForm,
+                        linkedFiles: todo.files,
+                        conversationId: sourcePlanId
+                    )
+                }
+                if updated, let sourcePlanId, todo.status == .done {
                     _ = todoStore.advanceNextExecutionTodoIfNeeded(conversationId: sourcePlanId)
                 }
+            }
+            if updated, let sourcePlanId {
                 let canonicalTodos = todoStore.canonicalTodos(for: sourcePlanId)
                 chatStore.syncPlanStepsFromCanonicalTodos(canonicalTodos, in: sourcePlanId)
             }
@@ -72,46 +77,48 @@ extension ChatPanelView {
             let existingBeforeUpsert = todo.id.flatMap { id in
                 todoStore.todos.first(where: { $0.id == id })?.effectiveRuntimeQueueConversationId
             }
-            todoStore.upsertFromAgent(
-                id: todo.id,
-                title: todo.title,
-                status: todo.status,
-                priority: todo.priority,
-                notes: todo.notes,
-                activeForm: todo.activeForm,
-                linkedFiles: todo.files,
-                conversationId: conversationId
-            )
-            let missingFollowUps = TodoExecutionFollowUpPolicy.missingFinalFollowUpTitles(
-                in: todoStore.todos,
-                conversationId: conversationId
-            )
-            for title in missingFollowUps {
-                let isReview = TodoExecutionFollowUpPolicy.isReviewTitle(title)
+            todoStore.performBatchUpdates {
                 todoStore.upsertFromAgent(
-                    id: nil,
-                    title: title,
-                    status: .pending,
-                    priority: isReview ? .high : .medium,
-                    notes: isReview
-                        ? "Review all changed files and run tests"
-                        : "Document the completed work, bugs found, verification, and changelog",
-                    activeForm: isReview
-                        ? "Reviewing code and running tests"
-                        : "Writing documentation for the completed work",
-                    linkedFiles: [],
+                    id: todo.id,
+                    title: todo.title,
+                    status: todo.status,
+                    priority: todo.priority,
+                    notes: todo.notes,
+                    activeForm: todo.activeForm,
+                    linkedFiles: todo.files,
                     conversationId: conversationId
                 )
-            }
-            if todo.status == .done {
-                let effectiveAfterUpsert = conversationId
-                    ?? todoStore.planConversationIdForRuntimeTodoAfterUpsert(
-                        preferredId: todo.id,
-                        normalizedTitle: normalizedTitle,
-                        eventConversationId: conversationId
+                let missingFollowUps = TodoExecutionFollowUpPolicy.missingFinalFollowUpTitles(
+                    in: todoStore.todos,
+                    conversationId: conversationId
+                )
+                for title in missingFollowUps {
+                    let isReview = TodoExecutionFollowUpPolicy.isReviewTitle(title)
+                    todoStore.upsertFromAgent(
+                        id: nil,
+                        title: title,
+                        status: .pending,
+                        priority: isReview ? .high : .medium,
+                        notes: isReview
+                            ? "Review all changed files and run tests"
+                            : "Document the completed work, bugs found, verification, and changelog",
+                        activeForm: isReview
+                            ? "Reviewing code and running tests"
+                            : "Writing documentation for the completed work",
+                        linkedFiles: [],
+                        conversationId: conversationId
                     )
-                    ?? existingBeforeUpsert
-                _ = todoStore.advanceNextRuntimeTodoIfNeeded(conversationId: effectiveAfterUpsert)
+                }
+                if todo.status == .done {
+                    let effectiveAfterUpsert = conversationId
+                        ?? todoStore.planConversationIdForRuntimeTodoAfterUpsert(
+                            preferredId: todo.id,
+                            normalizedTitle: normalizedTitle,
+                            eventConversationId: conversationId
+                        )
+                        ?? existingBeforeUpsert
+                    _ = todoStore.advanceNextRuntimeTodoIfNeeded(conversationId: effectiveAfterUpsert)
+                }
             }
         }
         recordExplicitTodoWrite(providerId: providerId, conversationId: conversationId)
