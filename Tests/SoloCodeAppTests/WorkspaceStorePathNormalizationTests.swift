@@ -4,13 +4,25 @@ import XCTest
 
 @MainActor
 final class WorkspaceStorePathNormalizationTests: XCTestCase {
+    private var workspaceManifestTempRoot: URL?
+
     override func setUp() {
         super.setUp()
         clearWorkspacePersistence()
+        let temp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("workspace-manifests-\(UUID().uuidString)", isDirectory: true)
+        try? FileManager.default.createDirectory(at: temp, withIntermediateDirectories: true)
+        workspaceManifestTempRoot = temp
+        WorkspaceStore.workspaceManifestDirectoryOverrideURL = temp
     }
 
     override func tearDown() {
         clearWorkspacePersistence()
+        WorkspaceStore.workspaceManifestDirectoryOverrideURL = nil
+        if let workspaceManifestTempRoot {
+            try? FileManager.default.removeItem(at: workspaceManifestTempRoot)
+        }
+        workspaceManifestTempRoot = nil
         super.tearDown()
     }
 
@@ -131,6 +143,41 @@ final class WorkspaceStorePathNormalizationTests: XCTestCase {
 
         XCTAssertEqual(store.workspaces.last?.folderPaths, [canonicalPath(base)])
         XCTAssertEqual(store.activeWorkspacePaths.map(\.path), [canonicalPath(base)])
+    }
+
+    func testSaveWritesWorkspaceManifestJSONFile() throws {
+        let baseA = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ws-\(UUID().uuidString)-a", isDirectory: true)
+        let baseB = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ws-\(UUID().uuidString)-b", isDirectory: true)
+        try FileManager.default.createDirectory(at: baseA, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: baseB, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.removeItem(at: baseA)
+            try? FileManager.default.removeItem(at: baseB)
+        }
+
+        let workspace = Workspace(
+            id: UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!,
+            name: "Client Workspace",
+            folderPaths: [baseA.path, baseB.path],
+            excludedPaths: [baseA.appendingPathComponent(".build").path]
+        )
+        let store = WorkspaceStore()
+        store.workspaces = [workspace]
+
+        store.save()
+
+        let manifestDir = try XCTUnwrap(WorkspaceStore.workspaceManifestDirectoryOverrideURL)
+        let files = try FileManager.default.contentsOfDirectory(at: manifestDir, includingPropertiesForKeys: nil)
+        let manifest = try XCTUnwrap(files.first(where: { $0.lastPathComponent.contains("client-workspace") }))
+        let data = try Data(contentsOf: manifest)
+        let decoded = try JSONDecoder().decode(WorkspaceFileDocument.self, from: data)
+
+        XCTAssertEqual(decoded.id, workspace.id)
+        XCTAssertEqual(decoded.name, workspace.name)
+        XCTAssertEqual(decoded.folders, workspace.folderPaths)
+        XCTAssertEqual(decoded.excludedPaths, workspace.excludedPaths)
     }
 
     func testUpdateNormalizesFolderAndExcludedPaths() {

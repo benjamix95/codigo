@@ -10,6 +10,7 @@ private let codebaseIndexExcludedFilePatternsKey = "codebase_index_excluded_file
 
 @MainActor
 final class WorkspaceStore: ObservableObject {
+    static var workspaceManifestDirectoryOverrideURL: URL?
     @Published var workspaces: [Workspace] = []
     @Published var activeWorkspaceId: UUID?
     @Published var indexProgress: IndexingProgress?
@@ -229,6 +230,7 @@ final class WorkspaceStore: ObservableObject {
         if normalizedPersistedPaths {
             save()
         }
+        syncWorkspaceManifestFiles()
         indexActiveWorkspace()
     }
 
@@ -248,6 +250,7 @@ final class WorkspaceStore: ObservableObject {
         } else {
             UserDefaults.standard.removeObject(forKey: activeWorkspaceIdKey)
         }
+        syncWorkspaceManifestFiles()
     }
 
     /// Genera `.github/workflows/solocode-auto-ci.yml` e `scripts/solocode-run-local-ci.sh` in base ai linguaggi rilevati.
@@ -266,5 +269,52 @@ final class WorkspaceStore: ObservableObject {
         Task.detached(priority: .utility) {
             WorkspaceLocalCIProvisioner.provision(roots: roots)
         }
+    }
+
+    private func syncWorkspaceManifestFiles() {
+        guard let directory = workspaceManifestDirectoryURL() else { return }
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+
+        let eligibleWorkspaces = workspaces.filter { !$0.folderPaths.isEmpty }
+        var expectedFileNames = Set<String>()
+
+        for workspace in eligibleWorkspaces {
+            let filename = workspaceManifestFileName(for: workspace)
+            expectedFileNames.insert(filename)
+            let fileURL = directory.appendingPathComponent(filename, isDirectory: false)
+            let document = WorkspaceFileDocument(workspace: workspace)
+            guard let data = try? JSONEncoder().encode(document) else { continue }
+            try? data.write(to: fileURL, options: .atomic)
+        }
+
+        let existingFiles = (try? FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: nil
+        )) ?? []
+        for fileURL in existingFiles where fileURL.pathExtension == "json" {
+            guard fileURL.lastPathComponent.hasSuffix(".workspace.json") else { continue }
+            if !expectedFileNames.contains(fileURL.lastPathComponent) {
+                try? FileManager.default.removeItem(at: fileURL)
+            }
+        }
+    }
+
+    private func workspaceManifestDirectoryURL() -> URL? {
+        if let override = Self.workspaceManifestDirectoryOverrideURL {
+            return override
+        }
+        return FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
+            .first?
+            .appendingPathComponent("SoloCode", isDirectory: true)
+            .appendingPathComponent("workspace", isDirectory: true)
+    }
+
+    private func workspaceManifestFileName(for workspace: Workspace) -> String {
+        let sanitized = workspace.name
+            .lowercased()
+            .replacingOccurrences(of: #"[^a-z0-9._-]+"#, with: "-", options: .regularExpression)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "-._"))
+        let base = sanitized.isEmpty ? "workspace" : sanitized
+        return "\(base)-\(workspace.id.uuidString.lowercased()).workspace.json"
     }
 }
