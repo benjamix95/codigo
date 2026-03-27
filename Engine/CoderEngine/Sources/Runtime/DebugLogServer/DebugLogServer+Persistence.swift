@@ -6,7 +6,7 @@ public extension DebugLogServer {
         if entries.count > maxEntries {
             entries.removeFirst(entries.count - maxEntries)
         }
-        if let data = try? JSONEncoder().encode(entry),
+        if let data = try? encoder.encode(entry),
            let line = String(data: data, encoding: .utf8) {
             appendLineToDisk(line)
         }
@@ -22,19 +22,11 @@ public extension DebugLogServer {
         let urls = [logFileURL, activeSessionLogFileURL].compactMap { $0 }
 
         for url in urls {
-            if let dir = url.deletingLastPathComponent() as URL? {
-                try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-            }
-            if !FileManager.default.fileExists(atPath: url.path) {
-                _ = FileManager.default.createFile(atPath: url.path, contents: nil)
-            }
-
             do {
-                let handle = try FileHandle(forWritingTo: url)
-                defer { try? handle.close() }
-                try handle.seekToEnd()
+                let handle = try writableHandle(for: url)
                 try handle.write(contentsOf: lineData)
             } catch {
+                closeHandle(for: url)
                 if url == logFileURL {
                     persistToDisk()
                 } else {
@@ -67,7 +59,7 @@ public extension DebugLogServer {
         var usedBytes = 0
 
         for entry in entries.reversed() {
-            guard let encoded = try? JSONEncoder().encode(entry) else { continue }
+            guard let encoded = try? encoder.encode(entry) else { continue }
             let lineBytes = encoded.count + 1 // newline
             if !kept.isEmpty, usedBytes + lineBytes > maxBytesInt {
                 break
@@ -84,8 +76,9 @@ public extension DebugLogServer {
     }
 
     func persistToDisk() {
+        closeHandle(for: logFileURL)
         let lines = entries.compactMap { entry -> String? in
-            guard let data = try? JSONEncoder().encode(entry) else { return nil }
+            guard let data = try? encoder.encode(entry) else { return nil }
             return String(data: data, encoding: .utf8)
         }
         try? lines.joined(separator: "\n").write(to: logFileURL, atomically: true, encoding: .utf8)
@@ -119,6 +112,28 @@ public extension DebugLogServer {
 }
 
 extension DebugLogServer {
+    func writableHandle(for url: URL) throws -> FileHandle {
+        if let existing = openHandles[url.path] {
+            return existing
+        }
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        if !FileManager.default.fileExists(atPath: url.path) {
+            _ = FileManager.default.createFile(atPath: url.path, contents: nil)
+        }
+        let handle = try FileHandle(forWritingTo: url)
+        try handle.seekToEnd()
+        openHandles[url.path] = handle
+        return handle
+    }
+
+    func closeHandle(for url: URL) {
+        guard let handle = openHandles.removeValue(forKey: url.path) else { return }
+        try? handle.close()
+    }
+
     static func sessionLogFileURL(workspacePath: String, sessionId: String) -> URL {
         URL(fileURLWithPath: workspacePath)
             .appendingPathComponent(".solocode/debug", isDirectory: true)

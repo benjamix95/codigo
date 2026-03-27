@@ -19,6 +19,8 @@ public actor DebugLogServer {
 
     static let maxFileSize: UInt64 = 5 * 1024 * 1024 // 5 MB
     var appendsSinceLastSizeCheck: Int = 0
+    let encoder = JSONEncoder()
+    var openHandles: [String: FileHandle] = [:]
 
     public init(maxEntries: Int = 5000) {
         self.maxEntries = maxEntries
@@ -29,5 +31,11 @@ public actor DebugLogServer {
         let debugDir = cacheDir.appendingPathComponent("com.solocode.debug", isDirectory: true)
         try? FileManager.default.createDirectory(at: debugDir, withIntermediateDirectories: true)
         self.logFileURL = debugDir.appendingPathComponent("debug_log.jsonl")
+    }
+
+    deinit {
+        for handle in openHandles.values {
+            try? handle.close()
+        }
     }
 }

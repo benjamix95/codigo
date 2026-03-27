@@ -101,6 +101,13 @@ public enum WorkspaceScanner {
 
     /// Elenco ricorsivo di file sorgente nel workspace
     public static func listSourceFiles(workspacePath: URL, excludedPaths: [String] = []) -> [String] {
+        if let gitFiles = listSourceFilesFromGitLsFiles(
+            workspacePath: workspacePath,
+            excludedPaths: excludedPaths
+        ) {
+            return gitFiles
+        }
+
         let allExcluded = Array(ExcludedDirectories.defaultSet) + excludedPaths
         var result: [String] = []
         enumerateSourceFiles(
@@ -112,6 +119,35 @@ public enum WorkspaceScanner {
             result: &result
         )
         return result
+    }
+
+    private static func listSourceFilesFromGitLsFiles(
+        workspacePath: URL,
+        excludedPaths: [String]
+    ) -> [String]? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        process.arguments = ["ls-files", "--cached", "--others", "--exclude-standard", "--"]
+        process.currentDirectoryURL = workspacePath
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = nil
+        do {
+            try process.run()
+        } catch {
+            return nil
+        }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0,
+              let output = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+        return listSourceFilesFromGitDiffOutput(
+            output: output,
+            workspacePath: workspacePath,
+            excludedPaths: excludedPaths
+        )
     }
 
     private static func enumerateSourceFiles(

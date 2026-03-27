@@ -119,8 +119,9 @@ extension CLIAccountLoginCoordinator {
     }
 
     func pollLoginStatusFlow(account: CLIAccount, providerPath: String?) async {
-        for _ in 0..<45 {
-            try? await Task.sleep(for: .seconds(2))
+        for attempt in 0..<45 {
+            let delaySeconds = LoginPollingBackoff.seconds(forAttempt: attempt, baseSeconds: 2, maxSeconds: 8)
+            try? await Task.sleep(for: .seconds(delaySeconds))
             let status = await CLIAccountAuthDetector.detectOffMainThread(
                 account: account,
                 providerPath: providerPath

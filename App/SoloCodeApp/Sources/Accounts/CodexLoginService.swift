@@ -92,8 +92,13 @@ actor CodexLoginService {
         maxAttempts: Int = 30,
         intervalSeconds: Int = 2
     ) async -> Bool {
-        for _ in 0..<maxAttempts {
-            try? await Task.sleep(for: .seconds(intervalSeconds))
+        for attempt in 0..<maxAttempts {
+            let delaySeconds = LoginPollingBackoff.seconds(
+                forAttempt: attempt,
+                baseSeconds: intervalSeconds,
+                maxSeconds: max(intervalSeconds, 8)
+            )
+            try? await Task.sleep(for: .seconds(delaySeconds))
             let ready = await Task.detached {
                 CodexDetector.detect(customPath: codexPath).isLoggedIn
             }.value

@@ -25,6 +25,16 @@ enum LLDBPersistentSessionError: Error, LocalizedError, Equatable {
     }
 }
 
+func lldbPersistentOutputPollIntervalNanoseconds(forAttempt attempt: Int) -> UInt64 {
+    if attempt < 20 {
+        return 20_000_000
+    }
+    if attempt < 60 {
+        return 50_000_000
+    }
+    return 100_000_000
+}
+
 actor LLDBPersistentSession: LLDBCommandSession {
     private let process: Process
     private let stdinHandle: FileHandle
@@ -145,7 +155,6 @@ private actor LLDBPersistentOutputBuffer {
     private var baseOffset = 0
     private var closedStreams = 0
     private var forciblyClosed = false
-    private let pollIntervalNanoseconds: UInt64 = 20_000_000
 
     func append(_ chunk: Data) {
         guard !chunk.isEmpty else { return }
@@ -173,6 +182,7 @@ private actor LLDBPersistentOutputBuffer {
         let markerData = Data(marker.utf8)
         let legacyMarkerData = legacyMarker.map { Data($0.utf8) }
         let deadline = DispatchTime.now().uptimeNanoseconds &+ timeoutNanoseconds
+        var pollAttempt = 0
 
         while true {
             let localStart = max(0, fromOffset - baseOffset)
@@ -210,7 +220,10 @@ private actor LLDBPersistentOutputBuffer {
                 throw LLDBPersistentSessionError.timeout
             }
 
-            try await Task.sleep(nanoseconds: pollIntervalNanoseconds)
+            try await Task.sleep(
+                nanoseconds: lldbPersistentOutputPollIntervalNanoseconds(forAttempt: pollAttempt)
+            )
+            pollAttempt += 1
         }
     }
 

@@ -13,9 +13,19 @@ struct CLIUsageEvent: Codable {
 final class CLIAccountUsageLedgerStore: ObservableObject {
     static let shared = CLIAccountUsageLedgerStore()
     @Published private(set) var events: [CLIUsageEvent] = []
-    private let key = "CoderIDE.cliAccountUsageLedger"
+    private let key: String
+    private let userDefaults: UserDefaults
+    private let saveDelayNanoseconds: UInt64
+    private var pendingSaveTask: Task<Void, Never>?
 
-    init() {
+    init(
+        userDefaults: UserDefaults = .standard,
+        key: String = "CoderIDE.cliAccountUsageLedger",
+        saveDelayNanoseconds: UInt64 = 150_000_000
+    ) {
+        self.userDefaults = userDefaults
+        self.key = key
+        self.saveDelayNanoseconds = saveDelayNanoseconds
         load()
     }
 
@@ -32,7 +42,7 @@ final class CLIAccountUsageLedgerStore: ObservableObject {
         if events.count > 5000 {
             events = Array(events.suffix(5000))
         }
-        save()
+        scheduleSave()
     }
 
     func totals(accountId: UUID, period: Calendar.Component) -> (cost: Double, tokens: Int) {
@@ -58,20 +68,43 @@ final class CLIAccountUsageLedgerStore: ObservableObject {
         return (cost, tokens)
     }
 
-    private func save() {
-        if let data = try? JSONEncoder().encode(events) {
-            UserDefaults.standard.set(data, forKey: key)
+    func flushPendingSavesForTests() async {
+        pendingSaveTask?.cancel()
+        pendingSaveTask = nil
+        persist(events)
+    }
+
+    private func scheduleSave() {
+        pendingSaveTask?.cancel()
+        let snapshot = events
+        let userDefaults = self.userDefaults
+        let key = self.key
+        let delay = saveDelayNanoseconds
+        pendingSaveTask = Task {
+            if delay > 0 {
+                try? await Task.sleep(nanoseconds: delay)
+            }
+            guard !Task.isCancelled else { return }
+            if let data = try? JSONEncoder().encode(snapshot) {
+                userDefaults.set(data, forKey: key)
+            }
+        }
+    }
+
+    private func persist(_ snapshot: [CLIUsageEvent]) {
+        if let data = try? JSONEncoder().encode(snapshot) {
+            userDefaults.set(data, forKey: key)
         }
     }
 
     private func load() {
-        guard let data = UserDefaults.standard.data(forKey: key),
+        guard let data = userDefaults.data(forKey: key),
               let decoded = try? JSONDecoder().decode([CLIUsageEvent].self, from: data) else {
             return
         }
         if decoded.count > 5000 {
             events = Array(decoded.suffix(5000))
-            save()
+            persist(events)
             return
         }
         events = decoded
