@@ -2372,6 +2372,26 @@ enum CoderIDECanonicalToolRegistryGenerated {
         "exit_plan_mode": "activate_plan_mode",
         "enterplanmode": "activate_plan_mode",
         "enter_plan_mode": "activate_plan_mode"
+      },
+      "subagent_provider_profiles": {
+        "codex": {
+          "supports_readonly_subagent": true,
+          "supports_write_subagent": true,
+          "supports_workspace_sandbox": true,
+          "supports_native_tools": true
+        },
+        "claude": {
+          "supports_readonly_subagent": true,
+          "supports_write_subagent": false,
+          "supports_workspace_sandbox": false,
+          "supports_native_tools": true
+        },
+        "gemini": {
+          "supports_readonly_subagent": false,
+          "supports_write_subagent": false,
+          "supports_workspace_sandbox": false,
+          "supports_native_tools": false
+        }
       }
     }
     """

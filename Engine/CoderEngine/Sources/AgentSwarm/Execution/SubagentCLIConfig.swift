@@ -7,7 +7,11 @@ import Darwin
 /// These have no MCP dependencies — only Foundation and SubagentRole.
 public enum SubagentCLIConfig {
     public static let constrainedPATH = "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin"
-    public static let knownProviderIDs = ["codex", "claude", "gemini"]
+    public static var knownProviderIDs: [String] {
+        CoderIDECanonicalToolRegistry.shared.knownSubagentProviderIDs
+    }
+    private static let claudeDisallowedToolsForCoderideMCP =
+        "Read,Edit,Write,Glob,Grep,WebSearch,WebFetch,NotebookEdit,TodoWrite"
 
     /// Whether a subagent role should run in read-only sandbox mode.
     /// Explorer, reviewer, bugHunter, and securityAuditor only analyze — they never edit files.
@@ -53,7 +57,8 @@ public enum SubagentCLIConfig {
         cliPath: String,
         prompt: String,
         workspacePath: String,
-        readOnly: Bool
+        readOnly: Bool,
+        claudeMCPConfigPath: String? = nil
     ) -> [String] {
         let basename = URL(fileURLWithPath: cliPath).lastPathComponent.lowercased()
 
@@ -70,7 +75,14 @@ public enum SubagentCLIConfig {
 
         case "claude":
             var args = ["-p", prompt, "--output-format", "text"]
-            if readOnly {
+            if let claudeMCPConfigPath,
+               !claudeMCPConfigPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                args.append(contentsOf: [
+                    "--mcp-config", claudeMCPConfigPath,
+                    "--permission-mode", "bypassPermissions",
+                    "--disallowedTools", claudeDisallowedToolsForCoderideMCP,
+                ])
+            } else if readOnly {
                 args.append(contentsOf: ["--allowedTools", "Read,Search,Glob,Grep"])
             }
             return args
@@ -81,6 +93,104 @@ public enum SubagentCLIConfig {
         default:
             return [prompt]
         }
+    }
+
+    /// Writes a temporary Claude MCP config for the local coderide server and
+    /// returns the config path when the server binary can be resolved.
+    public static func makeClaudeMCPConfigPath(
+        workspacePath: String,
+        explicitServerPath: String? = nil
+    ) -> String? {
+        guard let serverPath = resolveCoderideMCPServerPath(
+            workspacePath: workspacePath,
+            explicitServerPath: explicitServerPath
+        ) else {
+            return nil
+        }
+
+        let workspace = workspacePath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !workspace.isEmpty else { return nil }
+
+        let config: [String: Any] = [
+            "mcpServers": [
+                "coderide": [
+                    "command": serverPath,
+                    "args": [],
+                    "env": [
+                        "SOLOCODE_WORKSPACE": workspace,
+                    ],
+                ],
+            ],
+        ]
+        guard JSONSerialization.isValidJSONObject(config),
+              let data = try? JSONSerialization.data(
+                  withJSONObject: config,
+                  options: [.prettyPrinted, .sortedKeys]
+              ) else {
+            return nil
+        }
+
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("solocode-claude-mcp", isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+            let configPath = root.appendingPathComponent("mcp-config.json")
+            try data.write(to: configPath, options: .atomic)
+            return configPath.path
+        } catch {
+            return nil
+        }
+    }
+
+    private static func resolveCoderideMCPServerPath(
+        workspacePath: String,
+        explicitServerPath: String?
+    ) -> String? {
+        let fm = FileManager.default
+
+        if let explicit = normalizedExecutablePath(explicitServerPath, fileManager: fm) {
+            return explicit
+        }
+        if let envOverride = normalizedExecutablePath(
+            ProcessInfo.processInfo.environment["SOLOCODE_MCP_SERVER_PATH"],
+            fileManager: fm
+        ) {
+            return envOverride
+        }
+
+        let workspaceURL = URL(fileURLWithPath: workspacePath)
+        for variant in ["debug", "release"] {
+            let candidate = workspaceURL
+                .appendingPathComponent("Native/target/\(variant)/coderide-mcp-server-rust")
+                .path
+            if fm.isExecutableFile(atPath: candidate) {
+                return candidate
+            }
+        }
+
+        let executableURL = URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent()
+        for candidate in [
+            executableURL.appendingPathComponent("coderide-mcp-server-rust").path,
+            executableURL.appendingPathComponent("coderide-mcp-server").path,
+        ] {
+            if fm.isExecutableFile(atPath: candidate) {
+                return candidate
+            }
+        }
+
+        return nil
+    }
+
+    private static func normalizedExecutablePath(
+        _ rawPath: String?,
+        fileManager: FileManager
+    ) -> String? {
+        guard let rawPath else { return nil }
+        let trimmed = rawPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, fileManager.isExecutableFile(atPath: trimmed) else {
+            return nil
+        }
+        return trimmed
     }
 }
 
@@ -128,11 +238,15 @@ public enum SubagentCLIRunner {
         }
 
         let prompt = SubagentPromptBuilder.build(role: role, task: task)
+        let claudeMCPConfigPath = SubagentCLIConfig.makeClaudeMCPConfigPath(
+            workspacePath: workspacePath
+        )
         let args = SubagentCLIConfig.buildCLIArgs(
             cliPath: backend.cliPath,
             prompt: prompt,
             workspacePath: workspacePath,
-            readOnly: SubagentCLIConfig.isReadOnly(role)
+            readOnly: SubagentCLIConfig.isReadOnly(role),
+            claudeMCPConfigPath: claudeMCPConfigPath
         )
 
         let process = Process()

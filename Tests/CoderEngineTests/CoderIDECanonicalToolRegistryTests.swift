@@ -38,4 +38,22 @@ final class CoderIDECanonicalToolRegistryTests: XCTestCase {
         XCTAssertTrue(registry.firstRoundExemptRuntimeToolNames.contains("activate_debug_mode"))
         XCTAssertTrue(registry.firstRoundExemptRuntimeToolNames.contains("plan_request_user_input"))
     }
+
+    func testRegistryProvidesSubagentProviderProfiles() {
+        let registry = CoderIDECanonicalToolRegistry.shared
+        XCTAssertEqual(registry.knownSubagentProviderIDs, ["claude", "codex", "gemini"])
+
+        let codex = registry.providerCapabilityEntry(for: "codex")
+        XCTAssertTrue(codex.supportsReadonlySubagent)
+        XCTAssertTrue(codex.supportsWriteSubagent)
+        XCTAssertTrue(codex.supportsWorkspaceSandbox)
+
+        let claude = registry.providerCapabilityEntry(for: "claude")
+        XCTAssertTrue(claude.supportsReadonlySubagent)
+        XCTAssertFalse(claude.supportsWriteSubagent)
+
+        let unknown = registry.providerCapabilityEntry(for: "unknown")
+        XCTAssertFalse(unknown.supportsReadonlySubagent)
+        XCTAssertFalse(unknown.supportsWriteSubagent)
+    }
 }

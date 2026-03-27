@@ -233,32 +233,7 @@ public enum SubagentBackendResolver {
     }
 
     private static func capabilityEntry(for providerID: String) -> ProviderCapabilityEntry {
-        switch providerID {
-        case "codex":
-            return ProviderCapabilityEntry(
-                providerId: providerID,
-                supportsReadonlySubagent: true,
-                supportsWriteSubagent: true,
-                supportsWorkspaceSandbox: true,
-                supportsNativeTools: true
-            )
-        case "claude":
-            return ProviderCapabilityEntry(
-                providerId: providerID,
-                supportsReadonlySubagent: true,
-                supportsWriteSubagent: false,
-                supportsWorkspaceSandbox: false,
-                supportsNativeTools: true
-            )
-        default:
-            return ProviderCapabilityEntry(
-                providerId: providerID,
-                supportsReadonlySubagent: false,
-                supportsWriteSubagent: false,
-                supportsWorkspaceSandbox: false,
-                supportsNativeTools: false
-            )
-        }
+        CoderIDECanonicalToolRegistry.shared.providerCapabilityEntry(for: providerID)
     }
 }
 

@@ -44,12 +44,28 @@ private struct CanonicalToolManifest: Codable {
     let generatedFromBootstrap: Bool?
     let tools: [CanonicalToolRecord]
     let nonMcpAliases: [String: String]
+    let subagentProviderProfiles: [String: CanonicalSubagentProviderProfile]
 
     enum CodingKeys: String, CodingKey {
         case version
         case generatedFromBootstrap = "generated_from_bootstrap"
         case tools
         case nonMcpAliases = "non_mcp_aliases"
+        case subagentProviderProfiles = "subagent_provider_profiles"
+    }
+}
+
+public struct CanonicalSubagentProviderProfile: Codable, Sendable {
+    public let supportsReadonlySubagent: Bool
+    public let supportsWriteSubagent: Bool
+    public let supportsWorkspaceSandbox: Bool
+    public let supportsNativeTools: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case supportsReadonlySubagent = "supports_readonly_subagent"
+        case supportsWriteSubagent = "supports_write_subagent"
+        case supportsWorkspaceSandbox = "supports_workspace_sandbox"
+        case supportsNativeTools = "supports_native_tools"
     }
 }
 
@@ -64,6 +80,7 @@ public final class CoderIDECanonicalToolRegistryStore {
     public let mutatingRuntimeToolNames: Set<String>
     public let firstRoundExemptRuntimeToolNames: Set<String>
     public let pluginToolsByCapability: [PluginCapability: Set<String>]
+    public let subagentProviderProfiles: [String: CanonicalSubagentProviderProfile]
 
     private let manifest: CanonicalToolManifest
     private let recordsByMCPName: [String: CanonicalToolRecord]
@@ -81,6 +98,7 @@ public final class CoderIDECanonicalToolRegistryStore {
         }
 
         allRecords = manifest.tools
+        subagentProviderProfiles = manifest.subagentProviderProfiles
         recordsByMCPName = Dictionary(uniqueKeysWithValues: allRecords.map { ($0.mcpName, $0) })
         recordsByRuntimeName = Dictionary(uniqueKeysWithValues: allRecords.map { ($0.runtimeName.lowercased(), $0) })
 
@@ -126,5 +144,29 @@ public final class CoderIDECanonicalToolRegistryStore {
 
     public func toolNames(for capability: PluginCapability) -> Set<String> {
         pluginToolsByCapability[capability] ?? []
+    }
+
+    public var knownSubagentProviderIDs: [String] {
+        subagentProviderProfiles.keys.sorted()
+    }
+
+    public func providerCapabilityEntry(for providerID: String) -> ProviderCapabilityEntry {
+        let normalized = providerID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard let profile = subagentProviderProfiles[normalized] else {
+            return ProviderCapabilityEntry(
+                providerId: providerID,
+                supportsReadonlySubagent: false,
+                supportsWriteSubagent: false,
+                supportsWorkspaceSandbox: false,
+                supportsNativeTools: false
+            )
+        }
+        return ProviderCapabilityEntry(
+            providerId: providerID,
+            supportsReadonlySubagent: profile.supportsReadonlySubagent,
+            supportsWriteSubagent: profile.supportsWriteSubagent,
+            supportsWorkspaceSandbox: profile.supportsWorkspaceSandbox,
+            supportsNativeTools: profile.supportsNativeTools
+        )
     }
 }
