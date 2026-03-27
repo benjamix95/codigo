@@ -252,18 +252,6 @@ final class ConversationFlowCoordinator: ObservableObject {
             )
             let shouldFlushNarrativeTextDeltaImmediately = false
             let shouldFlushNarrativeTextReplaceImmediately = provider.id == "codex-cli"
-            // #region agent log
-            RuntimeEvidenceDebugLog.append(
-                hypothesisId: "H24",
-                location: "ConversationFlowCoordinator.runRustTransportStream",
-                message: "codex_text_delta_flush_mode",
-                data: [
-                    "providerId": provider.id,
-                    "shouldFlushNarrativeTextDeltaImmediately": "\(shouldFlushNarrativeTextDeltaImmediately)",
-                    "shouldFlushNarrativeTextReplaceImmediately": "\(shouldFlushNarrativeTextReplaceImmediately)",
-                ]
-            )
-            // #endregion
             /// Riduce hop MainActor per thinking Claude CLI (delta densi).
             var claudeReasoningLastFlush = ContinuousClock.now
             var claudeReasoningLastSentLen = 0
@@ -310,23 +298,6 @@ final class ConversationFlowCoordinator: ObservableObject {
                 currentPollTextFlushCount += 1
                 currentPollTextFlushMainActorTotalMs += mainActorFlushMs
                 currentPollTextFlushMainActorMaxMs = max(currentPollTextFlushMainActorMaxMs, mainActorFlushMs)
-                // #region agent log
-                RuntimeEvidenceDebugLog.append(
-                    hypothesisId: "H22",
-                    location: "ConversationFlowCoordinator.runRustTransportStream",
-                    message: "assistant_text_flush_to_ui",
-                    data: [
-                        "providerId": provider.id,
-                        "reason": reason,
-                        "totalLen": "\(textCopy.count)",
-                        "charsSinceLastFlush": "\(charsSinceLastFlush)",
-                        "bufferedDeltaCount": "\(bufferedDeltaCount)",
-                        "msSinceLastFlush": "\(msSinceLastFlush)",
-                        "mainActorFlushMs": "\(mainActorFlushMs)",
-                        "hasSeenNarrativeEvent": "\(hasSeenNarrativeEvent)",
-                    ]
-                )
-                // #endregion
                 assistantTextLastFlushedLen = textCopy.count
                 assistantTextLastFlushAt = flushStartedAt
             }
@@ -341,22 +312,6 @@ final class ConversationFlowCoordinator: ObservableObject {
                 let mainActorEnqueueStartedAt = Date()
                 DispatchQueue.main.async {
                     let dispatchDelayMs = Int(Date().timeIntervalSince(mainActorEnqueueStartedAt) * 1000)
-                    // #region agent log
-                    RuntimeEvidenceDebugLog.appendThrottled(
-                        gateKey: "H36-main-async-ontext-\(provider.id)-\(sessionId)",
-                        minInterval: 0.08,
-                        hypothesisId: "H36",
-                        location: "ConversationFlowCoordinator.runRustTransportStream",
-                        message: "onText_main_queue_dispatch_executed",
-                        data: [
-                            "providerId": provider.id,
-                            "reason": reason,
-                            "dispatchDelayMs": "\(dispatchDelayMs)",
-                            "textLen": "\(textCopy.count)",
-                            "hasSeenNarrativeEvent": "\(hasSeenNarrativeEvent)",
-                        ]
-                    )
-                    // #endregion
                     RuntimeStreamSignpost.measureMainActorTextFlush {
                         onText(textCopy)
                     }
@@ -365,24 +320,6 @@ final class ConversationFlowCoordinator: ObservableObject {
                 currentPollTextFlushCount += 1
                 currentPollTextFlushMainActorTotalMs += mainActorFlushMs
                 currentPollTextFlushMainActorMaxMs = max(currentPollTextFlushMainActorMaxMs, mainActorFlushMs)
-                // #region agent log
-                RuntimeEvidenceDebugLog.append(
-                    hypothesisId: "H22",
-                    location: "ConversationFlowCoordinator.runRustTransportStream",
-                    message: "assistant_text_flush_to_ui",
-                    data: [
-                        "providerId": provider.id,
-                        "reason": reason,
-                        "totalLen": "\(textCopy.count)",
-                        "charsSinceLastFlush": "\(charsSinceLastFlush)",
-                        "bufferedDeltaCount": "\(bufferedDeltaCount)",
-                        "msSinceLastFlush": "\(msSinceLastFlush)",
-                        "mainActorFlushMs": "\(mainActorFlushMs)",
-                        "mainActorFlushMode": "fire_and_forget",
-                        "hasSeenNarrativeEvent": "\(hasSeenNarrativeEvent)",
-                    ]
-                )
-                // #endregion
                 assistantTextLastFlushedLen = textCopy.count
                 assistantTextLastFlushAt = flushStartedAt
             }
@@ -427,22 +364,6 @@ final class ConversationFlowCoordinator: ObservableObject {
                 turnState = nextSnapshot.turnState.chatTurnState
                 if response.uiEvents.isEmpty, !response.isTerminal {
                     consecutiveEmptyUiPolls += 1
-                    // #region agent log
-                    RuntimeEvidenceDebugLog.appendThrottled(
-                        gateKey: "H2-empty-poll-\(provider.id)-\(sessionId)",
-                        minInterval: 1.2,
-                        hypothesisId: "H2",
-                        location: "ConversationFlowCoordinator.runRustTransportStream",
-                        message: "empty_poll_before_visible_progress",
-                        data: [
-                            "providerId": provider.id,
-                            "timeoutMs": "\(timeoutMs)",
-                            "consecutiveEmptyUiPolls": "\(consecutiveEmptyUiPolls)",
-                            "hasReceivedAnyEvent": "\(nextSnapshot.directStream?.hasReceivedAnyEvent ?? false)",
-                            "emittedFirstText": "\(nextSnapshot.directStream?.emittedFirstText ?? false)",
-                        ]
-                    )
-                    // #endregion
                 } else {
                     consecutiveEmptyUiPolls = 0
                 }
@@ -452,19 +373,6 @@ final class ConversationFlowCoordinator: ObservableObject {
                 var pollRawCount = 0
 
                 for signal in response.signals {
-                    // #region agent log
-                    RuntimeEvidenceDebugLog.append(
-                        hypothesisId: "H2",
-                        location: "ConversationFlowCoordinator.runRustTransportStream",
-                        message: "runtime_signal",
-                        data: [
-                            "providerId": provider.id,
-                            "signal": "\(signal)",
-                            "hasReceivedAnyEvent": "\(nextSnapshot.directStream?.hasReceivedAnyEvent ?? false)",
-                            "emittedFirstText": "\(nextSnapshot.directStream?.emittedFirstText ?? false)",
-                        ]
-                    )
-                    // #endregion
                     await MainActor.run {
                         switch signal {
                         case .firstEvent:
@@ -499,20 +407,6 @@ final class ConversationFlowCoordinator: ObservableObject {
                             coalescedAssistantTextDirty = true
                             coalescedAssistantDeltaCount += 1
                             if shouldFlushNarrativeTextDeltaImmediately {
-                                // #region agent log
-                                RuntimeEvidenceDebugLog.appendThrottled(
-                                    gateKey: "H24-text-delta-branch-\(provider.id)-\(sessionId)",
-                                    minInterval: 0.25,
-                                    hypothesisId: "H24",
-                                    location: "ConversationFlowCoordinator.runRustTransportStream",
-                                    message: "text_delta_immediate_flush_branch_taken",
-                                    data: [
-                                        "providerId": provider.id,
-                                        "renderedLen": "\(renderedTextSnapshot.count)",
-                                        "deltaLen": "\(event.text.count)",
-                                    ]
-                                )
-                                // #endregion
                                 await emitAssistantTextImmediately(reason: "text_delta")
                             }
                         }
@@ -555,28 +449,6 @@ final class ConversationFlowCoordinator: ObservableObject {
                         let outputPreview = String(rawOutput.prefix(160))
                         let detailPreview = String(rawDetail.prefix(160))
                         let statusJSONPreview = String(statusJSON.prefix(200))
-                        // #region agent log
-                        RuntimeEvidenceDebugLog.appendThrottled(
-                            gateKey: "H10-raw-\(provider.id)-\(rawType)",
-                            minInterval: 0.35,
-                            hypothesisId: "H10",
-                            location: "ConversationFlowCoordinator.runRustTransportStream",
-                            message: "runtime_raw_event",
-                            data: [
-                                "providerId": provider.id,
-                                "rawType": rawType,
-                                "hasSeenNarrativeEvent": "\(hasSeenNarrativeEvent)",
-                                "payloadKeys": event.payload.keys.sorted().joined(separator: ","),
-                                "title": rawTitle,
-                                "status": rawStatus,
-                                "detailPreview": detailPreview,
-                                "outputChars": "\(rawOutput.count)",
-                                "outputPreview": outputPreview,
-                                "statusJSONChars": "\(statusJSON.count)",
-                                "statusJSONPreview": statusJSONPreview,
-                            ]
-                        )
-                        // #endregion
                         if rawType == "reasoning", suppressReasoningUI {
                             continue
                         }
@@ -603,23 +475,6 @@ final class ConversationFlowCoordinator: ObservableObject {
                                 firstBufferedOperationalAt = eventTimestamp
                             }
                             bufferedRawEvents.append((rawType, event.payload))
-                            // #region agent log
-                            RuntimeEvidenceDebugLog.appendThrottled(
-                                gateKey: "H14-buffered-\(provider.id)-\(rawType)",
-                                minInterval: 0.35,
-                                hypothesisId: "H14",
-                                location: "ConversationFlowCoordinator.runRustTransportStream",
-                                message: "runtime_raw_buffered_before_narrative",
-                                data: [
-                                    "providerId": provider.id,
-                                    "rawType": rawType,
-                                    "bufferedCount": "\(bufferedRawEvents.count)",
-                                    "hasSeenNarrativeEvent": "\(hasSeenNarrativeEvent)",
-                                    "outputChars": "\(rawOutput.count)",
-                                    "detailPreview": detailPreview,
-                                ]
-                            )
-                            // #endregion
                             let shouldReleaseBufferedFallback: Bool = {
                                 if bufferedRawEvents.count >= bufferedOperationalReleaseCount {
                                     return true
@@ -633,19 +488,6 @@ final class ConversationFlowCoordinator: ObservableObject {
                                 bufferedRawEvents.removeAll(keepingCapacity: true)
                                 firstBufferedOperationalAt = nil
                                 didReleaseOperationalFallback = true
-                                // #region agent log
-                                RuntimeEvidenceDebugLog.append(
-                                    hypothesisId: "H18",
-                                    location: "ConversationFlowCoordinator.runRustTransportStream",
-                                    message: "runtime_raw_released_without_narrative",
-                                    data: [
-                                        "providerId": provider.id,
-                                        "releasedCount": "\(pending.count)",
-                                        "rawType": rawType,
-                                        "hasSeenNarrativeEvent": "\(hasSeenNarrativeEvent)",
-                                    ]
-                                )
-                                // #endregion
                                 await forwardRawEventsOnMainActor(pending)
                             }
                         } else {
@@ -671,18 +513,6 @@ final class ConversationFlowCoordinator: ObservableObject {
                             bufferedRawEvents.removeAll(keepingCapacity: true)
                             await forwardRawEventsOnMainActor(pending)
                         }
-                        // #region agent log
-                        RuntimeEvidenceDebugLog.append(
-                            hypothesisId: "H8",
-                            location: "ConversationFlowCoordinator.runRustTransportStream",
-                            message: "runtime_ui_error",
-                            data: [
-                                "providerId": provider.id,
-                                "messageLen": "\(message.count)",
-                                "renderedLen": "\(textSnapshot.count)",
-                            ]
-                        )
-                        // #endregion
                         await MainActor.run { onError(textSnapshot + "\n\n[Error: \(message)]") }
                         await setState(.error)
                         throw StreamExecutionError.providerError(message)
@@ -693,81 +523,16 @@ final class ConversationFlowCoordinator: ObservableObject {
                             bufferedRawEvents.removeAll(keepingCapacity: true)
                             await forwardRawEventsOnMainActor(pending)
                         }
-                        // #region agent log
-                        RuntimeEvidenceDebugLog.append(
-                            hypothesisId: "H8",
-                            location: "ConversationFlowCoordinator.runRustTransportStream",
-                            message: "runtime_ui_completed",
-                            data: [
-                                "providerId": provider.id,
-                                "renderedLen": "\(renderedTextSnapshot.count)",
-                                "turnPrimaryLen": "\(turnState.primaryTextSnapshot.count)",
-                            ]
-                        )
-                        // #endregion
                         await setState(.completed)
                         return renderedTextSnapshot.isEmpty ? turnState.primaryTextSnapshot : renderedTextSnapshot
                     }
                 }
                 if pollTextDeltaCount > 0 || pollTextReplaceCount > 0 {
-                    // #region agent log
-                    RuntimeEvidenceDebugLog.append(
-                        hypothesisId: "H23",
-                        location: "ConversationFlowCoordinator.runRustTransportStream",
-                        message: "runtime_poll_text_batch",
-                        data: [
-                            "providerId": provider.id,
-                            "uiEventCount": "\(response.uiEvents.count)",
-                            "textDeltaCount": "\(pollTextDeltaCount)",
-                            "textReplaceCount": "\(pollTextReplaceCount)",
-                            "rawCount": "\(pollRawCount)",
-                            "hasSeenNarrativeEvent": "\(hasSeenNarrativeEvent)",
-                        ]
-                    )
-                    // #endregion
                 }
                 if provider.id == "codex-cli", pollTextDeltaCount > 1, coalescedAssistantTextDirty {
-                    // #region agent log
-                    RuntimeEvidenceDebugLog.append(
-                        hypothesisId: "H39",
-                        location: "ConversationFlowCoordinator.runRustTransportStream",
-                        message: "codex_text_delta_batch_deferred_to_poll_end",
-                        data: [
-                            "pollTextDeltaCount": "\(pollTextDeltaCount)",
-                            "coalescedAssistantDeltaCount": "\(coalescedAssistantDeltaCount)",
-                            "renderedLen": "\(renderedTextSnapshot.count)",
-                            "rawCount": "\(pollRawCount)",
-                        ]
-                    )
-                    // #endregion
                 }
                 await flushCoalescedAssistantText(reason: "poll_end")
                 let pollCycleCompletedAt = Date()
-                // #region agent log
-                RuntimeEvidenceDebugLog.append(
-                    hypothesisId: "H27",
-                    location: "ConversationFlowCoordinator.runRustTransportStream",
-                    message: "runtime_poll_cycle_processed",
-                    data: [
-                        "providerId": provider.id,
-                        "timeoutMs": "\(timeoutMs)",
-                        "uiEventCount": "\(response.uiEvents.count)",
-                        "signalCount": "\(response.signals.count)",
-                        "isTerminal": "\(response.isTerminal)",
-                        "didTimeout": "\(response.didTimeout)",
-                        "textDeltaCount": "\(pollTextDeltaCount)",
-                        "textReplaceCount": "\(pollTextReplaceCount)",
-                        "rawCount": "\(pollRawCount)",
-                        "pollCallMs": "\(Int(pollReturnedAt.timeIntervalSince(pollCycleStartedAt) * 1000))",
-                        "processingMs": "\(Int(pollCycleCompletedAt.timeIntervalSince(pollReturnedAt) * 1000))",
-                        "cycleTotalMs": "\(Int(pollCycleCompletedAt.timeIntervalSince(pollCycleStartedAt) * 1000))",
-                        "msSincePreviousCycleCompleted": "\(msSincePreviousCycleCompleted)",
-                        "textFlushCount": "\(currentPollTextFlushCount)",
-                        "textFlushMainActorTotalMs": "\(currentPollTextFlushMainActorTotalMs)",
-                        "textFlushMainActorMaxMs": "\(currentPollTextFlushMainActorMaxMs)",
-                    ]
-                )
-                // #endregion
                 lastPollCycleCompletedAt = pollCycleCompletedAt
 
                 await Task.yield()

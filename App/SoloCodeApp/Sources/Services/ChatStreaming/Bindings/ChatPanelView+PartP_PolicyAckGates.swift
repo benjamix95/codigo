@@ -32,23 +32,6 @@ extension ChatPanelView {
         // ToolEnabledLLMProvider emits the ack synthetically, so this path mostly
         // protects against event reordering instead of representing a hard failure.
         state.violationEmitted = true
-        // #region agent log
-        RuntimeEvidenceDebugLog.append(
-            hypothesisId: "H44",
-            location: "shouldHardBlockForMissingPolicyAck",
-            message: "policy_ack_gate_blocked_event",
-            data: [
-                "conversationId": conversationId?.uuidString ?? "nil",
-                "assistantMessageId": turn.assistantMessageId.uuidString,
-                "incomingType": type,
-                "expectedHash": state.expectedHash,
-                "acknowledgedHash": state.acknowledgedHash ?? "",
-                "isSatisfied": "\(state.isSatisfied)",
-                "payloadTitle": payload["title"] ?? "",
-                "payloadStatus": payload["status"] ?? "",
-            ]
-        )
-        // #endregion
         toolRuntime.policyAckStateByMessage[turn.assistantMessageId] = state
         return true
     }

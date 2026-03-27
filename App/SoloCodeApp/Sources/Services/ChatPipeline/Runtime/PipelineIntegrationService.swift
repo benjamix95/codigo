@@ -146,17 +146,6 @@ final class PipelineIntegrationService: ObservableObject {
         rawEventHandler: ((_ type: String, _ payload: [String: String], _ providerId: String, _ conversationId: UUID?) -> Void)? = nil
     ) {
         guard !isRunning(for: conversationId) else {
-            // #region agent log
-            AgentDebugSessionNDJSONLog.append(
-                hypothesisId: "SEND",
-                location: "PipelineIntegrationService.executeJob",
-                message: "skipped_already_running",
-                data: [
-                    "conversationId": conversationId.uuidString,
-                    "assistantMessageId": assistantMessageId.uuidString,
-                ]
-            )
-            // #endregion
             return
         }
 

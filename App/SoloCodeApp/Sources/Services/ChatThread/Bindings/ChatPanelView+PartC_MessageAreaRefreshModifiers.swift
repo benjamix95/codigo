@@ -31,21 +31,6 @@ extension ChatPanelView {
                 let scrollStartedAt = Date()
                 handleStreamContentVersionChange(proxy: proxy)
                 let scrollDispatchMs = Int(Date().timeIntervalSince(scrollStartedAt) * 1000)
-                RuntimeEvidenceDebugLog.appendThrottled(
-                    gateKey: "H31-stream-version-tick-\(conversationId?.uuidString ?? "nil")",
-                    minInterval: 0.10,
-                    hypothesisId: "H31",
-                    location: "messagesAreaScrollView",
-                    message: "stream_content_version_tick_processed",
-                    data: [
-                        "version": "\(newVersion)",
-                        "conversationId": conversationId?.uuidString ?? "nil",
-                        "refreshMs": "\(refreshMs)",
-                        "scrollDispatchMs": "\(scrollDispatchMs)",
-                        "isFollowingLive": "\(isFollowingLive)",
-                        "taskLoading": "\(isLoadingForCurrentConversation)",
-                    ]
-                )
             }
             .onChange(of: messagesConversationSnapshot?.messages.count) { _ in
                 guard isFollowingLive || isLoadingForCurrentConversation else { return }
@@ -64,19 +49,6 @@ extension ChatPanelView {
             }
             .onReceive(taskActivityStore.objectWillChange) { _ in
                 guard isLoadingForCurrentConversation, conversationId != nil else { return }
-                RuntimeEvidenceDebugLog.appendThrottled(
-                    gateKey: "H7-task-activity-store-change-\(conversationId?.uuidString ?? "nil")",
-                    minInterval: 0.15,
-                    hypothesisId: "H7",
-                    location: "messagesArea",
-                    message: "task_activity_store_change_without_text_tick",
-                    data: [
-                        "conversationId": conversationId?.uuidString ?? "nil",
-                        "streamContentVersion": "\(streaming.streamContentVersion)",
-                        "snapshotStatus": snapshotStreamingStatusText,
-                        "snapshotDetail": snapshotStreamingDetailText ?? "",
-                    ]
-                )
                 scheduleLiveActivitySnapshotRefresh()
             }
             .onDisappear {

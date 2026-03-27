@@ -3,19 +3,6 @@ import CoderEngine
 
 extension ChatPanelView {
     internal func interruptTask(for targetConversationId: UUID?, source: String = "unknown") {
-        // #region agent log
-        RuntimeEvidenceDebugLog.append(
-            hypothesisId: "H9",
-            location: "interruptTask",
-            message: "interrupt_requested",
-            data: [
-                "conversationId": targetConversationId?.uuidString ?? "nil",
-                "runState": "\(executionController.runState)",
-                "source": source,
-                "endedByManualStop": "\(lastTaskEndedByManualStop)",
-            ]
-        )
-        // #endregion
         let scope = executionScopeForActiveTask()
 
         // Cancel the pipeline & tool runtime BEFORE killing the OS process.

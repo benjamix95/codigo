@@ -132,17 +132,6 @@ extension ChatPanelView {
                     ChatMessagesSectionView {
                         messagesArea
                             .layoutPriority(1)
-                            // #region agent log
-                            .modifier(
-                                ChatPanelMessagesDebugModifier(
-                                    storeMessageCount: chatStore.conversation(for: conversationId)?.messages.count ?? -1,
-                                    snapshotCount: messagesConversationSnapshot?.messages.count ?? -1,
-                                    snapshotIsNil: messagesConversationSnapshot == nil,
-                                    showEmptyOverlay: shouldShowMessagesAreaEmptyState,
-                                    isLoading: snapshotChromeLoading
-                                )
-                            )
-                            // #endregion
                     }
                 }
 
@@ -214,18 +203,5 @@ extension ChatPanelView {
         // .transaction modifier is more efficient — it unconditionally
         // strips animations from all child transactions.
         .transaction { $0.animation = nil }
-        // #region agent log
-        .onChange(of: coderMode) { newMode in
-            AgentDebugSessionNDJSONLog.append(
-                hypothesisId: "H3",
-                location: "ChatPanelView+RootLayout",
-                message: "coder_mode_changed",
-                data: [
-                    "coderMode": "\(newMode)",
-                    "showsSwarmViewOnly": "\(showsSwarmViewOnly)",
-                ]
-            )
-        }
-        // #endregion
     }
 }

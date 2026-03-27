@@ -78,18 +78,6 @@ enum MainChatTodoPatchAdapter {
                 let existingRemovalConversationId = todoStore.todos.first(where: { $0.id == todoId })?
                     .effectiveRuntimeQueueConversationId
                 let effectiveRemovalConversationId = patchRemovalConversationId ?? existingRemovalConversationId
-                // #region agent log
-                ComposerTodoDebugNDJSONLog.append(
-                    hypothesisId: "H6",
-                    location: "MainChatTodoPatchAdapter.swift:removeTodo",
-                    message: "rust_remove_todo_then_maybe_advance",
-                    runId: "post-fix",
-                    data: [
-                        "todoId8": String(todoId.uuidString.prefix(8)),
-                        "conv8": effectiveRemovalConversationId.map { String($0.uuidString.prefix(8)) } ?? "nil",
-                    ]
-                )
-                // #endregion
                 todoStore.remove(id: todoId)
                 _ = todoStore.advanceNextRuntimeTodoIfNeeded(conversationId: effectiveRemovalConversationId)
             case .clearMessageRuntimeState:

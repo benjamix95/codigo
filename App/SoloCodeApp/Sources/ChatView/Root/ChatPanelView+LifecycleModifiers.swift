@@ -17,31 +17,6 @@ extension ChatPanelView {
                 checkProviderAuth()
             }
             .onChangeCompat(of: selectedConversationId) { oldId, newId in
-                // #region agent log
-                AgentDebugSessionNDJSONLog.append(
-                    hypothesisId: "H17",
-                    location: "ChatPanelView+LifecycleModifiers",
-                    message: "selected_conversation_changed",
-                    data: [
-                        "oldId": oldId?.uuidString ?? "nil",
-                        "newId": newId?.uuidString ?? "nil",
-                        "oldExists": "\(chatStore.conversation(for: oldId) != nil)",
-                        "newExists": "\(chatStore.conversation(for: newId) != nil)",
-                        "conversationTotal": "\(chatStore.conversations.count)",
-                    ]
-                )
-                if newId == nil, !chatStore.conversations.isEmpty {
-                    AgentDebugSessionNDJSONLog.append(
-                        hypothesisId: "H17",
-                        location: "ChatPanelView+LifecycleModifiers",
-                        message: "selected_conversation_became_nil_while_conversations_exist",
-                        data: [
-                            "oldId": oldId?.uuidString ?? "nil",
-                            "conversationTotal": "\(chatStore.conversations.count)",
-                        ]
-                    )
-                }
-                // #endregion
                 draftSaveTask?.cancel()
                 draftSaveTask = nil
                 persistThreadUIState(for: oldId)

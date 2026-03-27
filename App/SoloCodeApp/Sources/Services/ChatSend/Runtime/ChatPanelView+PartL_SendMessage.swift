@@ -342,45 +342,6 @@ extension ChatPanelView {
             ? basePrompt
             : "\(attachmentBundle.fallbackPreamble)\n\n\(basePrompt)"
 
-        // #region agent log
-        let sendProbeRoute = resolveMainChatSendExecutionRoute(
-            coderMode: coderMode,
-            isPlanMultiTurnFlow: (coderMode == .plan || shouldRunPlanInline) && planFlowPhase == .analyzing,
-            usesRustTransport: effectiveRuntimeProvider is MainChatRustTransportProvider
-        )
-        AgentDebugSessionNDJSONLog.append(
-            hypothesisId: "SEND",
-            location: "sendMessage",
-            message: "user_send_dispatching_turn",
-            data: [
-                "targetConversationId": targetConversationId.uuidString,
-                "selectedBinding": conversationId?.uuidString ?? "nil",
-                "assistantMessageId": standardAssistantMessageId.uuidString,
-                "providerId": effectiveRuntimeProvider.id,
-                "userTextLen": "\(text.count)",
-                "promptLen": "\(prompt.count)",
-                "coderMode": "\(coderMode)",
-                "planFlowPhase": "\(planFlowPhase)",
-                "resolvedRoute": "\(sendProbeRoute)",
-                "taskActiveChatStore": "\(chatStore.isTaskActive(for: targetConversationId))",
-                "pipelineRunning": "\(pipelineIntegrationService.isRunning(for: targetConversationId))",
-            ]
-        )
-        RuntimeEvidenceDebugLog.append(
-            hypothesisId: "H1",
-            location: "sendMessage",
-            message: "send_turn_primed",
-            data: [
-                "targetConversationId": targetConversationId.uuidString,
-                "assistantMessageId": standardAssistantMessageId.uuidString,
-                "providerId": effectiveRuntimeProvider.id,
-                "route": "\(sendProbeRoute)",
-                "taskActive": "\(chatStore.isTaskActive(for: targetConversationId))",
-                "pipelineRunning": "\(pipelineIntegrationService.isRunning(for: targetConversationId))",
-                "promptLen": "\(prompt.count)",
-            ]
-        )
-        // #endregion
 
         executeSendMessageTurn(
             targetConversationId: targetConversationId,

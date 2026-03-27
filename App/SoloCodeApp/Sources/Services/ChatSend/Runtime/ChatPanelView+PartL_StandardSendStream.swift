@@ -43,40 +43,7 @@ extension ChatPanelView {
                 } else {
                     cleaned = ChatStore.stripStreamingCoderideMarkers(content)
                 }
-                // #region agent log
-                RuntimeEvidenceDebugLog.appendThrottled(
-                    gateKey: "H40-stream-sanitization-\(targetConversationId.uuidString)",
-                    minInterval: 0.08,
-                    hypothesisId: "H40",
-                    location: "runStandardMainChatSendStream.onText",
-                    message: "stream_text_sanitization_profile",
-                    data: [
-                        "providerId": effectiveRuntimeProvider.id,
-                        "conversationId": targetConversationId.uuidString,
-                        "aggressive": "\(usesAggressiveStreamingSanitization)",
-                        "rawLen": "\(content.count)",
-                        "cleanedLen": "\(cleaned.count)",
-                    ]
-                )
-                // #endregion
                 let sanitizeMs = Int((CFAbsoluteTimeGetCurrent() - sanitizeStartedAt) * 1000)
-                // #region agent log
-                RuntimeEvidenceDebugLog.appendThrottled(
-                    gateKey: "H41-stream-sanitization-cost-\(targetConversationId.uuidString)",
-                    minInterval: 0.08,
-                    hypothesisId: "H41",
-                    location: "runStandardMainChatSendStream.onText",
-                    message: "stream_text_sanitization_cost",
-                    data: [
-                        "providerId": effectiveRuntimeProvider.id,
-                        "conversationId": targetConversationId.uuidString,
-                        "path": usesAggressiveStreamingSanitization ? "default_strip" : "swift_streaming_strip",
-                        "sanitizeMs": "\(sanitizeMs)",
-                        "rawLen": "\(content.count)",
-                        "cleanedLen": "\(cleaned.count)",
-                    ]
-                )
-                // #endregion
                 let shouldRouteToReasoning = shouldRouteStreamingTextToReasoning(
                     coderMode: coderMode,
                     hasOperationalActivityInTurn: hasOperationalActivityInCurrentTurn(
@@ -108,19 +75,6 @@ extension ChatPanelView {
                 }
                 if !firstVisibleTextLogged, !cleaned.isEmpty {
                     firstVisibleTextLogged = true
-                    // #region agent log
-                    RuntimeEvidenceDebugLog.append(
-                        hypothesisId: "H4",
-                        location: "runStandardMainChatSendStream.onText",
-                        message: "first_text_callback",
-                        data: [
-                            "providerId": effectiveRuntimeProvider.id,
-                            "cleanedLen": "\(cleaned.count)",
-                            "routeToReasoning": "\(shouldRouteToReasoning)",
-                            "conversationId": targetConversationId.uuidString,
-                        ]
-                    )
-                    // #endregion
                 }
                 if shouldRouteToReasoning {
                     applyStreamingReasoningSnapshot(
@@ -188,17 +142,5 @@ extension ChatPanelView {
             attachmentsToSend: attachmentsToSend,
             prompt: prompt
         )
-        // #region agent log
-        RuntimeEvidenceDebugLog.append(
-            hypothesisId: "H8",
-            location: "runStandardMainChatSendStream",
-            message: "stream_result_handled",
-            data: [
-                "providerId": effectiveRuntimeProvider.id,
-                "finalizedLen": "\(finalizedResult.count)",
-                "conversationId": targetConversationId.uuidString,
-            ]
-        )
-        // #endregion
     }
 }

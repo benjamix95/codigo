@@ -111,23 +111,6 @@ extension ChatPanelView {
            !output.isEmpty
         {
             mainChatTraceLog("assistant_update kept_internal chars=\(output.count)")
-            // #region agent log
-            RuntimeEvidenceDebugLog.appendThrottled(
-                gateKey: "H6-assistant-update-\((convId ?? selectedConversationId)?.uuidString ?? "nil")",
-                minInterval: 0.25,
-                hypothesisId: "H6",
-                location: "handleRawStreamEventContinuationSideEffects",
-                message: "assistant_update_kept_internal",
-                data: [
-                    "conversationId": (convId ?? selectedConversationId)?.uuidString ?? "nil",
-                    "providerId": pid,
-                    "outputLen": "\(output.count)",
-                    "title": String((p["title"] ?? "").prefix(80)),
-                    "detail": String((p["detail"] ?? "").prefix(120)),
-                    "status": p["status"] ?? "",
-                ]
-            )
-            // #endregion
             if pid == "codex-cli",
                let targetConversationId = convId ?? selectedConversationId,
                let target = currentAssistantPipelineTarget(for: targetConversationId)
@@ -148,22 +131,6 @@ extension ChatPanelView {
                     streaming.pendingStreamConversationId = nil
                     streaming.pendingStreamQueuedAt = nil
                     streaming.pendingStreamOverwriteCount = 0
-                    // #region agent log
-                    RuntimeEvidenceDebugLog.appendThrottled(
-                        gateKey: "H34-assistant-update-chat-catchup-\(targetConversationId.uuidString)",
-                        minInterval: 0.08,
-                        hypothesisId: "H34",
-                        location: "handleRawStreamEventContinuationSideEffects",
-                        message: "assistant_update_promoted_to_chat_snapshot",
-                        data: [
-                            "conversationId": targetConversationId.uuidString,
-                            "providerId": pid,
-                            "messageId": target.messageId.uuidString,
-                            "currentLen": "\(currentContent.count)",
-                            "outputLen": "\(cleanedOutput.count)",
-                        ]
-                    )
-                    // #endregion
                     applyMainChatUIStreamIntent(
                         "stream_replace_text",
                         conversationId: targetConversationId,

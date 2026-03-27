@@ -11,63 +11,15 @@ use app_core_protocol::main_chat_provider::{
     MainChatProviderSessionResponse, MainChatProviderSessionStartRequest,
 };
 use std::collections::{BTreeMap, HashMap};
-use std::io::Write;
 use std::sync::atomic::Ordering;
 use std::sync::{Mutex, OnceLock};
 use std::thread;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
 
 static SESSIONS: OnceLock<Mutex<HashMap<String, ProviderSessionHandle>>> = OnceLock::new();
-static DEBUG_QUEUE_FIRST_EVENT_AT_MS: OnceLock<Mutex<HashMap<String, u64>>> = OnceLock::new();
 
 fn sessions() -> &'static Mutex<HashMap<String, ProviderSessionHandle>> {
     SESSIONS.get_or_init(|| Mutex::new(HashMap::new()))
-}
-
-fn debug_queue_first_event_at_ms() -> &'static Mutex<HashMap<String, u64>> {
-    DEBUG_QUEUE_FIRST_EVENT_AT_MS.get_or_init(|| Mutex::new(HashMap::new()))
-}
-
-fn debug_now_ms() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or(0)
-}
-
-fn provider_event_kind_label(
-    event: &app_core_protocol::main_chat_provider::MainChatProviderEvent,
-) -> &'static str {
-    match event.kind {
-        app_core_protocol::main_chat_provider::MainChatProviderEventKind::Started => "started",
-        app_core_protocol::main_chat_provider::MainChatProviderEventKind::TextDelta => "text_delta",
-        app_core_protocol::main_chat_provider::MainChatProviderEventKind::TextReplace => "text_replace",
-        app_core_protocol::main_chat_provider::MainChatProviderEventKind::Raw => "raw",
-        app_core_protocol::main_chat_provider::MainChatProviderEventKind::Completed => "completed",
-        app_core_protocol::main_chat_provider::MainChatProviderEventKind::Error => "error",
-    }
-}
-
-fn agent_debug_log(hypothesis_id: &str, location: &str, message: &str, data: serde_json::Value) {
-    // #region agent log
-    let log_path = "/Users/benjaminstoica/SoloCode/.cursor/debug-79c50e.log";
-    if let Ok(mut f) = std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(log_path)
-    {
-        let line = serde_json::json!({
-            "sessionId": "79c50e",
-            "hypothesisId": hypothesis_id,
-            "location": location,
-            "message": message,
-            "data": data,
-            "timestamp": debug_now_ms(),
-            "runId": "pre-fix",
-        });
-        let _ = writeln!(f, "{}", serde_json::to_string(&line).unwrap_or_default());
-    }
-    // #endregion
 }
 
 pub(crate) fn is_cancelled(session_id: &str) -> bool {
@@ -234,35 +186,12 @@ pub fn poll_session(
         let snapshot = handle.snapshot.lock().unwrap().clone();
         let mut queue = handle.events.lock().unwrap();
         if !queue.is_empty() {
-            let batch_size = queue.len();
-            let drained_at_ms = debug_now_ms();
-            let wait_ms = debug_queue_first_event_at_ms()
-                .lock()
-                .unwrap()
-                .remove(&request.session_id)
-                .map(|started_at_ms| drained_at_ms.saturating_sub(started_at_ms))
-                .unwrap_or(0);
             let events = queue.drain(..).collect();
             let terminal = matches!(
                 snapshot.status.as_str(),
                 "completed" | "failed" | "cancelled"
             );
             drop(queue);
-            // #region agent log
-            agent_debug_log(
-                "H26",
-                "session.rs:poll_session",
-                "provider_event_batch_drained",
-                serde_json::json!({
-                    "sessionId": request.session_id,
-                    "providerId": snapshot.provider_id,
-                    "batchSize": batch_size,
-                    "waitMs": wait_ms,
-                    "timeoutMs": timeout_ms,
-                    "terminal": terminal,
-                }),
-            );
-            // #endregion
             if terminal {
                 cleanup_session_state(&request.session_id);
             }
@@ -400,30 +329,6 @@ fn spawn_worker(session_id: String, config: MainChatProviderSessionConfig) {
                         }
                     },
                 };
-                // #region agent log
-                {
-                    let log_path = "/Users/benjaminstoica/SoloCode/.cursor/debug-d56c92.log";
-                    if let Ok(mut f) = std::fs::OpenOptions::new()
-                        .create(true)
-                        .append(true)
-                        .open(log_path)
-                    {
-                        let ts = std::time::SystemTime::now()
-                            .duration_since(std::time::UNIX_EPOCH)
-                            .map(|d| d.as_millis() as u64)
-                            .unwrap_or(0);
-                        let line = serde_json::json!({
-                            "sessionId": "d56c92",
-                            "hypothesisId": "PANIC",
-                            "location": "session.rs:spawn_worker",
-                            "message": "worker_catch_unwind",
-                            "data": { "detail": &detail },
-                            "timestamp": ts,
-                        });
-                        let _ = writeln!(f, "{}", serde_json::to_string(&line).unwrap_or_default());
-                    }
-                }
-                // #endregion
                 Err(format!("worker_panic: {detail}"))
             }
         };
@@ -488,36 +393,12 @@ fn push_event(
             snapshot.emitted_event_count += 1;
         }
         let mut queue = handle.events.lock().unwrap();
-        let queue_was_empty = queue.is_empty();
-        let queue_len_before = queue.len();
-        let event_kind = provider_event_kind_label(&event);
         queue.push_back(event);
-        let queue_len_after = queue.len();
         drop(queue);
         let (signal_lock, signal_cv) = &*handle.event_signal;
         if let Ok(mut signal) = signal_lock.lock() {
             *signal = signal.saturating_add(1);
             signal_cv.notify_all();
-        }
-        if queue_was_empty {
-            debug_queue_first_event_at_ms()
-                .lock()
-                .unwrap()
-                .insert(session_id.to_string(), debug_now_ms());
-            // #region agent log
-            agent_debug_log(
-                "H25",
-                "session.rs:push_event",
-                "provider_event_enqueued_from_empty_queue",
-                serde_json::json!({
-                    "sessionId": session_id,
-                    "providerId": handle.snapshot.lock().unwrap().provider_id.clone(),
-                    "eventKind": event_kind,
-                    "queueLenBefore": queue_len_before,
-                    "queueLenAfter": queue_len_after,
-                }),
-            );
-            // #endregion
         }
     }
 }

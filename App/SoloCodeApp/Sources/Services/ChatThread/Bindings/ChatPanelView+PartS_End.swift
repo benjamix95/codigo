@@ -96,20 +96,6 @@ extension ChatPanelView {
             isPaused: executionController.runState == .paused,
             activities: scopedActivities
         )
-        // #region agent log
-        RuntimeEvidenceDebugLog.appendThrottled(
-            gateKey: "H7-sidebar-status-\(currentConversationId.uuidString)",
-            minInterval: 0.12,
-            hypothesisId: "H7",
-            location: "updateSidebarTaskStatus",
-            message: "sidebar_status_updated",
-            data: [
-                "conversationId": currentConversationId.uuidString,
-                "status": status,
-                "activitiesCount": "\(scopedActivities.count)",
-            ]
-        )
-        // #endregion
         chatStore.setTaskStatus(status, for: currentConversationId)
     }
 

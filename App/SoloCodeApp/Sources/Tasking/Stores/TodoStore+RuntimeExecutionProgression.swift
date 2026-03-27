@@ -49,18 +49,6 @@ extension TodoStore {
         saveTodos()
 
         let convLog = conversationId.map { String($0.uuidString.prefix(8)) } ?? "unscoped"
-        // #region agent log
-        ComposerTodoDebugNDJSONLog.append(
-            hypothesisId: "H3",
-            location: "TodoStore+RuntimeExecutionProgression.swift:advanceNextRuntimeTodoIfNeeded",
-            message: "advance_runtime_promoted_pending",
-            runId: "post-fix",
-            data: [
-                "nextId8": String(nextPending.id.uuidString.prefix(8)),
-                "conv8": convLog,
-            ]
-        )
-        // #endregion
 
         return true
     }

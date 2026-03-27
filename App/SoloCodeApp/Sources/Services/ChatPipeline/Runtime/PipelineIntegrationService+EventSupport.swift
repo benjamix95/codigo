@@ -82,14 +82,6 @@ extension PipelineIntegrationService {
         else { return }
         let status = runtime.chatTurnState.status.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard status != "completed", status != "failed" else {
-            // #region agent log
-            CursorSessionDebugNDJSON.append(
-                hypothesisId: "H2",
-                location: "PipelineIntegrationService+EventSupport.swift",
-                message: "assistant_update_skip_terminal_status",
-                data: ["status": status, "conv": String(conversationId.uuidString.prefix(8))]
-            )
-            // #endregion
             return
         }
 
@@ -103,18 +95,6 @@ extension PipelineIntegrationService {
         let cleaned = ChatStore.stripCoderideMarkers(rawText, aggressive: true)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleaned.isEmpty else {
-            // #region agent log
-            CursorSessionDebugNDJSON.append(
-                hypothesisId: "H2",
-                location: "PipelineIntegrationService+EventSupport.swift",
-                message: "assistant_update_empty_after_strip",
-                data: [
-                    "phase": phase,
-                    "rawChars": "\(rawText.count)",
-                    "conv": String(conversationId.uuidString.prefix(8)),
-                ]
-            )
-            // #endregion
             return
         }
         if mainChatTraceLoggingEnabled() {
@@ -131,35 +111,9 @@ extension PipelineIntegrationService {
             ? (runtime.chatTurnState.orderedTextStreamIds.first ?? "main")
             : rawEvent.taskId
         guard runtime.chatTurnState.textByStreamId[streamId]?.trimmingCharacters(in: .whitespacesAndNewlines) != cleaned else {
-            // #region agent log
-            CursorSessionDebugNDJSON.append(
-                hypothesisId: "H2",
-                location: "PipelineIntegrationService+EventSupport.swift",
-                message: "assistant_update_skip_duplicate_stream",
-                data: [
-                    "phase": phase,
-                    "streamId": String(streamId.prefix(24)),
-                    "cleanedChars": "\(cleaned.count)",
-                    "conv": String(conversationId.uuidString.prefix(8)),
-                ]
-            )
-            // #endregion
             return
         }
 
-        // #region agent log
-        CursorSessionDebugNDJSON.append(
-            hypothesisId: "H2",
-            location: "PipelineIntegrationService+EventSupport.swift",
-            message: "assistant_update_emit_textReplace",
-            data: [
-                "phase": phase,
-                "cleanedChars": "\(cleaned.count)",
-                "streamId": String(streamId.prefix(24)),
-                "conv": String(conversationId.uuidString.prefix(8)),
-            ]
-        )
-        // #endregion
 
         consumePipelineEvents([ChatPipelineEvent(
             conversationId: conversationId,

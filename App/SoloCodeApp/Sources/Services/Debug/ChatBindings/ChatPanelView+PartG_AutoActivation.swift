@@ -57,24 +57,6 @@ extension ChatPanelView {
     @MainActor
     internal func enqueueTaskActivity(_ activity: TaskActivity) {
         conversationRuntime.pendingTaskActivities.append(activity)
-        // #region agent log
-        if activity.type == "assistant_update" {
-            RuntimeEvidenceDebugLog.appendThrottled(
-                gateKey: "H16-enqueue-assistant-update-\(canonicalConversationScope(from: activity.payload) ?? "nil")",
-                minInterval: 0.2,
-                hypothesisId: "H16",
-                location: "enqueueTaskActivity",
-                message: "assistant_update_enqueued",
-                data: [
-                    "conversationScope": canonicalConversationScope(from: activity.payload) ?? "nil",
-                    "isRunning": "\(activity.isRunning)",
-                    "phase": "\(activity.phase)",
-                    "pendingCount": "\(conversationRuntime.pendingTaskActivities.count)",
-                    "detail": String((activity.detail ?? "").prefix(120)),
-                ]
-            )
-        }
-        // #endregion
         logTaskBacklogIfNeeded(context: "enqueue_activity")
 
         let needsImmediateFlush = activity.type == "agent"

@@ -63,24 +63,6 @@ extension ChatPanelView {
                 return
             }
             let stateBeforeInlineAck = toolRuntime.policyAckStateByMessage[turn.assistantMessageId]
-            // #region agent log
-            RuntimeEvidenceDebugLog.appendThrottled(
-                gateKey: "H42-inline-policy-ack-\(turn.assistantMessageId.uuidString)-\(hash)",
-                minInterval: 0.05,
-                hypothesisId: "H42",
-                location: "processInlinePolicyAckMarkers",
-                message: "inline_policy_ack_marker_detected",
-                data: [
-                    "conversationId": conversationId?.uuidString ?? "nil",
-                    "assistantMessageId": turn.assistantMessageId.uuidString,
-                    "contentLen": "\(content.count)",
-                    "receivedHash": hash,
-                    "expectedHash": stateBeforeInlineAck?.expectedHash ?? "",
-                    "acknowledgedHashBefore": stateBeforeInlineAck?.acknowledgedHash ?? "",
-                    "isSatisfiedBefore": "\(stateBeforeInlineAck?.isSatisfied == true)",
-                ]
-            )
-            // #endregion
             if toolRuntime.policyAckStateByMessage[turn.assistantMessageId]?.acknowledgedHash == hash {
                 continue
             }
@@ -156,23 +138,6 @@ extension ChatPanelView {
             enriched["title"] = payload["title"] ?? "Policy acknowledgment invalid"
             enriched["detail"] = payload["detail"] ?? "Expected hash \(state.expectedHash)"
         }
-        // #region agent log
-        RuntimeEvidenceDebugLog.append(
-            hypothesisId: "H43",
-            location: "processPolicyAckEvent",
-            message: "policy_ack_event_processed",
-            data: [
-                "conversationId": conversationId?.uuidString ?? "nil",
-                "assistantMessageId": turn.assistantMessageId.uuidString,
-                "receivedHash": receivedHash,
-                "expectedHash": state.expectedHash,
-                "acknowledgedHashBefore": acknowledgedHashBefore ?? "",
-                "status": enriched["status"] ?? "",
-                "wasSatisfiedBefore": "\(wasSatisfiedBefore)",
-                "isSatisfiedAfter": "\(state.isSatisfied)",
-            ]
-        )
-        // #endregion
         toolRuntime.policyAckStateByMessage[turn.assistantMessageId] = state
         return enriched
     }

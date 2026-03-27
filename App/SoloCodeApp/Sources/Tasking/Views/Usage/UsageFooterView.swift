@@ -98,14 +98,6 @@ struct UsageFooterView: View {
             scheduleRefresh()
             scheduleContextEstimateRefresh()
             gitPanelStore.refresh(workingDirectory: effectiveContext.primaryPath)
-            // #region agent log
-            logUsageFooterTier(hypothesisId: "H1", reason: "onAppear")
-            // #endregion
-        }
-        .onChange(of: resolvedTier) { newTier in
-            // #region agent log
-            logUsageFooterTier(hypothesisId: "H1", reason: "tier_change", tierOverride: newTier)
-            // #endregion
         }
         .onChange(of: effectiveProviderId) { _ in
             scheduleRefresh()
@@ -212,29 +204,4 @@ struct UsageFooterView: View {
         resolvedTier = nextTier
     }
 
-    // #region agent log
-    private func logUsageFooterTier(hypothesisId: String, reason: String, tierOverride: FooterTier? = nil) {
-        let tier = tierOverride ?? resolvedTier
-        let flags = footerTierFlags(for: tier)
-        let pid = effectiveProviderId ?? ""
-        let u = providerUsageStore.codexUsage
-        let p5 = u?.fiveHourPct.map { String(format: "%.1f", $0) } ?? "nil"
-        let pw = u?.weeklyPct.map { String(format: "%.1f", $0) } ?? "nil"
-        CursorSessionDebugNDJSON.append(
-            hypothesisId: hypothesisId,
-            location: "UsageFooterView.swift",
-            message: "footer_tier",
-            data: [
-                "reason": reason,
-                "tier": String(describing: tier),
-                "showProviderUsage": flags.showProviderUsage ? "1" : "0",
-                "providerId": pid,
-                "codexP5": p5,
-                "codexPw": pw,
-                "footerWidth": String(Int(availableWidth)),
-                "footerProviderHasUsageRow": footerProviderHasUsageRow ? "1" : "0",
-            ]
-        )
-    }
-    // #endregion
 }

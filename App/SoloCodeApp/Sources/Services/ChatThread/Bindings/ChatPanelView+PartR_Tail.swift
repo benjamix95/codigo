@@ -72,20 +72,6 @@ extension ChatPanelView {
             fullText: full,
             reasoningText: activeReasoningText
         )
-        // #region agent log
-        CursorSessionDebugNDJSON.append(
-            hypothesisId: "H2",
-            location: "ChatPanelView+PartR_Tail.swift",
-            message: "stream_finish_visible_compute",
-            data: [
-                "fullChars": "\(full.count)",
-                "reasoningChars": "\((activeReasoningText ?? "").trimmingCharacters(in: .whitespacesAndNewlines).count)",
-                "visibleChars": "\(finalVisibleChatContent.count)",
-                "hidePlan": shouldHidePlanMarkdown ? "1" : "0",
-                "conv": String(streamConversationId.uuidString.prefix(8)),
-            ]
-        )
-        // #endregion
         await MainActor.run {
             applyMainChatUIStreamIntent(
                 "stream_finish_success",

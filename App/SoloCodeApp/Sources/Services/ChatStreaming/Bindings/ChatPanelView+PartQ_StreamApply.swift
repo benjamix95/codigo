@@ -21,24 +21,6 @@ extension ChatPanelView {
         }
         streaming.pendingStreamContent = content
         streaming.pendingStreamConversationId = targetConversationId
-        // #region agent log
-        RuntimeEvidenceDebugLog.appendThrottled(
-            gateKey: "H29-stream-enqueue-\(targetConversationId.uuidString)",
-            minInterval: 0.12,
-            hypothesisId: "H29",
-            location: "enqueueMainChatStreamingTextUpdate",
-            message: "stream_text_enqueued_for_coalescing",
-            data: [
-                "conversationId": targetConversationId.uuidString,
-                "providerId": effectiveProviderId ?? "",
-                "incomingLen": "\(content.count)",
-                "replacedPendingLen": "\(replacedPendingLen)",
-                "hadPendingSnapshot": "\(hadPendingSnapshot)",
-                "overwriteCount": "\(streaming.pendingStreamOverwriteCount)",
-                "hasThrottleTask": "\(streaming.streamThrottleTask != nil)",
-            ]
-        )
-        // #endregion
 
         if effectiveProviderId == "codex-cli" {
             streaming.streamThrottleTask?.cancel()
@@ -51,22 +33,6 @@ extension ChatPanelView {
             streaming.pendingStreamContent = nil
             streaming.pendingStreamQueuedAt = nil
             streaming.pendingStreamOverwriteCount = 0
-            // #region agent log
-            RuntimeEvidenceDebugLog.appendThrottled(
-                gateKey: "H35-stream-inline-\(targetConversationId.uuidString)",
-                minInterval: 0.08,
-                hypothesisId: "H35",
-                location: "enqueueMainChatStreamingTextUpdate",
-                message: "stream_text_applied_inline_for_codex",
-                data: [
-                    "conversationId": targetConversationId.uuidString,
-                    "providerId": effectiveProviderId ?? "",
-                    "pendingLen": "\(pendingContent.count)",
-                    "queueAgeMs": "\(queueAgeMs)",
-                    "overwriteCount": "\(overwriteCount)",
-                ]
-            )
-            // #endregion
             applyMainChatUIStreamIntent(
                 "stream_replace_text",
                 conversationId: targetConversationId,
@@ -94,22 +60,6 @@ extension ChatPanelView {
                 streaming.pendingStreamContent = nil
                 streaming.pendingStreamQueuedAt = nil
                 streaming.pendingStreamOverwriteCount = 0
-                // #region agent log
-                RuntimeEvidenceDebugLog.appendThrottled(
-                    gateKey: "H29-stream-apply-\(pendingConversationId.uuidString)",
-                    minInterval: 0.12,
-                    hypothesisId: "H29",
-                    location: "enqueueMainChatStreamingTextUpdate",
-                    message: "stream_text_dequeued_for_apply",
-                    data: [
-                        "conversationId": pendingConversationId.uuidString,
-                        "providerId": effectiveProviderId ?? resolvedTurnProviderId(for: pendingConversationId) ?? "",
-                        "pendingLen": "\(pendingContent.count)",
-                        "queueAgeMs": "\(queueAgeMs)",
-                        "overwriteCount": "\(overwriteCount)",
-                    ]
-                )
-                // #endregion
                 applyMainChatUIStreamIntent(
                     "stream_replace_text",
                     conversationId: pendingConversationId,
@@ -181,23 +131,6 @@ extension ChatPanelView {
             let contentDiffers = trimmedIncoming != currentContent
             let shouldWrite = currentContent.isEmpty || contentDiffers || !applied
             var updateAssistantMessageMs = 0
-            // #region agent log
-            RuntimeEvidenceDebugLog.appendThrottled(
-                gateKey: "H4-stream-write-\(targetConversationId.uuidString)-\(targetMessageId.uuidString)",
-                minInterval: 0.4,
-                hypothesisId: "H4",
-                location: "applyMainChatUIStreamIntent",
-                message: "stream_replace_text_decision",
-                data: [
-                    "conversationId": targetConversationId.uuidString,
-                    "messageId": targetMessageId.uuidString,
-                    "applied": "\(applied)",
-                    "incomingLen": "\(trimmedIncoming.count)",
-                    "currentLen": "\(currentContent.count)",
-                    "shouldWrite": "\(shouldWrite)",
-                ]
-            )
-            // #endregion
             if shouldWrite {
                 let updateStartedAt = Date()
                 chatStore.updateAssistantMessage(
@@ -211,27 +144,6 @@ extension ChatPanelView {
                 streaming.lastMainChatStreamApplyLen = trimmedIncoming.count
                 if !applied { streaming.streamContentVersion &+= 1 }
             }
-            // #region agent log
-            RuntimeEvidenceDebugLog.appendThrottled(
-                gateKey: "H28-stream-hot-path-\(targetConversationId.uuidString)-\(targetMessageId.uuidString)",
-                minInterval: 0.2,
-                hypothesisId: "H28",
-                location: "applyMainChatUIStreamIntent",
-                message: "stream_replace_text_hot_path_timing",
-                data: [
-                    "conversationId": targetConversationId.uuidString,
-                    "messageId": targetMessageId.uuidString,
-                    "providerId": providerId ?? "",
-                    "applied": "\(applied)",
-                    "bridgeMs": "\(bridgeMs)",
-                    "contentLookupMs": "\(contentLookupMs)",
-                    "updateAssistantMessageMs": "\(updateAssistantMessageMs)",
-                    "incomingLen": "\(trimmedIncoming.count)",
-                    "currentLen": "\(currentContent.count)",
-                    "shouldWrite": "\(shouldWrite)",
-                ]
-            )
-            // #endregion
         }
         if !applied,
            intent == "stream_apply_raw_event",
@@ -247,22 +159,6 @@ extension ChatPanelView {
                     turnId: target.turnId,
                     providerId: providerId ?? ""
                 )
-                // #region agent log
-                RuntimeEvidenceDebugLog.appendThrottled(
-                    gateKey: "H33-raw-apply-\(targetConversationId.uuidString)-\(eventKind)",
-                    minInterval: 0.08,
-                    hypothesisId: "H33",
-                    location: "applyMainChatUIStreamIntent",
-                    message: "stream_apply_raw_event_fallback",
-                    data: [
-                        "conversationId": targetConversationId.uuidString,
-                        "providerId": providerId ?? "",
-                        "eventKind": eventKind,
-                        "bridgeMs": "\(bridgeMs)",
-                        "pipelineEventCount": "\(pipelineEvents.count)",
-                    ]
-                )
-                // #endregion
                 if !pipelineEvents.isEmpty {
                     applyChatPipelineEvents(pipelineEvents)
                 }

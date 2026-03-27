@@ -39,22 +39,6 @@ extension ChatPanelView {
             let rolloverOutcome: ToolTraceTurnOutcome = hasRunningOperations ? .aborted : .success
             let previousPolicySatisfied = toolRuntime.policyAckStateByMessage[previous.assistantMessageId]?.isSatisfied == true
             let previousTodoState = toolRuntime.toolStartRequirementsStateByMessage[previous.assistantMessageId]
-            // #region agent log
-            RuntimeEvidenceDebugLog.append(
-                hypothesisId: "H45",
-                location: "startToolTraceTurn",
-                message: "tool_trace_turn_rollover",
-                data: [
-                    "conversationId": conversationId.uuidString,
-                    "previousAssistantMessageId": previous.assistantMessageId.uuidString,
-                    "newAssistantMessageId": assistantMessageId.uuidString,
-                    "previousPolicySatisfied": "\(previousPolicySatisfied)",
-                    "previousDidSeeTodoWrite": "\(previousTodoState?.didSeeTodoWrite == true)",
-                    "previousTodoViolationEmitted": "\(previousTodoState?.violationEmitted == true)",
-                    "hasRunningOperations": "\(hasRunningOperations)",
-                ]
-            )
-            // #endregion
             finalizeAutoTodoIfNeeded(
                 messageId: previous.assistantMessageId,
                 outcome: rolloverOutcome,
@@ -102,8 +86,10 @@ extension ChatPanelView {
         )
         let hasExistingScopedTodos = !todoStore.displayTodosForChat(for: conversationId).isEmpty
         let hasExistingPlanBoard = !(chatStore.planBoard(for: conversationId)?.steps.isEmpty ?? true)
+        let concreteScopedActivities = taskActivityStore.concreteNonSwarmActivities(for: conversationId)
+        let hasConcreteScopedActivities = !concreteScopedActivities.isEmpty
         let seededTodoRequirementState = ToolStartRequirementsState(
-            didSeeTodoWrite: hasExistingScopedTodos || hasExistingPlanBoard,
+            didSeeTodoWrite: hasExistingScopedTodos || hasExistingPlanBoard || hasConcreteScopedActivities,
             violationEmitted: false
         )
         toolRuntime.activeToolTraceTurnsByConversation[conversationId] = turn
@@ -111,20 +97,6 @@ extension ChatPanelView {
         toolRuntime.toolTraceOperationalSeenByMessage[assistantMessageId] = false
         toolRuntime.toolTraceOperationalCountByMessage[assistantMessageId] = 0
         toolRuntime.toolStartRequirementsStateByMessage[assistantMessageId] = seededTodoRequirementState
-        // #region agent log
-        RuntimeEvidenceDebugLog.append(
-            hypothesisId: "H48",
-            location: "startToolTraceTurn",
-            message: "tool_start_requirement_seeded",
-            data: [
-                "conversationId": conversationId.uuidString,
-                "assistantMessageId": assistantMessageId.uuidString,
-                "hasExistingScopedTodos": "\(hasExistingScopedTodos)",
-                "hasExistingPlanBoard": "\(hasExistingPlanBoard)",
-                "didSeeTodoWriteSeeded": "\(seededTodoRequirementState.didSeeTodoWrite)",
-            ]
-        )
-        // #endregion
         conversationRuntime.autoTodoRuntimeStateByMessage.removeValue(forKey: assistantMessageId.uuidString.lowercased())
         conversationRuntime.didReceiveExplicitTodoByMessage.remove(assistantMessageId)
         if isSwarmPolicyAckExemptProvider(providerId) {

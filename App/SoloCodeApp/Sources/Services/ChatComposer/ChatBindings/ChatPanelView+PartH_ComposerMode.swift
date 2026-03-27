@@ -6,20 +6,6 @@ import UniformTypeIdentifiers
 extension ChatPanelView {
     internal func handleComposerSend() {
         let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-        // #region agent log
-        RuntimeEvidenceDebugLog.append(
-            hypothesisId: "H1",
-            location: "handleComposerSend",
-            message: "composer_send_invoked",
-            data: [
-                "conversationId": conversationId?.uuidString ?? "nil",
-                "providerId": providerRegistry.selectedProviderId ?? "nil",
-                "coderMode": "\(coderMode)",
-                "trimmedLen": "\(trimmed.count)",
-                "isLoading": "\(isLoadingForCurrentConversation)",
-            ]
-        )
-        // #endregion
         guard !trimmed.contains("\n"),
               trimmed.lowercased() == "/fast",
               providerRegistry.selectedProviderId == "codex-cli"

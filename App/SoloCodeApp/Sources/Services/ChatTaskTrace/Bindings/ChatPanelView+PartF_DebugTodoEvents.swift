@@ -129,31 +129,6 @@ extension ChatPanelView {
         cancelFallbackTurnStartEvent()
         let envelope = flowCoordinator.normalizeRawEvent(
             providerId: providerId, type: type, payload: payload)
-        // #region agent log
-        if type == "assistant_update",
-           let normalizedActivity = envelope.events.compactMap({
-               if case .taskActivity(let activity) = $0 { return activity }
-               return nil
-           }).first
-        {
-            RuntimeEvidenceDebugLog.appendThrottled(
-                gateKey: "H15-record-assistant-update-\((conversationId ?? selectedConversationId)?.uuidString ?? "nil")",
-                minInterval: 0.2,
-                hypothesisId: "H15",
-                location: "recordTaskActivity",
-                message: "assistant_update_normalized",
-                data: [
-                    "conversationIdArg": conversationId?.uuidString ?? "nil",
-                    "selectedConversationId": selectedConversationId?.uuidString ?? "nil",
-                    "normalizedType": normalizedActivity.type,
-                    "normalizedIsRunning": "\(normalizedActivity.isRunning)",
-                    "normalizedPhase": "\(normalizedActivity.phase)",
-                    "normalizedDetail": String((normalizedActivity.detail ?? "").prefix(120)),
-                    "normalizedScopedConversation": canonicalConversationScope(from: normalizedActivity.payload) ?? "nil",
-                ]
-            )
-        }
-        // #endregion
         taskActivityStore.addEnvelope(envelope)
         let planFallbackConversationId: UUID? = {
             guard let streamConversationId = conversationId else {
@@ -335,19 +310,6 @@ extension ChatPanelView {
         toolStartState.didSeeTodoWrite = true
         toolStartState.violationEmitted = false
         toolRuntime.toolStartRequirementsStateByMessage[messageId] = toolStartState
-        // #region agent log
-        RuntimeEvidenceDebugLog.append(
-            hypothesisId: "H49",
-            location: "recordExplicitTodoWrite",
-            message: "explicit_todo_write_bridged_to_start_requirements",
-            data: [
-                "conversationId": turn.conversationId.uuidString,
-                "assistantMessageId": messageId.uuidString,
-                "didSeeTodoWrite": "\(toolStartState.didSeeTodoWrite)",
-                "violationEmitted": "\(toolStartState.violationEmitted)",
-            ]
-        )
-        // #endregion
         applyAutoTodoRuntimeIntent(
             "auto_todo_discard_runtime",
             assistantMessageId: messageId,

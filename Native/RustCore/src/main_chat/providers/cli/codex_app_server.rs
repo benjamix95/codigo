@@ -9,7 +9,7 @@ use app_core_protocol::main_chat_provider::MainChatProviderSessionConfig;
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
 use std::collections::HashMap;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader};
 use std::process::{Child, ChildStdin, Command, Stdio};
 
 fn rust_codex_trace_enabled() -> bool {
@@ -25,32 +25,6 @@ fn rust_codex_trace(message: impl AsRef<str>) {
     if rust_codex_trace_enabled() {
         crate::provider_stderr_eprintln!("[RustCodexTrace] {}", message.as_ref());
     }
-}
-
-fn agent_debug_log(hypothesis_id: &str, location: &str, message: &str, data: Value) {
-    // #region agent log
-    let log_path = "/Users/benjaminstoica/SoloCode/.cursor/debug-79c50e.log";
-    if let Ok(mut f) = std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(log_path)
-    {
-        let ts = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_millis() as u64)
-            .unwrap_or(0);
-        let line = json!({
-            "sessionId": "79c50e",
-            "hypothesisId": hypothesis_id,
-            "location": location,
-            "message": message,
-            "data": data,
-            "timestamp": ts,
-            "runId": "pre-fix",
-        });
-        let _ = writeln!(f, "{}", serde_json::to_string(&line).unwrap_or_default());
-    }
-    // #endregion
 }
 
 struct ChildProcessGuard {
@@ -355,64 +329,21 @@ fn handle_notification(
         "item/agentMessage/delta" => {
             if let Some(delta) = raw_string_field(&payload, "delta") {
                 let phase = gate.resolve_agent_message_phase_for_delta_payload(&payload);
-                let phase_kind = match CodexAgentMessageGate::classify_agent_phase(phase.as_deref()) {
-                    CodexAgentMessagePhaseKind::Commentary => "commentary",
-                    CodexAgentMessagePhaseKind::FinalAnswer => "final_answer",
-                };
                 rust_codex_trace(format!(
                     "agent delta chars={} phase={}",
                     delta.len(),
                     phase.as_deref().unwrap_or("")
                 ));
-                agent_debug_log(
-                    "H19",
-                    "codex_app_server.rs:item/agentMessage/delta",
-                    "agent_message_delta_phase",
-                    json!({
-                        "chars": delta.len(),
-                        "phase": phase.as_deref().unwrap_or(""),
-                        "phaseKind": phase_kind,
-                        "itemId": payload.get("itemId").and_then(string_value).unwrap_or_default(),
-                    }),
-                );
-                if let Some((kind, visible_delta)) =
+                if let Some((_kind, visible_delta)) =
                     gate.push_agent_message_delta(&delta, phase.as_deref())
                 {
-                    let emitted_phase_kind = match kind {
-                        CodexAgentMessagePhaseKind::Commentary => "commentary",
-                        CodexAgentMessagePhaseKind::FinalAnswer => "final_answer",
-                    };
                     rust_codex_trace(format!("emit text_delta chars={}", visible_delta.len()));
                     emit_text_delta(session_id, &visible_delta);
-                    // App-server documenta `item/*/delta` come stream incrementale
-                    // e `item/completed` come stato finale autorevole. Per tenere
-                    // il percorso hot il piu' leggero possibile, la timeline testo
-                    // passa solo da `text_delta`; gli `assistant_update` restano
-                    // riservati ai lifecycle `item/started` e `item/completed`.
-                    let cumulative_chars = gate.cumulative_text().len();
-                    agent_debug_log(
-                        "H21",
-                        "codex_app_server.rs:item/agentMessage/delta",
-                        "agent_message_delta_emitted_to_timeline",
-                        json!({
-                            "chars": visible_delta.len(),
-                            "phase": phase.as_deref().unwrap_or(""),
-                            "phaseKind": emitted_phase_kind,
-                            "cumulativeChars": cumulative_chars,
-                        }),
-                    );
-                } else {
-                    agent_debug_log(
-                        "H19",
-                        "codex_app_server.rs:item/agentMessage/delta",
-                        "agent_message_delta_suppressed",
-                        json!({
-                            "chars": delta.len(),
-                            "phase": phase.as_deref().unwrap_or(""),
-                            "phaseKind": phase_kind,
-                        }),
-                    );
                 }
+                // App-server documenta `item/*/delta` come stream incrementale
+                // e `item/completed` come stato finale autorevole: la timeline testo
+                // passa da `text_delta`; gli `assistant_update` restano su
+                // `item/started` e `item/completed`.
                 gate.refresh_agent_message_phase_from_delta_payload(&payload);
             }
         }
@@ -507,19 +438,6 @@ fn handle_item_notification(
 ) {
     let item = payload.get("item").cloned().unwrap_or(Value::Null);
     let item_type = item.get("type").and_then(string_value).unwrap_or_default();
-    agent_debug_log(
-        "H20",
-        "codex_app_server.rs:handle_item_notification",
-        "app_server_item_notification",
-        json!({
-            "method": method,
-            "itemType": item_type,
-            "itemId": item.get("id").and_then(string_value).unwrap_or_default(),
-            "phase": item.get("phase").and_then(string_value).unwrap_or_default(),
-            "hasText": item.get("text").and_then(string_value).map(|s| !s.is_empty()).unwrap_or(false),
-            "hasDelta": payload.get("delta").and_then(string_value).map(|s| !s.is_empty()).unwrap_or(false),
-        }),
-    );
     if item_type == "mcpToolCall" {
         emit_mcp_events(session_id, method, &item);
         let tool = item.get("tool").and_then(string_value).unwrap_or_default();
@@ -549,15 +467,6 @@ fn handle_item_notification(
                 item.get("id").and_then(string_value),
                 item.get("phase").and_then(string_value),
             ) {
-                agent_debug_log(
-                    "H19",
-                    "codex_app_server.rs:item/started",
-                    "agent_message_started",
-                    json!({
-                        "itemId": id,
-                        "phase": ph,
-                    }),
-                );
                 gate.record_agent_message_item_started(id, ph);
             }
         }
