@@ -165,9 +165,9 @@ extension CodeReviewPanelStore {
         return current
     }
 
-    func freezeTimer() {
+    func freezeTimer(referenceDate: Date = Date()) {
         guard let start = runStartedAt else { return }
-        let elapsed = Int(Date().timeIntervalSince(start))
+        let elapsed = Int(referenceDate.timeIntervalSince(start))
         let minutes = elapsed / 60
         let seconds = elapsed % 60
         frozenTimerText = String(format: "%d:%02d", minutes, seconds)

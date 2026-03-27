@@ -112,7 +112,8 @@ final class ConversationFlowCoordinatorTests: XCTestCase {
                     status: "completed",
                     isTerminal: true
                 )
-            ]
+            ],
+            providerId: "claude-cli"
         )
         let coordinator = ConversationFlowCoordinator()
         let ctx = WorkspaceContext(workspacePaths: [URL(fileURLWithPath: "/tmp")])
@@ -677,18 +678,35 @@ final class ConversationFlowCoordinatorTests: XCTestCase {
 
     nonisolated private func makeRustTransportProvider(
         polls: [RuntimePollResult],
-        queue: RuntimePollQueue? = nil
+        queue: RuntimePollQueue? = nil,
+        providerId: String = "codex-cli"
     ) -> MainChatRustTransportProvider {
         let queue = queue ?? RuntimePollQueue(results: polls)
+        let backend: MainChatProviderBackendBridge
+        let displayName: String
+        let claudePath: String?
+        let codexPath: String?
+        switch providerId {
+        case "claude-cli":
+            backend = .claudeCli
+            displayName = "Claude"
+            claudePath = "/usr/bin/claude"
+            codexPath = nil
+        default:
+            backend = .codexCli
+            displayName = "Codex"
+            claudePath = nil
+            codexPath = "/usr/bin/codex"
+        }
         return MainChatRustTransportProvider(
-            id: "codex-cli",
-            displayName: "Codex",
+            id: providerId,
+            displayName: displayName,
             attachmentCapabilities: .none,
             authenticated: true,
             config: MainChatProviderSessionConfigBridge(
-                providerId: "codex-cli",
-                displayName: "Codex",
-                backend: .codexCli,
+                providerId: providerId,
+                displayName: displayName,
+                backend: backend,
                 workspacePath: "/tmp",
                 workspacePaths: ["/tmp"],
                 prompt: "",
@@ -699,7 +717,7 @@ final class ConversationFlowCoordinatorTests: XCTestCase {
                 baseURL: nil,
                 toolDefinitionsJson: nil,
                 extraHeaders: [:],
-                codexPath: "/usr/bin/codex",
+                codexPath: codexPath,
                 codexSandbox: "workspace-write",
                 codexAskForApproval: "never",
                 codexModelOverride: nil,
@@ -708,7 +726,7 @@ final class ConversationFlowCoordinatorTests: XCTestCase {
                 codexFastMode: false,
                 codexSessionFullAccess: false,
                 codexPreferResponsesWireAPI: false,
-                claudePath: nil,
+                claudePath: claudePath,
                 claudeModel: nil,
                 claudeAllowedTools: [],
                 claudeMcpServerPath: nil,

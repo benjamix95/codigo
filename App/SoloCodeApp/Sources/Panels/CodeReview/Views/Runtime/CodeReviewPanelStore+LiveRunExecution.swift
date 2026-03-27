@@ -335,6 +335,7 @@ private extension CodeReviewPanelStore {
         error: String?,
         wasCancelled: Bool
     ) -> ReviewPanelRuntimeOutcome? {
+        let runStartBeforeFinish = runStartedAt
         let response: ReviewPanelRuntimeResponse? = ReviewCoreBridge.call(
             functionName: "review_core_panel_run_finish",
             request: ReviewPanelRunFinishRequest(
@@ -349,20 +350,42 @@ private extension CodeReviewPanelStore {
         )
         guard response?.error == nil, let state = response?.state else {
             let message = error ?? ReviewPanelStateRustAdapter.runtimeUnavailableMessage
-            applyUnavailableRunError(message, targetTab: selectedTabOnFinish)
+            applyUnavailableRunError(
+                message,
+                targetTab: selectedTabOnFinish,
+                finishedAt: finishedAt,
+                priorRunStartedAt: runStartBeforeFinish
+            )
             return ReviewPanelRuntimeOutcome(status: "failed", message: message)
         }
         applyRuntimeState(state)
+        if !isRunning, frozenTimerText == nil, runStartBeforeFinish != nil {
+            runStartedAt = runStartBeforeFinish
+            freezeTimer(referenceDate: finishedAt)
+        }
         pendingCodebaseWorkspaceIncludedPaths = nil
         return response?.outcome
     }
 
-    func applyUnavailableRunError(_ message: String, targetTab: CodeReviewTab) {
+    func applyUnavailableRunError(
+        _ message: String,
+        targetTab: CodeReviewTab,
+        finishedAt: Date = Date(),
+        priorRunStartedAt: Date? = nil
+    ) {
+        #if DEBUG
+        ReviewPanelDebugHangWatch.cancelProbes()
+        #endif
         pendingCodebaseWorkspaceIncludedPaths = nil
         isReviewLaunchPreparing = false
         isRunning = false
         lastError = message
-        frozenTimerText = nil
+        if let priorRunStartedAt {
+            runStartedAt = priorRunStartedAt
+            freezeTimer(referenceDate: finishedAt)
+        } else {
+            frozenTimerText = nil
+        }
         selectTab(targetTab)
     }
 }
