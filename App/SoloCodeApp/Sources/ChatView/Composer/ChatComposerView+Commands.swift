@@ -1,5 +1,47 @@
 import SwiftUI
 
+struct ComposerNoProjectEmptyStateView: View {
+    let isIDEStyle: Bool
+
+    var body: some View {
+        VStack(spacing: isIDEStyle ? 10 : 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(.ultraThinMaterial)
+                    .frame(width: isIDEStyle ? 40 : 44, height: isIDEStyle ? 40 : 44)
+                Image(systemName: "folder.badge.plus")
+                    .font(.system(size: isIDEStyle ? 16 : 18, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+
+            VStack(spacing: 4) {
+                Text("Apri una cartella o un workspace")
+                    .font(.system(size: isIDEStyle ? 13 : 14, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .multilineTextAlignment(.center)
+
+                Text("Aggiungi almeno una cartella reale dalla barra laterale. Finché non c'è un workspace attivo, non puoi creare thread né inviare messaggi.")
+                    .font(.system(size: isIDEStyle ? 11.5 : 12.5, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, isIDEStyle ? 18 : 22)
+        .padding(.vertical, isIDEStyle ? 14 : 16)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(.regularMaterial.opacity(0.55))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(.quaternary, lineWidth: 0.8)
+        )
+        .padding(.horizontal, isIDEStyle ? 8 : 12)
+        .padding(.bottom, isIDEStyle ? 4 : 6)
+    }
+}
+
 extension ChatComposerView {
     internal var allSlashCommandPresets: [QuickCommandPreset] {
         let combined = quickCommandPresets + slashCommandPresets
@@ -182,50 +224,6 @@ extension ChatComposerView {
     }
 
     internal var noProjectOpenBanner: some View {
-        VStack(spacing: isIDEStyle ? 10 : 12) {
-            ZStack {
-                Circle()
-                    .fill(Color.white.opacity(0.06))
-                    .frame(width: isIDEStyle ? 38 : 42, height: isIDEStyle ? 38 : 42)
-                Image(systemName: "folder.badge.plus")
-                    .font(.system(size: isIDEStyle ? 15 : 17, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.88))
-            }
-
-            VStack(spacing: 4) {
-                Text("Apri una cartella o un workspace")
-                    .font(.system(size: isIDEStyle ? 13 : 14, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.92))
-                    .multilineTextAlignment(.center)
-
-                Text("Aggiungi almeno una cartella reale dalla barra laterale. Finché non c'è un workspace attivo, non puoi creare thread né inviare messaggi.")
-                    .font(.system(size: isIDEStyle ? 11.5 : 12.5, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.62))
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(1)
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, isIDEStyle ? 18 : 24)
-        .padding(.vertical, isIDEStyle ? 16 : 18)
-        .background(
-            RoundedRectangle(cornerRadius: isIDEStyle ? 16 : 18, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(0.05),
-                            Color.white.opacity(0.025),
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: isIDEStyle ? 16 : 18, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.8)
-        )
-        .padding(.horizontal, isIDEStyle ? 8 : 12)
-        .padding(.bottom, isIDEStyle ? 4 : 6)
+        ComposerNoProjectEmptyStateView(isIDEStyle: isIDEStyle)
     }
 }
