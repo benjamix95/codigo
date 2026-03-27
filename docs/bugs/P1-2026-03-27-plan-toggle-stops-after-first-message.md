@@ -1,19 +1,10 @@
 # Finding: toggle Plan → prima risposta poi si ferma
 
-- **Stato**: fix stato UI + **tracciamento runtime** per la causa profonda.
-- **Causa root (UI)**: prompt plan vuoti lasciavano `planFlowPhase == .analyzing`; `cleanupPlanFlowAfterConversationSwitch` non resetta sulla stessa conversazione → **fix**: `resetPlanFlowAfterAbortedPreflight` (fasi 0–3) con **reason** testuale.
-- **Causa profonda (da provare con log)**: `planRuntimeAction` / Rust non popola `output.generatedPrompt` per fase 0 o 1 → `genLen=0`, `nilSnap=1` o `nilGenPromptField=1` nei marker.
+- **Stato**: fix UI + fix bridge Rust + NDJSON trace opzionale.
+- **Causa root (UI)**: `resetPlanFlowAfterAbortedPreflight` quando il prompt plan è vuoto sulla stessa conversazione (evita `planFlowPhase` incollato a `.analyzing`).
+- **Causa root (bridge, evidenza log A/C)**: `nilSnap=1` + `empty_screening_prompt_after_bridge` — **`apply_plan_runtime_action`** richiedeva `state.runtime_snapshot`; al **primo** messaggio in Plan non esiste ancora uno snapshot (nessun direct stream) → l’intent falliva **prima** di `plan_prepare_phase0_screening_prompt` → Swift vedeva `planRuntimeAction == nil`.
+- **Fix Rust** (`plan_ui_flow.rs`): `runtime_snapshot_for_plan_action` — se `runtime_snapshot` manca, seed minimo con `selected_conversation_id` e `MainChatTurnState` idle. Test: `ui_intent_plan_phase0_screening_seeds_runtime_when_snapshot_missing`.
 
-## NDJSON Plan trace (`PlanFlowDebugNDJSONLog`)
+## NDJSON (`PlanFlowDebugNDJSONLog`)
 
-File: `.cursor/debug-773578.log` (append, una riga JSON per evento).
-
-| hypothesisId | Significato |
-|----------------|-------------|
-| **A** | `phase0_generated_prompt` — risposta bridge screening (`genLen`, `nilSnap`, `nilGenPromptField`). |
-| **B** | `phase1_generated_prompt` — stesso per analisi. |
-| **C** | `preflight_abort` — `reason` = quale guard ha fatto reset (`empty_phase1_prompt_after_bridge`, …). |
-| **D** | `phase0_after_screening_stream` — lunghezza output LLM dopo screening, `skipFullPipeline`. |
-| **E** | `phase1_after_analysis_stream` — lunghezza analisi, se serve chiarimenti. |
-
-Dopo riproduzione: leggere in ordine le righe per vedere se il blocco è **prima** dello stream (prompt bridge vuoto) o **dopo** (stream corto / skip).
+File `.cursor/debug-773578.log`: marker A–E per lunghezze prompt e `preflight_abort` con `reason`.

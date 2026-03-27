@@ -230,6 +230,50 @@ fn ui_intent_apply_plan_runtime_action_projects_prompt_and_panel_state() {
 }
 
 #[test]
+fn ui_intent_plan_phase0_screening_seeds_runtime_when_snapshot_missing() {
+    let mut state = base_ui_state();
+    state.runtime_snapshot = None;
+    state.selected_conversation_id = Some("conv-1".to_string());
+    let response = handle_ui_intent(MainChatUiIntentRequest {
+        schema_version: 1,
+        intent: "apply_plan_runtime_action".to_string(),
+        state,
+        conversation_id: Some("conv-1".to_string()),
+        turn_id: None,
+        artifact_id: None,
+        text: Some("First plan request without prior stream snapshot".to_string()),
+        timestamp: Some(42.0),
+        pipeline_event: None,
+        pipeline_events: Vec::new(),
+        payload: [
+            (
+                "action".to_string(),
+                "plan_prepare_phase0_screening_prompt".to_string(),
+            ),
+            ("should_run_inline".to_string(), "true".to_string()),
+        ]
+        .into_iter()
+        .collect(),
+    });
+    assert!(
+        response.error.is_none(),
+        "unexpected error: {:?}",
+        response.error
+    );
+    let state = response.state.expect("state");
+    let generated = state
+        .runtime_snapshot
+        .as_ref()
+        .and_then(|runtime| runtime.output.as_ref())
+        .and_then(|output| output.generated_prompt.as_ref());
+    assert!(
+        generated.is_some_and(|prompt| !prompt.trim().is_empty()),
+        "phase0 screening prompt should be generated, got: {:?}",
+        generated
+    );
+}
+
+#[test]
 fn ui_intent_pipeline_apply_event_syncs_runtime_and_store_snapshot() {
     let response = handle_ui_intent(MainChatUiIntentRequest {
         schema_version: 1,

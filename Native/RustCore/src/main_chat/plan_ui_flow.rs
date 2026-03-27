@@ -1,8 +1,10 @@
 use crate::main_chat::plan_markdown::parse_clarification_questionnaire;
 use crate::main_chat::runtime::handle_runtime_action;
 use crate::main_chat::state::{ensure_plan_defaults, reset_output};
+use app_core_protocol::main_chat::MainChatTurnState;
 use app_core_protocol::main_chat_runtime::{
     MainChatPlanPhase, MainChatPlanningStateKind, MainChatRuntimeActionRequest,
+    MainChatRuntimeSnapshot,
 };
 use app_core_protocol::main_chat_ui::{
     MainChatUiIntentRequest, MainChatUiIntentResponse, MainChatUiState,
@@ -21,7 +23,7 @@ pub fn apply_plan_runtime_action(
     let response = handle_runtime_action(MainChatRuntimeActionRequest {
         schema_version: 1,
         action,
-        snapshot: required_runtime_snapshot(&state)?,
+        snapshot: runtime_snapshot_for_plan_action(&state),
         timestamp: request.timestamp,
         provider_id: None,
         status: None,
@@ -108,6 +110,26 @@ fn required_runtime_snapshot(
     state.runtime_snapshot.clone().ok_or_else(|| {
         MainChatUiIntentResponse::error("missing_runtime_snapshot", "runtimeSnapshot is required")
     })
+}
+
+/// Primo invio in modalità Plan: spesso non esiste ancora uno `runtime_snapshot` (nessun direct stream).
+/// Senza snapshot, `plan_prepare_phase0_screening_prompt` falliva lato UI intent. Seed minimo dalla conversazione selezionata.
+fn runtime_snapshot_for_plan_action(state: &MainChatUiState) -> MainChatRuntimeSnapshot {
+    if let Some(snapshot) = state.runtime_snapshot.clone() {
+        return snapshot;
+    }
+    let conversation_id = state
+        .selected_conversation_id
+        .clone()
+        .unwrap_or_default();
+    MainChatRuntimeSnapshot {
+        turn_state: MainChatTurnState {
+            conversation_id,
+            status: "idle".to_string(),
+            ..Default::default()
+        },
+        ..Default::default()
+    }
 }
 
 fn sync_plan_panel_visibility(state: &mut MainChatUiState) {
