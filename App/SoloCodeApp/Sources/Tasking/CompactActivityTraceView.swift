@@ -162,26 +162,7 @@ struct CompactActivityTraceView: View {
     }
 
     private func iconForType(_ type: String) -> String {
-        switch type {
-        case "command_execution", "bash": return "terminal.fill"
-        case "read_batch_started", "read_batch_completed": return "doc.on.doc"
-        case "mcp_tool_call": return "wrench.and.screwdriver.fill"
-        case "web_search", "web_search_started", "web_search_completed", "web_search_failed": return "magnifyingglass"
-        case "web_fetch", "web_fetch_started", "web_fetch_completed", "web_fetch_failed": return "globe"
-        case "process_paused": return "pause.circle.fill"
-        case "process_resumed": return "play.circle.fill"
-        case "plan_step_update": return "list.bullet.rectangle"
-        case "debug_phase_update", "debug_user_request", "debug_resolved": return "ladybug.fill"
-        case "debug_context": return "ant.fill"
-        case "debug_log": return "text.badge.plus"
-        case "debug_query": return "text.magnifyingglass"
-        case "debug_session": return "play.circle.fill"
-        case "debug_hypothesize": return "questionmark.diamond.fill"
-        case "debug_mark": return "mappin.and.ellipse"
-        case "debug_clean": return "trash.fill"
-        case "file_change", "edit": return "doc.text.fill"
-        default: return "circle.fill"
-        }
+        TaskActivityVisualStyle.icon(for: type)
     }
 
     private func timeString(_ date: Date) -> String {
