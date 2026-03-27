@@ -146,7 +146,7 @@ extension ChatPanelView {
             Button("OK", role: .cancel) {}
         } message: {
             Text(
-                "Apri una cartella o un workspace dalla barra laterale prima di inviare un messaggio."
+                "Apri una cartella o un workspace e aggiungi almeno una cartella reale prima di inviare un messaggio."
             )
         }
     }

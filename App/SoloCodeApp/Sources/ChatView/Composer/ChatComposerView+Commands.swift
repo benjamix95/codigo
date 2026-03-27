@@ -193,12 +193,12 @@ extension ChatComposerView {
             }
 
             VStack(spacing: 4) {
-                Text("Apri un progetto per iniziare")
+                Text("Apri una cartella o un workspace")
                     .font(.system(size: isIDEStyle ? 13 : 14, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.92))
                     .multilineTextAlignment(.center)
 
-                Text("Aggiungi una cartella o un workspace dalla barra laterale per creare thread e inviare messaggi.")
+                Text("Aggiungi almeno una cartella reale dalla barra laterale. Finché non c'è un workspace attivo, non puoi creare thread né inviare messaggi.")
                     .font(.system(size: isIDEStyle ? 11.5 : 12.5, weight: .medium))
                     .foregroundStyle(.white.opacity(0.62))
                     .multilineTextAlignment(.center)

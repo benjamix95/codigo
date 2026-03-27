@@ -56,7 +56,7 @@ struct SidebarView: View {
             .alert("Nessun progetto aperto", isPresented: $showWorkspaceRequiredAlert) {
                 Button("OK", role: .cancel) {}
             } message: {
-                Text("Apri o aggiungi almeno una cartella reale nel workspace prima di creare un thread.")
+                Text("Apri una cartella o un workspace e aggiungi almeno una cartella reale prima di creare un thread.")
             }
     }
 }
