@@ -74,39 +74,37 @@ final class ProviderFactoryCodeReviewTests: XCTestCase {
         XCTAssertFalse(request.prefersCodeReviewRuntimeProvider)
     }
 
-    func testAutoCodeReviewRequestWrapsSecurityReviewPrompt() {
+    func testAutoCodeReviewRequestDoesNotAutoRouteSecurityReviewPrompt() {
         let request = makeAutoCodeReviewRequest(
             userText: "Fai una review di sicurezza del diff e cerca vulnerabilità authz.",
             coderMode: .agent
         )
 
-        XCTAssertTrue(request.prefersCodeReviewRuntimeProvider)
-        XCTAssertEqual(request.selectedModes, [.standard, .securityAudit, .bugFinder])
-        XCTAssertTrue(request.prompt.contains("[REVIEW_SCOPE:uncommitted]"))
-        XCTAssertTrue(request.prompt.contains("Security focus:"))
-        XCTAssertTrue(request.prompt.contains("Additional instructions:"))
+        XCTAssertFalse(request.prefersCodeReviewRuntimeProvider)
+        XCTAssertEqual(request.selectedModes, [])
+        XCTAssertEqual(request.prompt, "Fai una review di sicurezza del diff e cerca vulnerabilità authz.")
     }
 
-    func testAutoCodeReviewRequestUsesWorkspaceScopeForArchitecturalReview() {
+    func testAutoCodeReviewRequestDoesNotAutoRouteArchitecturalReviewPrompt() {
         let request = makeAutoCodeReviewRequest(
             userText: "Mi fai una review della pipeline del plan panel?",
             coderMode: .agent
         )
 
-        XCTAssertTrue(request.prefersCodeReviewRuntimeProvider)
-        XCTAssertEqual(request.selectedModes, [.standard, .securityAudit, .bugFinder])
-        XCTAssertTrue(request.prompt.contains("[REVIEW_SCOPE:workspace]"))
+        XCTAssertFalse(request.prefersCodeReviewRuntimeProvider)
+        XCTAssertEqual(request.selectedModes, [])
+        XCTAssertEqual(request.prompt, "Mi fai una review della pipeline del plan panel?")
     }
 
-    func testAutoCodeReviewRequestWrapsBugHuntPrompt() {
+    func testAutoCodeReviewRequestDoesNotAutoRouteBugHuntPrompt() {
         let request = makeAutoCodeReviewRequest(
             userText: "Fai bug hunt su queste modifiche e cerca regressioni o crash.",
             coderMode: .agent
         )
 
-        XCTAssertTrue(request.prefersCodeReviewRuntimeProvider)
-        XCTAssertEqual(request.selectedModes, [.standard, .securityAudit, .bugFinder])
-        XCTAssertTrue(request.prompt.contains("Bug focus:"))
+        XCTAssertFalse(request.prefersCodeReviewRuntimeProvider)
+        XCTAssertEqual(request.selectedModes, [])
+        XCTAssertEqual(request.prompt, "Fai bug hunt su queste modifiche e cerca regressioni o crash.")
     }
 
     func testAutoCodeReviewRequestSkipsSlashCommands() {
@@ -120,26 +118,37 @@ final class ProviderFactoryCodeReviewTests: XCTestCase {
         XCTAssertFalse(request.prefersCodeReviewRuntimeProvider)
     }
 
-    func testAutoCodeReviewRequestMatchesVagueSecurityDiffPrompt() {
+    func testAutoCodeReviewRequestDoesNotAutoRouteVagueSecurityDiffPrompt() {
         let request = makeAutoCodeReviewRequest(
             userText: "Controlla queste modifiche e dimmi se ci sono vulnerabilità o secret esposti.",
             coderMode: .agent
         )
 
-        XCTAssertTrue(request.prefersCodeReviewRuntimeProvider)
-        XCTAssertEqual(request.selectedModes, [.standard, .securityAudit, .bugFinder])
-        XCTAssertTrue(request.prompt.contains("Security focus:"))
+        XCTAssertFalse(request.prefersCodeReviewRuntimeProvider)
+        XCTAssertEqual(request.selectedModes, [])
+        XCTAssertEqual(request.prompt, "Controlla queste modifiche e dimmi se ci sono vulnerabilità o secret esposti.")
     }
 
-    func testAutoCodeReviewRequestMatchesRegressionPromptWithoutReviewKeyword() {
+    func testAutoCodeReviewRequestDoesNotAutoRouteRegressionPromptWithoutReviewKeyword() {
         let request = makeAutoCodeReviewRequest(
             userText: "Analizza queste modifiche e dimmi se vedi regressioni o crash.",
             coderMode: .agent
         )
 
-        XCTAssertTrue(request.prefersCodeReviewRuntimeProvider)
-        XCTAssertEqual(request.selectedModes, [.standard, .securityAudit, .bugFinder])
-        XCTAssertTrue(request.prompt.contains("Bug focus:"))
+        XCTAssertFalse(request.prefersCodeReviewRuntimeProvider)
+        XCTAssertEqual(request.selectedModes, [])
+        XCTAssertEqual(request.prompt, "Analizza queste modifiche e dimmi se vedi regressioni o crash.")
+    }
+
+    func testAutoCodeReviewRequestDoesNotAutoRouteGenericAnalysisPrompt() {
+        let request = makeAutoCodeReviewRequest(
+            userText: "Fai l'analisi di questo messaggio e rispondi in modo sintetico.",
+            coderMode: .agent
+        )
+
+        XCTAssertFalse(request.prefersCodeReviewRuntimeProvider)
+        XCTAssertEqual(request.selectedModes, [])
+        XCTAssertEqual(request.prompt, "Fai l'analisi di questo messaggio e rispondi in modo sintetico.")
     }
 
     func testAutoCodeReviewRequestDoesNotHijackGenericExplanationPrompt() {
@@ -173,17 +182,18 @@ final class ProviderFactoryCodeReviewTests: XCTestCase {
         XCTAssertFalse(request.prefersCodeReviewRuntimeProvider)
     }
 
-    func testAutoCodeReviewRequestVerificaWithDiffStillRoutes() {
+    func testAutoCodeReviewRequestDoesNotAutoRouteVerificaWithDiff() {
         let request = makeAutoCodeReviewRequest(
             userText: "Verifica questo diff prima del merge.",
             coderMode: .agent
         )
 
-        XCTAssertTrue(request.prefersCodeReviewRuntimeProvider)
-        XCTAssertTrue(request.prompt.contains("[REVIEW_SCOPE:"))
+        XCTAssertFalse(request.prefersCodeReviewRuntimeProvider)
+        XCTAssertEqual(request.selectedModes, [])
+        XCTAssertEqual(request.prompt, "Verifica questo diff prima del merge.")
     }
 
-    func testAutoCodeReviewRequestUsesSwiftPromptFallbackWhenReviewCoreDeferred() {
+    func testAutoCodeReviewRequestKeepsPromptUntouchedWhenReviewCoreDeferred() {
         setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
         defer { unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT") }
 
@@ -192,10 +202,9 @@ final class ProviderFactoryCodeReviewTests: XCTestCase {
             coderMode: .agent
         )
 
-        XCTAssertTrue(request.prefersCodeReviewRuntimeProvider)
-        XCTAssertTrue(request.prompt.contains("[REVIEW_SCOPE:uncommitted]"))
-        XCTAssertTrue(request.prompt.contains("Security focus:"))
-        XCTAssertTrue(request.prompt.contains("Additional instructions:"))
+        XCTAssertFalse(request.prefersCodeReviewRuntimeProvider)
+        XCTAssertEqual(request.selectedModes, [])
+        XCTAssertEqual(request.prompt, "Fai una review di sicurezza del diff e cerca vulnerabilità authz.")
     }
 
     private func makeConfig() -> ProviderFactoryConfig {
