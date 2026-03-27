@@ -136,6 +136,39 @@ final class ConversationFlowCoordinatorTests: XCTestCase {
         )
     }
 
+    func testRunStreamIgnoresCodexReasoningAsNarrativeAndWaitsForRealAnswerText() async throws {
+        let provider = makeRustTransportProvider(
+            polls: [
+                .init(
+                    textByStreamId: ["main": "Risposta finale"],
+                    uiEvents: [
+                        .init(kind: .raw, text: "", rawType: "mcp_tool_call", payload: ["mcp_tool": "coderide_read", "status": "in_progress"]),
+                        .init(kind: .raw, text: "", rawType: "reasoning", payload: ["output": "Sto pensando"]),
+                        .init(kind: .textDelta, text: "Risposta finale", rawType: nil, payload: [:]),
+                        .init(kind: .completed, text: "", rawType: nil, payload: [:]),
+                    ],
+                    status: "completed",
+                    isTerminal: true
+                )
+            ]
+        )
+        let coordinator = ConversationFlowCoordinator()
+        let ctx = WorkspaceContext(workspacePaths: [URL(fileURLWithPath: "/tmp")])
+
+        var callbacks: [String] = []
+        _ = try await coordinator.runStream(
+            provider: provider,
+            prompt: "test",
+            context: ctx,
+            attachments: nil,
+            onText: { _ in callbacks.append("text") },
+            onRaw: { type, _, _ in callbacks.append("raw:\(type)") },
+            onError: { _ in }
+        )
+
+        XCTAssertEqual(callbacks, ["text", "raw:mcp_tool_call"])
+    }
+
     func testRunStreamCanExecuteOffMainActorWhileDispatchingCallbacksOnMain() async throws {
         let result = try await Task.detached { () throws -> (String, ConversationFlowCoordinator.State) in
             let provider = self.makeRustTransportProvider(

@@ -56,8 +56,6 @@ impl Drop for ChildProcessGuard {
 struct CodexAgentMessageGate {
     /// Testo visibile nella bolla risposta (`text_delta` / `assistant_update` “output”).
     final_answer_text: String,
-    /// Fase Responses `commentary`: testo mostrato nella bolla (il modello spesso mette qui la risposta visibile).
-    commentary_text: String,
     /// `phase` dell’item `agentMessage` da `item/started` (le delta spesso non la ripetono).
     agent_message_phase_by_item_id: HashMap<String, String>,
 }
@@ -116,9 +114,7 @@ impl CodexAgentMessageGate {
         }
         let kind = Self::classify_agent_phase(phase);
         match kind {
-            CodexAgentMessagePhaseKind::Commentary => {
-                self.commentary_text.push_str(delta);
-            }
+            CodexAgentMessagePhaseKind::Commentary => return None,
             CodexAgentMessagePhaseKind::FinalAnswer => {
                 self.final_answer_text.push_str(delta);
             }
@@ -129,11 +125,6 @@ impl CodexAgentMessageGate {
     fn cumulative_text(&self) -> String {
         self.final_answer_text.clone()
     }
-
-    fn commentary_cumulative(&self) -> String {
-        self.commentary_text.clone()
-    }
-
     fn release_after_operational_event(&mut self) -> Option<String> {
         None
     }
@@ -351,31 +342,7 @@ fn handle_notification(
                     gate.push_agent_message_delta(&delta, phase.as_deref())
                 {
                     match kind {
-                        CodexAgentMessagePhaseKind::Commentary => {
-                            rust_codex_trace(format!(
-                                "commentary delta as primary chars={}",
-                                visible_delta.len()
-                            ));
-                            emit_text_delta(session_id, &visible_delta);
-                            let cumulative = gate.commentary_cumulative();
-                            let detail = cumulative
-                                .split('\n')
-                                .last()
-                                .unwrap_or_default()
-                                .chars()
-                                .take(240)
-                                .collect::<String>();
-                            let mut card = BTreeMap::from([
-                                ("title".to_string(), "Working".to_string()),
-                                ("detail".to_string(), detail),
-                                ("output".to_string(), cumulative),
-                                ("status".to_string(), "in_progress".to_string()),
-                            ]);
-                            if let Some(p) = phase {
-                                card.insert("phase".to_string(), p);
-                            }
-                            emit_raw(session_id, "assistant_update", card);
-                        }
+                        CodexAgentMessagePhaseKind::Commentary => {}
                         CodexAgentMessagePhaseKind::FinalAnswer => {
                             rust_codex_trace(format!(
                                 "emit text_delta chars={}",
@@ -408,53 +375,19 @@ fn handle_notification(
         }
         "item/reasoning/textDelta" | "item/reasoning/summaryTextDelta" => {
             if let Some(delta) = raw_string_field(&payload, "delta") {
-                rust_codex_trace(format!("reasoning delta chars={}", delta.len()));
-                let mut reasoning = BTreeMap::from([
-                    ("output".to_string(), delta),
-                    ("title".to_string(), "Reasoning".to_string()),
-                    ("group_id".to_string(), "reasoning-stream".to_string()),
-                ]);
-                if let Some(idx) = payload.get("summaryIndex").and_then(|v| v.as_i64()) {
-                    reasoning.insert("summary_index".to_string(), idx.to_string());
-                }
-                emit_raw(session_id, "reasoning", reasoning);
+                rust_codex_trace(format!("drop reasoning delta chars={}", delta.len()));
             }
         }
         "item/reasoning/summaryPartAdded" => {
-            let summary_index = payload
-                .get("summaryIndex")
-                .and_then(|v| v.as_u64())
-                .or_else(|| {
-                    payload
-                        .get("summaryIndex")
-                        .and_then(|v| v.as_i64())
-                        .map(|i| i.max(0) as u64)
-                })
-                .unwrap_or(0);
-            let item_id = payload.get("itemId").and_then(string_value).unwrap_or_default();
-            let group_id = if item_id.is_empty() {
-                format!("reasoning-summary-{summary_index}")
-            } else {
-                format!("reasoning-{item_id}-s{summary_index}")
-            };
-            rust_codex_trace(format!(
-                "reasoning summaryPartAdded idx={summary_index} itemId={item_id}"
-            ));
-            emit_raw(
-                session_id,
-                "reasoning",
-                BTreeMap::from([
-                    ("output".to_string(), "\n".to_string()),
-                    ("title".to_string(), "Reasoning".to_string()),
-                    ("group_id".to_string(), group_id),
-                    ("detail".to_string(), format!("summaryPartAdded({summary_index})")),
-                ]),
-            );
+            rust_codex_trace("drop reasoning summaryPartAdded");
         }
         "item/plan/delta" => {
             if let Some(delta) = raw_string_field(&payload, "delta") {
                 rust_codex_trace(format!("plan delta chars={}", delta.len()));
-                let item_id = payload.get("itemId").and_then(string_value).unwrap_or_default();
+                let item_id = payload
+                    .get("itemId")
+                    .and_then(string_value)
+                    .unwrap_or_default();
                 let group_id = if item_id.is_empty() {
                     "codex-plan-stream".to_string()
                 } else {
@@ -474,10 +407,7 @@ fn handle_notification(
         "turn/plan/updated" => {
             let mut m = BTreeMap::new();
             if let Some(ex) = payload.get("explanation").and_then(string_value) {
-                m.insert(
-                    "explanation".to_string(),
-                    codex_truncate_str(&ex, 4_000),
-                );
+                m.insert("explanation".to_string(), codex_truncate_str(&ex, 4_000));
             }
             if let Some(plan) = payload.get("plan") {
                 if let Ok(s) = serde_json::to_string(plan) {
@@ -496,9 +426,8 @@ fn handle_notification(
             let mut m = flatten_app_server_params_to_payload(&payload, 8_000);
             m.entry("title".to_string())
                 .or_insert_with(|| "Token usage".to_string());
-            m.entry("detail".to_string()).or_insert_with(|| {
-                "Aggiornamento utilizzo token (thread)".to_string()
-            });
+            m.entry("detail".to_string())
+                .or_insert_with(|| "Aggiornamento utilizzo token (thread)".to_string());
             emit_raw(session_id, "codex_thread_token_usage", m);
         }
         "thread/status/changed" => {
@@ -575,18 +504,7 @@ fn handle_item_notification(
             let is_commentary = CodexAgentMessageGate::classify_agent_phase(phase.as_deref())
                 == CodexAgentMessagePhaseKind::Commentary;
             if is_commentary {
-                if let Some(text) = item.get("text").and_then(string_value) {
-                    let mut card = BTreeMap::from([
-                        ("title".to_string(), "Working".to_string()),
-                        ("output".to_string(), codex_truncate_str(&text, 12_000)),
-                        ("lifecycle".to_string(), "completed".to_string()),
-                        ("status".to_string(), "completed".to_string()),
-                    ]);
-                    if let Some(p) = phase {
-                        card.insert("phase".to_string(), p);
-                    }
-                    emit_raw(session_id, "assistant_update", card);
-                }
+                rust_codex_trace("drop commentary completion");
             } else {
                 let mut card = BTreeMap::new();
                 if let Some(p) = phase {
@@ -600,6 +518,11 @@ fn handle_item_notification(
                 emit_raw(session_id, "assistant_update", card);
             }
         } else if let Some(p) = phase {
+            let is_commentary = CodexAgentMessageGate::classify_agent_phase(Some(&p))
+                == CodexAgentMessagePhaseKind::Commentary;
+            if is_commentary {
+                return;
+            }
             emit_raw(
                 session_id,
                 "assistant_update",
@@ -611,28 +534,7 @@ fn handle_item_notification(
             );
         }
     } else if item_type == "reasoning" {
-        let mut card = BTreeMap::from([("title".to_string(), "Reasoning".to_string())]);
-        if let Some(id) = item.get("id").and_then(string_value) {
-            card.insert("group_id".to_string(), format!("reasoning-item-{id}"));
-        }
-        if let Some(summary) = item.get("summary").and_then(string_value) {
-            card.insert(
-                "output".to_string(),
-                codex_truncate_str(&summary, 12_000),
-            );
-        } else if let Some(content) = item.get("content") {
-            if let Some(s) = content.as_str() {
-                card.insert("output".to_string(), codex_truncate_str(s, 12_000));
-            } else if let Ok(s) = serde_json::to_string(content) {
-                card.insert("output".to_string(), codex_truncate_str(&s, 12_000));
-            }
-        }
-        if method == "item/completed" {
-            card.insert("lifecycle".to_string(), "completed".to_string());
-        }
-        if card.contains_key("output") {
-            emit_raw(session_id, "reasoning", card);
-        }
+        rust_codex_trace("drop reasoning item");
     } else if item_type == "contextCompaction" {
         let mut card = BTreeMap::from([
             ("title".to_string(), "Context compaction".to_string()),
@@ -657,10 +559,7 @@ fn handle_item_notification(
             card.insert("group_id".to_string(), format!("codex-plan-{id}"));
         }
         if let Some(text) = item.get("text").and_then(string_value) {
-            card.insert(
-                "output".to_string(),
-                codex_truncate_str(&text, 12_000),
-            );
+            card.insert("output".to_string(), codex_truncate_str(&text, 12_000));
         }
         if method == "item/completed" {
             card.insert("lifecycle".to_string(), "completed".to_string());
@@ -782,10 +681,7 @@ fn emit_collab_tool_call(session_id: &str, method: &str, item: &Value) {
     payload.insert("role".to_string(), role_name);
     payload.insert("title".to_string(), title);
     payload.insert("swarm_id".to_string(), unique_swarm_id.clone());
-    payload.insert(
-        "group_id".to_string(),
-        format!("swarm-{}", unique_swarm_id),
-    );
+    payload.insert("group_id".to_string(), format!("swarm-{}", unique_swarm_id));
     if !sender_thread.is_empty() {
         payload.insert("sender_thread_id".to_string(), sender_thread);
     }
@@ -897,10 +793,7 @@ fn emit_mcp_events(session_id: &str, method: &str, item: &Value) {
             },
         );
         agent_payload.insert("swarm_id".to_string(), unique_swarm_id.clone());
-        agent_payload.insert(
-            "group_id".to_string(),
-            format!("swarm-{}", unique_swarm_id),
-        );
+        agent_payload.insert("group_id".to_string(), format!("swarm-{}", unique_swarm_id));
         if !task_text.is_empty() {
             let text_preview = codex_truncate_str(&task_text, 500);
             agent_payload.insert("task_summary".to_string(), text_preview.clone());
@@ -1103,11 +996,44 @@ fn codex_readable_name(task: &str, fallback: &str) -> String {
         return capitalize_first(fallback);
     }
     let filler_words: std::collections::HashSet<&str> = [
-        "a", "an", "and", "are", "as", "at", "be", "by", "for", "from",
-        "i", "in", "into", "of", "on", "or", "the", "this", "to", "with",
-        "analyze", "check", "explore", "find", "inspect", "investigate",
-        "review", "search", "verify", "create", "implement", "write",
-        "build", "code", "debug", "fix", "test", "document",
+        "a",
+        "an",
+        "and",
+        "are",
+        "as",
+        "at",
+        "be",
+        "by",
+        "for",
+        "from",
+        "i",
+        "in",
+        "into",
+        "of",
+        "on",
+        "or",
+        "the",
+        "this",
+        "to",
+        "with",
+        "analyze",
+        "check",
+        "explore",
+        "find",
+        "inspect",
+        "investigate",
+        "review",
+        "search",
+        "verify",
+        "create",
+        "implement",
+        "write",
+        "build",
+        "code",
+        "debug",
+        "fix",
+        "test",
+        "document",
     ]
     .iter()
     .copied()
@@ -1115,7 +1041,13 @@ fn codex_readable_name(task: &str, fallback: &str) -> String {
 
     let words: Vec<String> = task
         .chars()
-        .map(|c| if c.is_alphanumeric() || c == ' ' { c } else { ' ' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == ' ' {
+                c
+            } else {
+                ' '
+            }
+        })
         .collect::<String>()
         .split_whitespace()
         .filter(|w| !filler_words.contains(&w.to_lowercase().as_str()) && w.len() > 1)
@@ -1180,11 +1112,15 @@ mod tests {
             .push_agent_message_delta("Prima risposta. ", None)
             .unwrap();
         assert_eq!(k0, CodexAgentMessagePhaseKind::FinalAnswer);
-        let (k1, _) = gate.push_agent_message_delta("Ancora testo.", None).unwrap();
+        let (k1, _) = gate
+            .push_agent_message_delta("Ancora testo.", None)
+            .unwrap();
         assert_eq!(k1, CodexAgentMessagePhaseKind::FinalAnswer);
         assert_eq!(gate.cumulative_text(), "Prima risposta. Ancora testo.");
         assert_eq!(gate.release_after_operational_event(), None);
-        let (k2, _) = gate.push_agent_message_delta(" Dopo il tool.", None).unwrap();
+        let (k2, _) = gate
+            .push_agent_message_delta(" Dopo il tool.", None)
+            .unwrap();
         assert_eq!(k2, CodexAgentMessagePhaseKind::FinalAnswer);
         assert_eq!(
             gate.cumulative_text(),
@@ -1195,31 +1131,25 @@ mod tests {
     #[test]
     fn codex_agent_message_gate_resolves_phase_from_item_started_map() {
         let mut gate = CodexAgentMessageGate::default();
-        gate.record_agent_message_item_started(
-            "item_am_1".to_string(),
-            "commentary".to_string(),
-        );
+        gate.record_agent_message_item_started("item_am_1".to_string(), "commentary".to_string());
         let payload = json!({"itemId": "item_am_1", "delta": "piano"});
         assert_eq!(
-            gate.resolve_agent_message_phase_for_delta_payload(&payload).as_deref(),
+            gate.resolve_agent_message_phase_for_delta_payload(&payload)
+                .as_deref(),
             Some("commentary")
         );
         let ph = gate.resolve_agent_message_phase_for_delta_payload(&payload);
-        let (k, _) = gate.push_agent_message_delta("piano", ph.as_deref()).unwrap();
-        assert_eq!(k, CodexAgentMessagePhaseKind::Commentary);
+        assert!(gate.push_agent_message_delta("piano", ph.as_deref()).is_none());
         assert_eq!(gate.cumulative_text(), "");
     }
 
     #[test]
     fn codex_agent_message_gate_splits_commentary_from_final_answer() {
         let mut gate = CodexAgentMessageGate::default();
-        let (k0, d0) = gate
+        assert!(gate
             .push_agent_message_delta("Userò skill.", Some("commentary"))
-            .unwrap();
-        assert_eq!(k0, CodexAgentMessagePhaseKind::Commentary);
-        assert_eq!(d0, "Userò skill.");
+            .is_none());
         assert_eq!(gate.cumulative_text(), "");
-        assert_eq!(gate.commentary_cumulative(), "Userò skill.");
 
         let (k1, _) = gate
             .push_agent_message_delta("Ecco la risposta.", Some("final_answer"))
@@ -1292,20 +1222,14 @@ mod tests {
 
     #[test]
     fn codex_readable_name_extracts_words() {
-        let name = codex_readable_name(
-            "Analyze the database connection pooling",
-            "Explorer",
-        );
+        let name = codex_readable_name("Analyze the database connection pooling", "Explorer");
         assert!(!name.is_empty());
         assert!(name.contains(' '), "Should have spaces: {}", name);
     }
 
     #[test]
     fn codex_readable_name_caps_at_5_words() {
-        let name = codex_readable_name(
-            "one two three four five six seven eight",
-            "Fallback",
-        );
+        let name = codex_readable_name("one two three four five six seven eight", "Fallback");
         assert!(name.split_whitespace().count() <= 5);
     }
 

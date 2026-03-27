@@ -56,11 +56,17 @@ struct ProfileSwitcherView: View {
             )
         }
         .onAppear {
-            accountsStore.bootstrapAccountsIfNeeded()
-            router.bootstrapActiveSelectionsIfNeeded()
+            Task { @MainActor in
+                await Task.yield()
+                accountsStore.bootstrapAccountsIfNeeded()
+                router.bootstrapActiveSelectionsIfNeeded()
+            }
         }
         .onChange(of: accountsStore.accounts) { _ in
-            router.bootstrapActiveSelectionsIfNeeded()
+            Task { @MainActor in
+                await Task.yield()
+                router.bootstrapActiveSelectionsIfNeeded()
+            }
         }
     }
 }

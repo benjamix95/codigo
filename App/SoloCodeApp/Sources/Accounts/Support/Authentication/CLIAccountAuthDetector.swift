@@ -89,7 +89,7 @@ enum CLIAccountAuthDetector {
         }
         switch provider {
         case .codex:
-            return CodexDetector.findCodexPath(customPath: nil) ?? PathFinder.find(executable: "codex")
+            return CodexDetector.findCodexPath(customPath: nil)
         case .claude:
             return PathFinder.find(executable: "claude")
         case .gemini:

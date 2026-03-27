@@ -29,7 +29,10 @@ final class CLIAccountsStore: ObservableObject {
     init() {
         self.multiAccountEnabled = UserDefaults.standard.bool(forKey: multiEnabledKey)
         load()
-        bootstrapAccountsIfNeeded()
+        Task { @MainActor [weak self] in
+            await Task.yield()
+            self?.bootstrapAccountsIfNeeded()
+        }
     }
 
     /// Ensures account bootstrap invariants.

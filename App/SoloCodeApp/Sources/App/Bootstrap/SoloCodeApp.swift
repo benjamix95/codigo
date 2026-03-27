@@ -25,6 +25,7 @@ struct SoloCodeApp: App {
     @State var didStartCodeReviewCommandLoop = false
     @State var didStartBugHunterCommandLoop = false
     @State private var startupReady = false
+    @State private var didRunRootBootstrap = false
 
     @AppStorage("openai_api_key") var apiKey = ""
     @AppStorage("openai_model") var model = "gpt-4o-mini"
@@ -119,51 +120,11 @@ struct SoloCodeApp: App {
         }
         .onAppear {
             configureWindow()
-            bootstrapPersistenceIfNeeded()
-                Task { @MainActor in
-                    SoloCodeSkillsPolicySource.ensureSkillsDirectoryExists()
-                    FontPreferences.registerBundledFonts()
-                    projectContextStore.ensureWorkspaceContexts(workspaceStore.workspaces)
-                    workspaceStore.syncActiveWorkspace(with: projectContextStore.activeContext)
-                    SoloCodeSkillsPolicySource.ensureProjectSkillsDirectories(
-                        forWorkspacePaths: workspaceStore.activeWorkspacePaths.map(\.path)
-                    )
-                chatStore.migrateLegacyContextsIfNeeded(
-                    contextStore: projectContextStore, workspaceStore: workspaceStore)
-                chatStore.backfillPlanAttachmentsIfNeeded(historyStore: planHistoryStore)
-                CLIAccountsStore.shared.bootstrapAccountsIfNeeded()
-                CLIAccountRouter.shared.bootstrapActiveSelectionsIfNeeded()
-                CodexMCPHealthStore.shared.refresh()
-                await appUpdateCenter.checkForUpdates()
-                registerProviders()
-                pipelineIntegrationService.configure(
-                    chatStore: chatStore,
-                    taskActivityStore: taskActivityStore,
-                    swarmProgressStore: swarmProgressStore,
-                    todoStore: todoStore,
-                    executionController: executionController
-                )
-                gitPanelStore.postCommitBugHunterObserver = { commit, gitRoot in
-                    Task { @MainActor in
-                        self.enqueueBugHunterPostCommit(
-                            commit: commit,
-                            gitRoot: gitRoot,
-                            triggerKind: .appCommit
-                        )
-                    }
-                }
-                startCodeReviewCommandLoopIfNeeded()
-                startBugHunterCommandLoopIfNeeded()
-                NotificationCenter.default.addObserver(
-                    forName: .soloCodeWillTerminateSaveDrafts,
-                    object: nil,
-                    queue: .main
-                ) { [chatStore] _ in
-                    MainActor.assumeIsolated {
-                        chatStore.saveDraftsImmediately()
-                    }
-                }
-            }
+        }
+        .task(id: startupReady) {
+            guard startupReady, !didRunRootBootstrap else { return }
+            didRunRootBootstrap = true
+            await performDeferredRootBootstrap()
         }
     }
 
@@ -188,5 +149,59 @@ struct SoloCodeApp: App {
             .environmentObject(accountUsageDashboardStore)
             .environmentObject(appUpdateCenter)
             .environmentObject(pipelineIntegrationService)
+    }
+
+    @MainActor
+    private func performDeferredRootBootstrap() async {
+        // Avoid mutating observed stores in the same SwiftUI update turn that
+        // mounts the root view. This startup path is especially sensitive in
+        // the app-host test runner.
+        await Task.yield()
+
+        bootstrapPersistenceIfNeeded()
+        SoloCodeSkillsPolicySource.ensureSkillsDirectoryExists()
+        FontPreferences.registerBundledFonts()
+        projectContextStore.ensureWorkspaceContexts(workspaceStore.workspaces)
+        workspaceStore.syncActiveWorkspace(with: projectContextStore.activeContext)
+        SoloCodeSkillsPolicySource.ensureProjectSkillsDirectories(
+            forWorkspacePaths: workspaceStore.activeWorkspacePaths.map(\.path)
+        )
+        chatStore.migrateLegacyContextsIfNeeded(
+            contextStore: projectContextStore,
+            workspaceStore: workspaceStore
+        )
+        chatStore.backfillPlanAttachmentsIfNeeded(historyStore: planHistoryStore)
+        CLIAccountsStore.shared.bootstrapAccountsIfNeeded()
+        CLIAccountRouter.shared.bootstrapActiveSelectionsIfNeeded()
+        CodexMCPHealthStore.shared.refresh()
+        await appUpdateCenter.checkForUpdates()
+        registerProviders()
+        pipelineIntegrationService.configure(
+            chatStore: chatStore,
+            taskActivityStore: taskActivityStore,
+            swarmProgressStore: swarmProgressStore,
+            todoStore: todoStore,
+            executionController: executionController
+        )
+        gitPanelStore.postCommitBugHunterObserver = { commit, gitRoot in
+            Task { @MainActor in
+                self.enqueueBugHunterPostCommit(
+                    commit: commit,
+                    gitRoot: gitRoot,
+                    triggerKind: .appCommit
+                )
+            }
+        }
+        startCodeReviewCommandLoopIfNeeded()
+        startBugHunterCommandLoopIfNeeded()
+        NotificationCenter.default.addObserver(
+            forName: .soloCodeWillTerminateSaveDrafts,
+            object: nil,
+            queue: .main
+        ) { [chatStore] _ in
+            MainActor.assumeIsolated {
+                chatStore.saveDraftsImmediately()
+            }
+        }
     }
 }

@@ -54,10 +54,13 @@ struct CLIToolsSettingsSection: View {
             )
         }
         .onAppear {
-            cliAccountsStore.bootstrapAccountsIfNeeded()
-            codexMCPHealth.refresh()
-            geminiState.refresh()
-            kiloState.refresh()
+            Task { @MainActor in
+                await Task.yield()
+                cliAccountsStore.bootstrapAccountsIfNeeded()
+                codexMCPHealth.refresh()
+                geminiState.refresh()
+                kiloState.refresh()
+            }
         }
         .onChange(of: cliConfig.codexPath) { _ in codexState.refresh(); syncCoordinator.syncCodex() }
         .onChange(of: cliConfig.codexSandbox) { _ in syncCoordinator.syncCodex(); saveCodexToml() }

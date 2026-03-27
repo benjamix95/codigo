@@ -235,6 +235,10 @@ final class ConversationFlowCoordinator: ObservableObject {
             var pendingReasoningSnapshot = ""
             var coalescedAssistantTextDirty = false
             var consecutiveEmptyUiPolls = 0
+            let suppressReasoningUI = ChatReasoningPresentationPolicy.shouldSuppressReasoningUI(
+                messageProviderId: nil,
+                fallbackTurnProviderId: provider.id
+            )
             /// Riduce hop MainActor per thinking Claude CLI (delta densi).
             var claudeReasoningLastFlush = ContinuousClock.now
             var claudeReasoningLastSentLen = 0
@@ -362,6 +366,9 @@ final class ConversationFlowCoordinator: ObservableObject {
                     case .raw:
                         await flushCoalescedAssistantText()
                         let rawType = event.rawType ?? "provider_raw"
+                        if rawType == "reasoning", suppressReasoningUI {
+                            continue
+                        }
                         if rawType == "reasoning", runtimeStreamLogger.isEnabled(type: .debug) {
                             runtimeStreamLogger.debug(
                                 ".raw reasoning keys=\(event.payload.keys.sorted(), privacy: .public) hasSeenNarrative=\(hasSeenNarrativeEvent, privacy: .public)"
@@ -373,7 +380,9 @@ final class ConversationFlowCoordinator: ObservableObject {
                                 pendingReasoningSnapshot = ""
                                 claudeReasoningLastSentLen = 0
                             }
-                            hasSeenNarrativeEvent = true
+                            if rawType == "reasoning" || !suppressReasoningUI {
+                                hasSeenNarrativeEvent = true
+                            }
                         }
                         if !hasSeenNarrativeEvent
                             && shouldBufferOperationalRawEventUntilNarrative(rawType: rawType, payload: event.payload)

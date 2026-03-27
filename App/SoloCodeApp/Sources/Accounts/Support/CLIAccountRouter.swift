@@ -31,11 +31,15 @@ final class CLIAccountRouter: ObservableObject {
         self.accountsStore = accountsStore
         self.ledger = ledger
         accountsStore.$accounts
+            .dropFirst()
             .sink { [weak self] _ in
                 self?.scheduleBootstrapActiveSelectionsIfNeeded()
             }
             .store(in: &cancellables)
-        scheduleBootstrapActiveSelectionsIfNeeded()
+        Task { @MainActor [weak self] in
+            await Task.yield()
+            self?.scheduleBootstrapActiveSelectionsIfNeeded()
+        }
     }
 
     deinit {
@@ -217,14 +221,14 @@ final class CLIAccountRouter: ObservableObject {
         let generation = bootstrapGeneration
         let accounts = accountsStore.accounts
         let currentState = stateSnapshot()
-        let executablePaths = Dictionary(
-            uniqueKeysWithValues: CLIProviderKind.allCases.map { kind in
-                (kind, CLIAccountRouterRustBridge.providerExecutablePath(for: kind))
-            }
-        )
 
         bootstrapWorkItem?.cancel()
         let workItem = DispatchWorkItem {
+            let executablePaths = Dictionary(
+                uniqueKeysWithValues: CLIProviderKind.allCases.map { kind in
+                    (kind, CLIAccountRouterRustBridge.providerExecutablePath(for: kind))
+                }
+            )
             let snapshots = CLIAccountRouterRustBridge.accountSnapshots(accounts: accounts, executablePaths: executablePaths)
             let request = CLIAccountRoutingRequestBridge(
                 schemaVersion: 1,

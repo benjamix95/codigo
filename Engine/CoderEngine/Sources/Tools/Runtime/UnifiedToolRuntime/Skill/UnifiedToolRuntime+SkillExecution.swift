@@ -27,7 +27,7 @@ extension UnifiedToolRuntime {
             )
         }
 
-        let codexPath = PathFinder.find(executable: "codex") ?? "/usr/local/bin/codex"
+        let codexPath = CodexDetector.findCodexPath(customPath: nil) ?? "/usr/local/bin/codex"
         guard FileManager.default.fileExists(atPath: codexPath) else {
             return failure(
                 "Codex CLI not found. Install with: brew install codex",
