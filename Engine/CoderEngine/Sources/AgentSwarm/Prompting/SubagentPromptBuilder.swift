@@ -154,15 +154,15 @@ public struct SubagentPromptBuilder {
             switch role {
             case .reviewer:
                 roleTail = """
-            **Role emphasis:** when a review session applies, actively use `coderide_review_*` **together with** audits and search — not instead of them.
+            **Role emphasis:** when a review session applies, actively use the live `review_*` family **together with** audits and search — not instead of them.
             """
             case .bugHunter:
                 roleTail = """
-            **Role emphasis:** stress `coderide_audit_bug_*`, BugHunter, and regression-oriented audits, but still call **any** other listed tool that strengthens proof.
+            **Role emphasis:** stress the live bug-audit and BugHunter families, plus regression-oriented audits, but still call **any** other listed tool that strengthens proof.
             """
             case .securityAuditor:
                 roleTail = """
-            **Role emphasis:** stress `coderide_audit_security_*` and supply-chain signals, but also use bug audits, review, and correlate/verify when they surface related risk.
+            **Role emphasis:** stress the live security-audit family and supply-chain signals, but also use bug audits, review, and correlate/verify when they surface related risk.
             """
             default:
                 roleTail = """
@@ -174,7 +174,7 @@ public struct SubagentPromptBuilder {
 
             **Policy — READ-ONLY:** Do NOT edit, create, or delete files. Do NOT run shell or other tools that \
             **mutate** the workspace (writes, installs, git commit/push). Read-only checks (linters as exposed, \
-            dry-runs, `coderide_*` audits/review that only analyze) are encouraged.
+            dry-runs, and any read-only audit/review tools exposed in the live session) are encouraged.
             \(fullCatalogReminder)
             \(roleTail)
             """
@@ -184,7 +184,7 @@ public struct SubagentPromptBuilder {
         case .coder, .debugger, .testWriter, .docWriter:
             writeTail = """
             **Role:** You may use **mutating** tools (edit, bash, tests) per runtime policy. Still prefer the \
-            broadest useful mix: all `coderide_*`, `skill`, MCP, and native tools in the live list.
+            broadest useful mix: all relevant runtime, MCP, `skill`, and native tools in the live list.
             **macOS UI verification:** If the task touches app/UI behavior, verification is part of the job. \
             Use native host evidence proactively when helpful, even if the user did not explicitly ask. \
             Prefer the dedicated `macos_*` tools first (`macos_focus_app`, `macos_capture_screenshot`, \

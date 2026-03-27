@@ -56,6 +56,24 @@ final class MCPSubagentRoutingTests: XCTestCase {
         XCTAssertFalse(prompt.contains("coderide_policy_ack"))
     }
 
+    func testPromptBuilderReviewerAvoidsHardcodedCoderideWorkflowPrefixes() {
+        let prompt = SubagentPromptBuilder.build(role: .reviewer, task: "review this")
+        XCTAssertTrue(prompt.contains("review_"))
+        XCTAssertFalse(prompt.contains("coderide_review_"))
+        XCTAssertFalse(prompt.contains("coderide_audit_bug_"))
+        XCTAssertFalse(prompt.contains("coderide_audit_security_"))
+    }
+
+    func testPromptBuilderSecurityAndBugHunterAvoidHardcodedCoderideWorkflowPrefixes() {
+        let securityPrompt = SubagentPromptBuilder.build(role: .securityAuditor, task: "audit security")
+        XCTAssertFalse(securityPrompt.contains("coderide_audit_security_"))
+        XCTAssertFalse(securityPrompt.contains("coderide_review_"))
+
+        let bugPrompt = SubagentPromptBuilder.build(role: .bugHunter, task: "hunt regressions")
+        XCTAssertFalse(bugPrompt.contains("coderide_audit_bug_"))
+        XCTAssertFalse(bugPrompt.contains("coderide_review_"))
+    }
+
     func testBackendResolverPrefersCodexForReadOnlyRole() {
         let selection = SubagentBackendResolver.selectBackend(
             for: .explorer,

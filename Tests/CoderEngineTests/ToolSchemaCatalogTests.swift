@@ -151,6 +151,22 @@ final class ToolSchemaCatalogTests: XCTestCase {
             "plan_history_read",
             "plan_diff",
             "plan_request_user_input",
+            "review_start",
+            "review_status",
+            "review_findings",
+            "review_prepare_patch",
+            "review_apply_patch",
+            "review_verify_patch",
+            "security_start",
+            "security_status",
+            "security_findings",
+            "security_prepare_patch",
+            "security_apply_patch",
+            "bughunter_start",
+            "bughunter_status",
+            "bughunter_findings",
+            "bughunter_autofix_preview",
+            "bughunter_autofix_apply",
             "mermaid_render",
             "policy_ack",
             "activate_plan_mode",
@@ -179,6 +195,25 @@ final class ToolSchemaCatalogTests: XCTestCase {
         XCTAssertTrue(names.contains("subagent_bugHunter"))
         XCTAssertTrue(names.contains("subagent_testWriter"))
         XCTAssertTrue(names.contains("subagent_securityAuditor"))
+    }
+
+    func testAPISchemasIncludeCriticalWorkflowFamiliesWithoutMCPWarmup() {
+        let openAINames = Set(
+            ToolSchemaCatalog.openAIFunctionTools.compactMap { item -> String? in
+                guard let function = item["function"] as? [String: Any] else { return nil }
+                return function["name"] as? String
+            }
+        )
+        let anthropicNames = Set(ToolSchemaCatalog.anthropicTools.compactMap { $0["name"] as? String })
+
+        for name in [
+            "review_start", "review_findings", "review_prepare_patch",
+            "security_start", "security_findings", "security_prepare_patch",
+            "bughunter_start", "bughunter_findings", "bughunter_autofix_preview",
+        ] {
+            XCTAssertTrue(openAINames.contains(name), "Missing OpenAI tool: \(name)")
+            XCTAssertTrue(anthropicNames.contains(name), "Missing Anthropic tool: \(name)")
+        }
     }
 
     func testNativeRegistryResolvesNameCollisionsDeterministically() {

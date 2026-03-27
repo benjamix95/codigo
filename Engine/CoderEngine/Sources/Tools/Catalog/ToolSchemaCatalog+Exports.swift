@@ -2,7 +2,7 @@ import Foundation
 
 enum ToolSchemaCatalog {
     static let coreEntries: [ToolSchemaEntry] =
-        fileTools + runtimeTools + auditTools + indexTools + debugTools + advancedTools + planTools + integrationTools
+        fileTools + runtimeTools + auditTools + indexTools + debugTools + advancedTools + planTools + workflowTools + integrationTools
 
     static var entries: [ToolSchemaEntry] {
         coreEntries + MCPNativeToolRegistry.shared.entries

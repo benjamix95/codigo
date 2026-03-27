@@ -21,7 +21,7 @@ enum PromptToolsPolicy {
     - CRITICAL: Do NOT default to Bash for everything. Use the right structured family first, then Bash only as a fallback when the current runtime truly lacks the needed structured tool.
     - ALWAYS read a file before editing it — never edit blind.
     - If the tool schema exposes prefixed aliases (for example `coderide_read`, `coderide_grep`, `coderide_semantic_search`), those are just live aliases for the same canonical tool family. Use the exact alias shown by the session, not a guessed variant.
-    - **CoderIDE MCP (server Rust):** when connected, the function-calling schema lists tools as `coderide_*` (for example `\(canonicalToolName("read"))`, `\(canonicalToolName("plan_create"))`, `\(canonicalToolName("review_start"))`). Use those exact names from the live tool list for this session. Unprefixed names (`read`, `grep`, `todo_write`) may appear in other runtimes but are not guaranteed here.
+    - **Live schema rule:** when a session exposes `coderide_*` aliases, treat them as compatibility aliases rather than the default naming model. Prefer canonical runtime names in prompts and planning, and switch to the exact alias only if that alias is the one actually exposed by the live tool list for the current runtime.
     - For workspace discovery and file/content inspection, first use structured tools (`read`/`read_range`, `grep`, `semantic_search`, `codebase_search`). Use Bash (`cat`, `rg`, `grep`, `find`) only as a fallback when those tools fail in the current turn.
     - For macOS app/UI work, use native verification tools proactively whenever they materially reduce uncertainty. Do NOT wait for the user to explicitly ask if you are:
       • debugging a visual/UI bug;
