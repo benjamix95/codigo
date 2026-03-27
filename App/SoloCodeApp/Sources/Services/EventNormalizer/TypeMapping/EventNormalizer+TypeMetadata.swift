@@ -41,6 +41,9 @@ func userFacingToolName(
 
 extension EventNormalizer {
     static func defaultTitle(for type: String) -> String {
+        if let sharedTitle = TaskActivityTextStyle.defaultTitle(for: type) {
+            return sharedTitle
+        }
         switch type {
         case "process_paused":
             return "Process paused"
@@ -74,58 +77,8 @@ extension EventNormalizer {
             return "Timeout tool"
         case "permission_denied":
             return "Permission denied"
-        case "debug_log":
-            return "Debug log"
-        case "debug_query":
-            return "Debug query"
-        case "debug_session":
-            return "Debug session"
-        case "debug_native_session":
-            return "Native debug session"
-        case "debug_hypothesize":
-            return "Debug hypothesis"
-        case "debug_mark":
-            return "Debug marker"
-        case "debug_clean":
-            return "Debug clean"
-        case "debug_trace_analyze":
-            return "Debug trace analysis"
-        case "debug_instrument":
-            return "Debug instrumentation"
-        case "debug_timeline":
-            return "Debug timeline"
-        case "debug_snapshot":
-            return "Debug snapshot"
-        case "debug_test_check":
-            return "Debug test check"
-        case "debug_phase_update":
-            return "Debug phase update"
-        case "debug_user_request":
-            return "Debug user request"
-        case "debug_resolved":
-            return "Debug resolved"
         case "policy_ack":
             return "Policy acknowledged"
-        case "plan_create":
-            return "Plan created"
-        case "plan_read":
-            return "Plan read"
-        case "plan_step_upsert":
-            return "Plan step upsert"
-        case "plan_step_batch_update":
-            return "Plan steps batch update"
-        case "plan_step_reorder":
-            return "Plan step order updated"
-        case "plan_step_dependency_set":
-            return "Plan step dependencies updated"
-        case "plan_set_walkthrough":
-            return "Plan walkthrough updated"
-        case "plan_history_read":
-            return "Plan history read"
-        case "plan_diff":
-            return "Plan diff computed"
-        case "plan_request_user_input":
-            return "Plan clarification requested"
         case "codex_thread_token_usage":
             return "Thread token usage updated"
         case "codex_thread_status":
