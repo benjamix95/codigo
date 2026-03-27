@@ -11,7 +11,7 @@ struct DebugPanelView: View {
     let onStop: () -> Void
     let onProceed: () -> Void
     let onFixed: () -> Void
-    let onSubmitDebugClarification: (String) -> Void
+    let onSubmitDebugClarification: (DebugClarificationSubmission) -> Void
 
     @State var clarificationSelectedLetter: String?
     @State var clarificationCustomNotes: String = ""

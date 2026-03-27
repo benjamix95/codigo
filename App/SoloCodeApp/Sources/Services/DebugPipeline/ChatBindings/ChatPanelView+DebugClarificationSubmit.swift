@@ -6,8 +6,8 @@ import UniformTypeIdentifiers
 extension ChatPanelView {
     /// Invia la risposta strutturata del pannello Debug alla chat come messaggio utente e avvia un turno LLM.
     @MainActor
-    internal func submitDebugClarificationToAgent(_ answer: String) {
-        let text = answer.trimmingCharacters(in: .whitespacesAndNewlines)
+    internal func submitDebugClarificationToAgent(_ submission: DebugClarificationSubmission) {
+        let text = submission.agentPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         guard effectiveContext.hasSendableProjectContext else {
             showNoProjectOpenAlert = true
@@ -208,7 +208,7 @@ extension ChatPanelView {
         let imagePathsToStore = attachmentBundle.chat
             .filter { $0.kind == .image }
             .map(\.localPath)
-        let displayedInput = text
+        let displayedInput = submission.chatDisplayText.trimmingCharacters(in: .whitespacesAndNewlines)
         let contentToStore =
             displayedInput.isEmpty
             ? (attachmentBundle.chat.isEmpty ? "" : "[Attached files]")

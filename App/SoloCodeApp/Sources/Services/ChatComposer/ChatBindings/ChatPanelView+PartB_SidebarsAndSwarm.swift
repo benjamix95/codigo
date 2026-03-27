@@ -95,8 +95,8 @@ extension ChatPanelView {
                     return
                 }
             },
-            onSubmitDebugClarification: { answer in
-                submitDebugClarificationToAgent(answer)
+            onSubmitDebugClarification: { submission in
+                submitDebugClarificationToAgent(submission)
             }
         )
         .frame(width: CGFloat(uiSettings.debugPanelWidthStorage))

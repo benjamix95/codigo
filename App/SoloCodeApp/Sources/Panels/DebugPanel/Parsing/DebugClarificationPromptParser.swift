@@ -26,14 +26,34 @@ enum DebugClarificationPromptParser {
         }
     }()
 
+    private static let inlineOptionMarker: NSRegularExpression? = try? NSRegularExpression(
+        pattern: #"(?i)(?:^|[\s;])\(?([A-Za-z])\)?[.)]\s+"#,
+        options: []
+    )
+
     static func parse(_ raw: String) -> Parsed {
         let normalized = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty else {
             return Parsed(preamble: "", options: [])
         }
         let lines = normalized.components(separatedBy: .newlines)
-        var hits: [(lineIndex: Int, letter: String, body: String)] = []
+        let hits = extractLineHits(from: lines)
 
+        if hits.count >= 2 {
+            return buildParsedFromLineHits(hits, lines: lines)
+        }
+
+        if let inlineParsed = parseInlineOptions(from: normalized) {
+            return inlineParsed
+        }
+
+        return Parsed(preamble: normalized, options: [])
+    }
+
+    private static func extractLineHits(
+        from lines: [String]
+    ) -> [(lineIndex: Int, letter: String, body: String)] {
+        var hits: [(lineIndex: Int, letter: String, body: String)] = []
         for (idx, line) in lines.enumerated() {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             if trimmed.isEmpty { continue }
@@ -50,11 +70,13 @@ enum DebugClarificationPromptParser {
                 break
             }
         }
+        return hits
+    }
 
-        guard hits.count >= 2 else {
-            return Parsed(preamble: normalized, options: [])
-        }
-
+    private static func buildParsedFromLineHits(
+        _ hits: [(lineIndex: Int, letter: String, body: String)],
+        lines: [String]
+    ) -> Parsed {
         let firstIdx = hits[0].lineIndex
         let preamble: String
         if firstIdx == 0 {
@@ -65,6 +87,46 @@ enum DebugClarificationPromptParser {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
         }
 
+        return Parsed(preamble: preamble, options: deduplicatedOptions(from: hits))
+    }
+
+    private static func parseInlineOptions(from normalized: String) -> Parsed? {
+        guard let inlineOptionMarker else { return nil }
+        let range = NSRange(normalized.startIndex..., in: normalized)
+        let matches = inlineOptionMarker.matches(in: normalized, range: range)
+        guard matches.count >= 2 else { return nil }
+
+        let firstMatchLocation = matches[0].range.location
+        guard let firstMarkerRange = Range(NSRange(location: firstMatchLocation, length: 0), in: normalized) else {
+            return nil
+        }
+        let preamble = normalized[..<firstMarkerRange.lowerBound]
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        var hits: [(lineIndex: Int, letter: String, body: String)] = []
+        for (index, match) in matches.enumerated() {
+            guard let letterRange = Range(match.range(at: 1), in: normalized) else { continue }
+            let bodyStart = normalized.index(normalized.startIndex, offsetBy: match.range.location + match.range.length)
+            let bodyEnd: String.Index = {
+                if index + 1 < matches.count {
+                    return normalized.index(normalized.startIndex, offsetBy: matches[index + 1].range.location)
+                }
+                return normalized.endIndex
+            }()
+            let body = normalized[bodyStart..<bodyEnd]
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let letter = String(normalized[letterRange]).lowercased()
+            guard !letter.isEmpty, !body.isEmpty else { continue }
+            hits.append((lineIndex: index, letter: letter, body: body))
+        }
+
+        guard hits.count >= 2 else { return nil }
+        return Parsed(preamble: preamble, options: deduplicatedOptions(from: hits))
+    }
+
+    private static func deduplicatedOptions(
+        from hits: [(lineIndex: Int, letter: String, body: String)]
+    ) -> [Parsed.Option] {
         var seen = Set<String>()
         var options: [Parsed.Option] = []
         for hit in hits {
@@ -78,7 +140,6 @@ enum DebugClarificationPromptParser {
                 )
             )
         }
-
-        return Parsed(preamble: preamble, options: options)
+        return options
     }
 }

@@ -49,4 +49,14 @@ final class DebugClarificationPromptParserTests: XCTestCase {
         XCTAssertEqual(p.options.count, 2)
         XCTAssertTrue(p.preamble.isEmpty)
     }
+
+    func testParse_inlineLetteredOptionsOnSingleLine() {
+        let raw = """
+        Dimmi il caso più vicino: A) solo su retry B) solo con Claude C) sempre
+        """
+        let p = DebugClarificationPromptParser.parse(raw)
+        XCTAssertEqual(p.options.map(\.letter), ["a", "b", "c"])
+        XCTAssertEqual(p.options.map(\.text), ["solo su retry", "solo con Claude", "sempre"])
+        XCTAssertTrue(p.preamble.contains("Dimmi il caso più vicino"))
+    }
 }
