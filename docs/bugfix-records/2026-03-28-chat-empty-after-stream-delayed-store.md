@@ -38,8 +38,8 @@
 - **Evidenza:** con **H24** presente (`autoscroll_bottom_executed`) l’utente riproduce ancora timeline invisibile — `scrollTo` non è sufficiente; resta plausibile **LazyVStack** in `ScrollView` su macOS che non ridisegna il viewport fino a resize.
 - **Fix:** per `messages.count ≤ 160` la colonna timeline usa **`VStack`**; oltre la soglia **`LazyVStack`** come prima (`ChatPanelView+PartD_MessagesStack.swift`, `ChatMessagesTimelineStack`).
 
-### Fix 5 — snapshot fermo mentre `streamContentVersion` ticka (H11)
+### Fix 6 — snapshot fermo mentre `streamContentVersion` ticka (H11)
 
-- **Evidenza:** `refresh_ran_but_snapshot_unchanged_while_active` (H11) con `freshLastContentLen` piatto (es. 569) per molti tick, poi `snapshot_state_replaced` quando `content` salta (es. 1036): durante lo stream il testo live sta spesso in **`primaryTextSnapshot`**, non in `content`.
-- **Causa:** `needsSnapshotUpdate` confrontava solo `messages.last.content` / blocks / reasoning, non **`resolvedPrimaryText`** (che preferisce `primaryTextSnapshot`).
-- **Fix:** in `ChatPanelView+PartC_MessageSnapshotRefresh.swift`, aggiungere `snapshotLastResolvedPrimary != freshLastResolvedPrimary` al gate `needsSnapshotUpdate`.
+- **Evidenza:** `refresh_ran_but_snapshot_unchanged_while_active` (H11) con `freshLastContentLen` piatto (es. 569, 97, 177) per molti tick mentre `streamContentVersion` sale; a volte **`resolvedPrimaryText`** resta ferma perché `primaryTextSnapshot` non vuoto ma obsoleto mentre il delta sta in **`blocks[].text`**.
+- **Causa:** `needsSnapshotUpdate` non confrontava l’universo testo **`resolvedTimelineBlocks`** (somma `text` + `items`).
+- **Fix:** in `ChatPanelView+PartC_MessageSnapshotRefresh.swift`, oltre a `resolvedPrimaryText`, aggiungere `chatMessageTimelinePayloadCharSum` su `messages.last` al gate `needsSnapshotUpdate`. Log H11 arricchito con `freshTimelinePayloadLen`.

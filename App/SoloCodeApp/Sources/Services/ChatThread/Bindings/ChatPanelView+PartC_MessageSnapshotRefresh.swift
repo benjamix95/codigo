@@ -59,6 +59,10 @@ extension ChatPanelView {
         let snapshotLastResolvedPrimary =
             messagesConversationSnapshot?.messages.last.map { $0.resolvedPrimaryText.count } ?? -1
         let freshLastResolvedPrimary = fresh?.messages.last.map { $0.resolvedPrimaryText.count } ?? -1
+        let snapshotLastTimelinePayload = chatMessageTimelinePayloadCharSum(
+            messagesConversationSnapshot?.messages.last
+        )
+        let freshLastTimelinePayload = chatMessageTimelinePayloadCharSum(fresh?.messages.last)
 
         // Only update conversation if actually different.
         let needsSnapshotUpdate =
@@ -69,6 +73,7 @@ extension ChatPanelView {
             || snapshotLastStreaming != freshLastStreaming
             || snapshotLastBlocks != freshLastBlocks
             || snapshotLastResolvedPrimary != freshLastResolvedPrimary
+            || snapshotLastTimelinePayload != freshLastTimelinePayload
 
         if needsSnapshotUpdate {
             if let fresh {
@@ -160,6 +165,7 @@ extension ChatPanelView {
                     "streamContentVersion": "\(streaming.streamContentVersion)",
                     "freshCount": "\(freshCount)",
                     "freshLastContentLen": "\(freshLastContent)",
+                    "freshTimelinePayloadLen": "\(freshLastTimelinePayload)",
                     "snapshotIsLoading": "\(snapshotIsLoading)",
                     "freshLoading": "\(freshLoading)",
                 ]
@@ -271,5 +277,13 @@ extension ChatPanelView {
         )
         if let lastApplyAt = streaming.lastMainChatStreamApplyAt {
         }
+    }
+}
+
+/// Lo stream può aggiornare solo `blocks[].text` (timeline) mentre `content` e `primaryTextSnapshot` restano fermi → H11 con `resolvedPrimaryText` piatta.
+private func chatMessageTimelinePayloadCharSum(_ message: ChatMessage?) -> Int {
+    guard let message else { return -1 }
+    return message.resolvedTimelineBlocks.reduce(0) { partial, block in
+        partial + block.text.count + block.items.reduce(0) { $0 + $1.count }
     }
 }
