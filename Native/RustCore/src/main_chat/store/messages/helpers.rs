@@ -65,7 +65,18 @@ pub fn sync_primary_text_block(message: &mut MainChatStoreMessageSnapshot, conte
     message.primary_text_snapshot = Some(content.to_string());
 
     let blocks = message.blocks.get_or_insert_with(Vec::new);
-    if let Some(index) = blocks.iter().position(|block| block.kind == "primaryText") {
+    let primary_indices: Vec<_> = blocks
+        .iter()
+        .enumerate()
+        .filter_map(|(index, block)| (block.kind == "primaryText").then_some(index))
+        .collect();
+    if primary_indices.len() > 1 {
+        // Un singolo payload aggregato non sa ricostruire la segmentazione
+        // `text/tool/text`: preserviamo i blocchi esistenti e aggiorniamo solo
+        // il testo canonico del messaggio.
+        return;
+    }
+    if let Some(index) = primary_indices.first().copied() {
         blocks[index].text = content.to_string();
     } else {
         blocks.insert(

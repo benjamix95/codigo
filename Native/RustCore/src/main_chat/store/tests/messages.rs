@@ -312,6 +312,111 @@ fn sync_assistant_pipeline_state_preserves_existing_timeline_context_when_incomi
 }
 
 #[test]
+fn sync_assistant_pipeline_state_preserves_interleaved_primary_blocks() {
+    let mut request = action(
+        MainChatStoreSnapshot {
+            conversations: vec![conversation_with_messages(
+                "conv-interleaved",
+                "Interleaved",
+                vec![
+                    message("user-1", "user", "hello", false),
+                    app_core_protocol::main_chat_store::MainChatStoreMessageSnapshot {
+                        id: "assistant-1".to_string(),
+                        role: "assistant".to_string(),
+                        content: "Monolithic".to_string(),
+                        primary_text_snapshot: Some("Monolithic".to_string()),
+                        blocks: Some(vec![app_core_protocol::main_chat_store::MainChatStoreTimelineBlockSnapshot {
+                            id: "primary-text".to_string(),
+                            kind: "primaryText".to_string(),
+                            title: None,
+                            text: "Monolithic".to_string(),
+                            items: Vec::new(),
+                            metadata: Default::default(),
+                            is_collapsible: false,
+                            is_collapsed_by_default: false,
+                            sequence: 0,
+                        }]),
+                        turn_metadata: None,
+                        is_streaming: true,
+                        image_paths: None,
+                        attachments: None,
+                        plan_attachment: None,
+                        reasoning_text: None,
+                        subagent_cards: None,
+                    },
+                ],
+            )],
+            plan_boards: Default::default(),
+        },
+        "sync_assistant_pipeline_state",
+    );
+    request.conversation_id = Some("conv-interleaved".to_string());
+    request.message_id = Some("assistant-1".to_string());
+    request.message = Some(
+        app_core_protocol::main_chat_store::MainChatStoreMessageSnapshot {
+            id: "assistant-1".to_string(),
+            role: "assistant".to_string(),
+            content: "Prima parteSeconda parte".to_string(),
+            primary_text_snapshot: Some("Prima parteSeconda parte".to_string()),
+            blocks: Some(vec![
+                app_core_protocol::main_chat_store::MainChatStoreTimelineBlockSnapshot {
+                    id: "text-0".to_string(),
+                    kind: "primaryText".to_string(),
+                    title: None,
+                    text: "Prima parte".to_string(),
+                    items: Vec::new(),
+                    metadata: Default::default(),
+                    is_collapsible: false,
+                    is_collapsed_by_default: false,
+                    sequence: 0,
+                },
+                app_core_protocol::main_chat_store::MainChatStoreTimelineBlockSnapshot {
+                    id: "tool-marker-1".to_string(),
+                    kind: "toolMarker".to_string(),
+                    title: None,
+                    text: String::new(),
+                    items: Vec::new(),
+                    metadata: Default::default(),
+                    is_collapsible: false,
+                    is_collapsed_by_default: false,
+                    sequence: 1,
+                },
+                app_core_protocol::main_chat_store::MainChatStoreTimelineBlockSnapshot {
+                    id: "text-1".to_string(),
+                    kind: "primaryText".to_string(),
+                    title: None,
+                    text: "Seconda parte".to_string(),
+                    items: Vec::new(),
+                    metadata: Default::default(),
+                    is_collapsible: false,
+                    is_collapsed_by_default: false,
+                    sequence: 2,
+                },
+            ]),
+            turn_metadata: None,
+            is_streaming: true,
+            image_paths: None,
+            attachments: None,
+            plan_attachment: None,
+            reasoning_text: None,
+            subagent_cards: None,
+        },
+    );
+
+    let snapshot = unwrap_snapshot(handle_action(request));
+    let message = &snapshot.conversations[0].messages[1];
+    let blocks = message.blocks.as_ref().expect("blocks");
+    let kinds: Vec<_> = blocks.iter().map(|block| block.kind.as_str()).collect();
+    let primary_texts: Vec<_> = blocks
+        .iter()
+        .filter(|block| block.kind == "primaryText")
+        .map(|block| block.text.as_str())
+        .collect();
+    assert_eq!(kinds, vec!["primaryText", "toolMarker", "primaryText"]);
+    assert_eq!(primary_texts, vec!["Prima parte", "Seconda parte"]);
+}
+
+#[test]
 fn load_snapshot_normalizes_primary_text_and_reasoning_blocks() {
     let response = load_snapshot(MainChatStoreSnapshot {
         conversations: vec![

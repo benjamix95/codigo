@@ -140,19 +140,77 @@ fn merge_timeline_blocks(
     existing: Option<&Vec<app_core_protocol::main_chat_store::MainChatStoreTimelineBlockSnapshot>>,
     incoming: Option<&Vec<app_core_protocol::main_chat_store::MainChatStoreTimelineBlockSnapshot>>,
 ) -> Option<Vec<app_core_protocol::main_chat_store::MainChatStoreTimelineBlockSnapshot>> {
-    let mut merged = existing.cloned().unwrap_or_default();
-    for block in incoming.into_iter().flatten() {
-        if let Some(index) = merged.iter().position(|candidate| {
-            candidate.id == block.id
-                || ((block.kind == "primaryText" || block.kind == "reasoning")
-                    && candidate.kind == block.kind)
-        }) {
-            merged[index] = block.clone();
+    let existing_blocks = existing.cloned().unwrap_or_default();
+    let incoming_blocks = incoming.cloned().unwrap_or_default();
+    if incoming_blocks.is_empty() && existing_blocks.is_empty() {
+        return None;
+    }
+
+    let select_core_group = |kind: &str| -> Vec<
+        app_core_protocol::main_chat_store::MainChatStoreTimelineBlockSnapshot,
+    > {
+        let incoming_group: Vec<_> = incoming_blocks
+            .iter()
+            .filter(|block| block.kind == kind)
+            .cloned()
+            .collect();
+        if !incoming_group.is_empty() {
+            incoming_group
         } else {
-            merged.push(block.clone());
+            existing_blocks
+                .iter()
+                .filter(|block| block.kind == kind)
+                .cloned()
+                .collect()
+        }
+    };
+
+    let mut merged_core = Vec::new();
+    merged_core.extend(select_core_group("reasoning"));
+    merged_core.extend(select_core_group("primaryText"));
+    merged_core.extend(select_core_group("toolMarker"));
+    merged_core.sort_by(|lhs, rhs| {
+        lhs.sequence
+            .cmp(&rhs.sequence)
+            .then_with(|| {
+                timeline_core_kind_priority(&lhs.kind).cmp(&timeline_core_kind_priority(&rhs.kind))
+            })
+            .then_with(|| lhs.id.cmp(&rhs.id))
+    });
+
+    let mut merged_other: Vec<_> = existing_blocks
+        .into_iter()
+        .filter(|block| !is_timeline_core_kind(&block.kind))
+        .collect();
+    for block in incoming_blocks
+        .into_iter()
+        .filter(|block| !is_timeline_core_kind(&block.kind))
+    {
+        if let Some(index) = merged_other
+            .iter()
+            .position(|candidate| candidate.id == block.id)
+        {
+            merged_other[index] = block;
+        } else {
+            merged_other.push(block);
         }
     }
-    (!merged.is_empty()).then_some(merged)
+
+    merged_core.extend(merged_other);
+    (!merged_core.is_empty()).then_some(merged_core)
+}
+
+fn is_timeline_core_kind(kind: &str) -> bool {
+    matches!(kind, "primaryText" | "reasoning" | "toolMarker")
+}
+
+fn timeline_core_kind_priority(kind: &str) -> u8 {
+    match kind {
+        "reasoning" => 0,
+        "primaryText" => 1,
+        "toolMarker" => 2,
+        _ => 3,
+    }
 }
 
 pub fn save_reasoning(

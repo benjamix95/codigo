@@ -1,0 +1,43 @@
+## Bug Fix Record
+- Categoria: A
+- Bug: la chat assistant perdeva la segmentazione `text/tool/text` dopo il sync pipeline store e tornava a un blocco monolitico con i tool a valle.
+- Sintomo: durante o subito dopo lo stream la risposta visibile diventava un singolo `primaryText`, mentre i tool comparivano solo dopo, non intercalati.
+- Impatto: timeline chat poco leggibile, perdita di causalità tra testo e operazioni, regressione UX su uno dei flussi core.
+- Gravità: alta.
+- Steps to reproduce:
+  - avviare uno stream assistant con testo prima e dopo uno o più tool;
+  - lasciare che il turno passi attraverso `sync_assistant_pipeline_state`;
+  - osservare che il messaggio persistito può rientrare come testo monolitico + tool dopo.
+- Risultato attuale:
+  - il merge Rust preserva i blocchi core interleavati;
+  - la normalizzazione Rust non ricollassa il primo `primaryText` se esistono più segmenti;
+  - il lato Swift preferisce la struttura pipeline più ricca quando riallinea il messaggio locale.
+- Risultato atteso:
+  - un turno assistant con timeline `primaryText/toolMarker/primaryText` deve restare interleavato anche dopo il round-trip store.
+- Causa probabile:
+  - merge Rust dei blocchi core troppo aggressivo;
+  - normalizzazione Rust che sincronizzava il testo aggregato dentro il primo `primaryText`;
+  - preferenza locale Swift basata su euristiche troppo deboli.
+- Scope consentito:
+  - store bridge Swift/Rust della main chat;
+  - test Rust e app per la timeline interleavata.
+- Non-scope:
+  - refactor del renderer SwiftUI della timeline;
+  - redesign del modello `ToolTraceStore`;
+  - cambi UI non necessari al bug.
+- Moduli confinanti da verificare:
+  - `ChatTurnTimelineInterleaver`
+  - `ChatPipelineTimelineStateTests`
+  - `ChatStore` bridge scoped actions
+- Test da aggiungere o aggiornare:
+  - Rust: `sync_assistant_pipeline_state_preserves_interleaved_primary_blocks`
+  - App: `ChatStorePipelineInterleavingPersistenceTests`
+- Strategia di fix minimo:
+  - preservare i blocchi timeline core in Rust come gruppo autorevole;
+  - evitare l’overwrite del primo `primaryText` quando il messaggio ha più segmenti;
+  - far vincere in Swift la timeline pipeline con struttura narrativa più ricca.
+- Verifica post-fix:
+  - `cargo test --manifest-path Native/RustCore/Cargo.toml sync_assistant_pipeline_state_preserves_interleaved_primary_blocks -- --nocapture`
+  - `xcodebuild test -workspace "Solo Code.xcworkspace" -scheme "Solo Code-Debug" -only-testing:SoloCodeAppTests/ChatStorePipelineInterleavingPersistenceTests -only-testing:SoloCodeAppTests/ChatTimelineInterleavingTests -only-testing:SoloCodeAppTests/ChatPipelineTimelineStateTests`
+- Commit previsto:
+  - `fix(chat): preserve interleaved timeline blocks after pipeline sync`
