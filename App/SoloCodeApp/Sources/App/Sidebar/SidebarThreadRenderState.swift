@@ -43,12 +43,14 @@ extension SidebarThreadSnapshotBuilder {
     static func buildRenderStates(
         conversations: [Conversation],
         chatStore: ChatStore,
+        taskActivityStore: TaskActivityStore,
         todoStore: TodoStore,
         toolTraceStore: ToolTraceStore
     ) -> [UUID: SidebarThreadRenderState] {
         renderStateUpdate(
             conversations: conversations,
             chatStore: chatStore,
+            taskActivityStore: taskActivityStore,
             todoStore: todoStore,
             toolTraceStore: toolTraceStore
         ).renderStates
@@ -58,12 +60,14 @@ extension SidebarThreadSnapshotBuilder {
     static func renderFingerprint(
         conversations: [Conversation],
         chatStore: ChatStore,
+        taskActivityStore: TaskActivityStore,
         todoStore: TodoStore,
         toolTraceStore: ToolTraceStore
     ) -> SidebarThreadRenderFingerprint {
         renderStateUpdate(
             conversations: conversations,
             chatStore: chatStore,
+            taskActivityStore: taskActivityStore,
             todoStore: todoStore,
             toolTraceStore: toolTraceStore
         ).fingerprint
@@ -73,12 +77,14 @@ extension SidebarThreadSnapshotBuilder {
     static func buildRenderStatesAndFingerprint(
         conversations: [Conversation],
         chatStore: ChatStore,
+        taskActivityStore: TaskActivityStore,
         todoStore: TodoStore,
         toolTraceStore: ToolTraceStore
     ) -> (renderStates: [UUID: SidebarThreadRenderState], fingerprint: SidebarThreadRenderFingerprint) {
         let update = renderStateUpdate(
             conversations: conversations,
             chatStore: chatStore,
+            taskActivityStore: taskActivityStore,
             todoStore: todoStore,
             toolTraceStore: toolTraceStore
         )
@@ -89,19 +95,28 @@ extension SidebarThreadSnapshotBuilder {
     private static func buildRenderState(
         for conversation: Conversation,
         chatStore: ChatStore,
+        taskActivityStore: TaskActivityStore,
         todoStore: TodoStore,
         toolTraceStore: ToolTraceStore
     ) -> SidebarThreadRenderState {
         let hasDraft = !(chatStore.draftTexts[conversation.id]?
             .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
-        let isActive = chatStore.isTaskActive(for: conversation.id)
+        let hasVisibleTaskActivity = !taskActivityStore.activitiesIncludingPending(
+            for: conversation.id
+        ).filter { activity in
+            TaskActivityStore.isConcreteVisibleEvent(activity)
+                && !SwarmMetadata.isSwarmEvent(activity.payload)
+        }.isEmpty
+        let isActive = hasVisibleTaskActivity
         let isStreaming = chatStore.isAssistantStreaming(in: conversation.id)
+            && hasVisibleTaskActivity
+        let statusText = hasVisibleTaskActivity ? chatStore.taskStatusTexts[conversation.id] : nil
         let chatTodos = todoStore.displayTodosForChat(for: conversation.id)
         return SidebarThreadRenderState(
             hasDraft: hasDraft,
             isActive: isActive,
             isStreaming: isStreaming,
-            statusText: chatStore.taskStatusTexts[conversation.id],
+            statusText: statusText,
             todoProgressLabel: SidebarThreadTodoCaption.progressLabel(displayTodos: chatTodos),
             metrics: SidebarThreadMetrics.compute(
                 conversation: conversation,
@@ -114,6 +129,7 @@ extension SidebarThreadSnapshotBuilder {
     private static func renderStateUpdate(
         conversations: [Conversation],
         chatStore: ChatStore,
+        taskActivityStore: TaskActivityStore,
         todoStore: TodoStore,
         toolTraceStore: ToolTraceStore
     ) -> RenderStateUpdate {
@@ -126,6 +142,7 @@ extension SidebarThreadSnapshotBuilder {
             let renderState = buildRenderState(
                 for: conversation,
                 chatStore: chatStore,
+                taskActivityStore: taskActivityStore,
                 todoStore: todoStore,
                 toolTraceStore: toolTraceStore
             )

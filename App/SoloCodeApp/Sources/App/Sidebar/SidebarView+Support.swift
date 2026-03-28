@@ -80,6 +80,7 @@ extension SidebarView {
             let update = SidebarThreadSnapshotBuilder.buildRenderStatesAndFingerprint(
                 conversations: conversations,
                 chatStore: chatStore,
+                taskActivityStore: taskActivityStore,
                 todoStore: todoStore,
                 toolTraceStore: toolTraceStore
             )

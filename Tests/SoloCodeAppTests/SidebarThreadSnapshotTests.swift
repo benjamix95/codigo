@@ -120,6 +120,7 @@ final class SidebarThreadSnapshotTests: XCTestCase {
             userDefaults: defaults
         )
         let toolTraceStore = ToolTraceStore()
+        let taskActivityStore = TaskActivityStore()
         let conversationId = UUID()
 
         chatStore.conversations = [
@@ -135,6 +136,15 @@ final class SidebarThreadSnapshotTests: XCTestCase {
         chatStore.draftTexts[conversationId] = "pending draft"
         chatStore.activeTaskConversationIds = [conversationId]
         chatStore.taskStatusTexts[conversationId] = "Running"
+        taskActivityStore.addActivity(
+            TaskActivity(
+                type: "command_execution",
+                title: "Running",
+                payload: ["conversation_id": conversationId.uuidString.lowercased()],
+                phase: .executing,
+                isRunning: true
+            )
+        )
         todoStore.todos = [
             TodoItem(
                 title: "First",
@@ -153,6 +163,7 @@ final class SidebarThreadSnapshotTests: XCTestCase {
         let renderStates = SidebarThreadSnapshotBuilder.buildRenderStates(
             conversations: chatStore.conversations,
             chatStore: chatStore,
+            taskActivityStore: taskActivityStore,
             todoStore: todoStore,
             toolTraceStore: toolTraceStore
         )
@@ -164,6 +175,77 @@ final class SidebarThreadSnapshotTests: XCTestCase {
         XCTAssertEqual(renderState.statusText, "Running")
         XCTAssertEqual(renderState.todoProgressLabel, "1/2")
         XCTAssertFalse(renderState.metrics.hasDiffStats)
+    }
+
+    func testBuildRenderStatesDoesNotShowStreamingWithoutVisibleTaskActivity() throws {
+        let defaults = UserDefaults(suiteName: #filePath + ".\(UUID().uuidString)") ?? .standard
+        let chatStore = ChatStore(userDefaults: defaults)
+        let todoStore = TodoStore(
+            storageKey: "SidebarThreadSnapshotTests.streamless.todos",
+            userDefaults: defaults
+        )
+        let toolTraceStore = ToolTraceStore()
+        let conversationId = UUID()
+
+        chatStore.conversations = [
+            Conversation(
+                id: conversationId,
+                title: "Idle Thread",
+                messages: [
+                    ChatMessage(role: .user, content: "Hello"),
+                    ChatMessage(role: .assistant, content: "Stale streaming flag", isStreaming: true),
+                ]
+            )
+        ]
+
+        let renderStates = SidebarThreadSnapshotBuilder.buildRenderStates(
+            conversations: chatStore.conversations,
+            chatStore: chatStore,
+            taskActivityStore: TaskActivityStore(),
+            todoStore: todoStore,
+            toolTraceStore: toolTraceStore
+        )
+
+        let renderState = try XCTUnwrap(renderStates[conversationId])
+        XCTAssertFalse(renderState.isActive)
+        XCTAssertFalse(renderState.isStreaming)
+        XCTAssertNil(renderState.statusText)
+    }
+
+    func testBuildRenderStatesIgnoresTaskRuntimeWithoutVisibleActivity() throws {
+        let defaults = UserDefaults(suiteName: #filePath + ".\(UUID().uuidString)") ?? .standard
+        let chatStore = ChatStore(userDefaults: defaults)
+        let todoStore = TodoStore(
+            storageKey: "SidebarThreadSnapshotTests.runtime-orphan.todos",
+            userDefaults: defaults
+        )
+        let toolTraceStore = ToolTraceStore()
+        let conversationId = UUID()
+
+        chatStore.conversations = [
+            Conversation(
+                id: conversationId,
+                title: "Orphan Runtime Thread",
+                messages: [
+                    ChatMessage(role: .assistant, content: "Thinking", isStreaming: true),
+                ]
+            )
+        ]
+        chatStore.activeTaskConversationIds = [conversationId]
+        chatStore.taskStatusTexts[conversationId] = "Running"
+
+        let renderStates = SidebarThreadSnapshotBuilder.buildRenderStates(
+            conversations: chatStore.conversations,
+            chatStore: chatStore,
+            taskActivityStore: TaskActivityStore(),
+            todoStore: todoStore,
+            toolTraceStore: toolTraceStore
+        )
+
+        let renderState = try XCTUnwrap(renderStates[conversationId])
+        XCTAssertFalse(renderState.isActive)
+        XCTAssertFalse(renderState.isStreaming)
+        XCTAssertNil(renderState.statusText)
     }
 
     func testSnapshotFingerprintIgnoresMessageContentOnlyMutations() {
@@ -221,6 +303,7 @@ final class SidebarThreadSnapshotTests: XCTestCase {
         )
         let toolTraceStore = ToolTraceStore()
         let conversationId = UUID()
+        let taskActivityStore = TaskActivityStore()
 
         chatStore.conversations = [
             Conversation(
@@ -229,11 +312,20 @@ final class SidebarThreadSnapshotTests: XCTestCase {
                 messages: [ChatMessage(role: .assistant, content: "stream-a", isStreaming: true)]
             )
         ]
-        chatStore.activeTaskConversationIds = [conversationId]
+        taskActivityStore.addActivity(
+            TaskActivity(
+                type: "command_execution",
+                title: "Running",
+                payload: ["conversation_id": conversationId.uuidString.lowercased()],
+                phase: .executing,
+                isRunning: true
+            )
+        )
 
         let before = SidebarThreadSnapshotBuilder.renderFingerprint(
             conversations: chatStore.conversations,
             chatStore: chatStore,
+            taskActivityStore: taskActivityStore,
             todoStore: todoStore,
             toolTraceStore: toolTraceStore
         )
@@ -249,6 +341,7 @@ final class SidebarThreadSnapshotTests: XCTestCase {
         let sameState = SidebarThreadSnapshotBuilder.renderFingerprint(
             conversations: chatStore.conversations,
             chatStore: chatStore,
+            taskActivityStore: taskActivityStore,
             todoStore: todoStore,
             toolTraceStore: toolTraceStore
         )
@@ -257,6 +350,7 @@ final class SidebarThreadSnapshotTests: XCTestCase {
         let changedState = SidebarThreadSnapshotBuilder.renderFingerprint(
             conversations: chatStore.conversations,
             chatStore: chatStore,
+            taskActivityStore: taskActivityStore,
             todoStore: todoStore,
             toolTraceStore: toolTraceStore
         )
@@ -326,18 +420,21 @@ final class SidebarThreadSnapshotTests: XCTestCase {
         let legacyRenderStates = SidebarThreadSnapshotBuilder.buildRenderStates(
             conversations: chatStore.conversations,
             chatStore: chatStore,
+            taskActivityStore: TaskActivityStore(),
             todoStore: todoStore,
             toolTraceStore: toolTraceStore
         )
         let legacyFingerprint = SidebarThreadSnapshotBuilder.renderFingerprint(
             conversations: chatStore.conversations,
             chatStore: chatStore,
+            taskActivityStore: TaskActivityStore(),
             todoStore: todoStore,
             toolTraceStore: toolTraceStore
         )
         let combined = SidebarThreadSnapshotBuilder.buildRenderStatesAndFingerprint(
             conversations: chatStore.conversations,
             chatStore: chatStore,
+            taskActivityStore: TaskActivityStore(),
             todoStore: todoStore,
             toolTraceStore: toolTraceStore
         )
