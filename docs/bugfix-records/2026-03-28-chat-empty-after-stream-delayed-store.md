@@ -61,3 +61,9 @@
 - **Evidenza:** H11 con payload fermo (es. `199`) mentre `streamContentVersion` sale; H25 con `storePayload` == `mergedPayload` e `hadPending: true` — il buffer c’è ma la timeline non si muove.
 - **Causa:** con `blocks` non vuoti la UI legge il testo dal blocco `.primaryText`; aggiornare solo `content` / `primaryTextSnapshot` (e merge solo se `count` cresce) lasciava il blocco obsoleto; stessa lunghezza sostitutiva non passava il gate.
 - **Fix:** confronto normalizzato con `resolvedPrimaryText` **e** con il testo del primo blocco primary; `applyLivePrimaryStreamText` aggiorna anche `blocks[idx].text` (`ChatPanelView+PartD_StreamingTimelineMerge.swift`).
+
+### Fix 10 — ordine tool vs testo in streaming (mar 2026)
+
+- **Sintomo:** durante lo stream, tutti i tool sopra e un unico blocco di risposta sotto; manca l’ordine atteso (testo / tool / testo…).
+- **Causa:** merge UI che faceva `merged.blocks = pipelineBlocks` quando la pipeline aveva **meno** `toolMarker` del messaggio nello store. Senza marker, `ChatTurnTimelineInterleaver` classifica un solo `primaryText`(0) come monolitico e sposta il testo dopo tutti i tool (`maxToolSequence + 1`).
+- **Fix:** se `pipeToolMarkers < baseToolMarkers`, aggiornare solo il testo primary con `applyLivePrimaryStreamText`, senza sostituire l’intera array di blocchi (`PartD_StreamingTimelineMerge.swift`).

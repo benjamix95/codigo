@@ -29,10 +29,23 @@ extension ChatPanelView {
             let pipelinePayload = streamingTimelinePayloadCharSum(forBlocks: pipelineBlocks)
             let pipelinePrimary = turn.primaryTextSnapshot
             if pipelinePayload > storePayload, !pipelineBlocks.isEmpty {
-                merged.blocks = pipelineBlocks
-                merged.primaryTextSnapshot = pipelinePrimary
-                if merged.content.count < pipelinePrimary.count {
-                    merged.content = pipelinePrimary
+                let baseBlocks = base.blocks ?? []
+                let baseToolMarkers = baseBlocks.filter { $0.kind == .toolMarker }.count
+                let pipeToolMarkers = pipelineBlocks.filter { $0.kind == .toolMarker }.count
+                // `ChatTurnTimelineInterleaver`: senza toolMarker nel payload ma con trace,
+                // un solo primaryText(0) diventa “monolitico” e il testo finisce **sotto** tutti i tool.
+                // La pipeline spesso non ha ancora i marker dello store → non sostituiamo tutta la timeline.
+                if pipeToolMarkers < baseToolMarkers {
+                    let trimmedPrimary = pipelinePrimary.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !trimmedPrimary.isEmpty {
+                        applyLivePrimaryStreamText(&merged, text: pipelinePrimary)
+                    }
+                } else {
+                    merged.blocks = pipelineBlocks
+                    merged.primaryTextSnapshot = pipelinePrimary
+                    if merged.content.count < pipelinePrimary.count {
+                        merged.content = pipelinePrimary
+                    }
                 }
             } else {
                 let pNorm = pipelinePrimary.trimmingCharacters(in: .whitespacesAndNewlines)
