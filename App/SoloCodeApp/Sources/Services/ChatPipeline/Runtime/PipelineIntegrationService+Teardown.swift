@@ -3,15 +3,15 @@ import Foundation
 
 extension PipelineIntegrationService {
     func claimTeardownRuntime(for conversationId: UUID) -> PipelineConversationRuntime? {
-        if let runtime = runtimesByConversation[conversationId], let chatStore {
+        guard let runtime = runtimesByConversation[conversationId] else { return nil }
+        guard runtime.beginTeardownIfNeeded() else { return nil }
+        if let chatStore {
             flushPendingRustBridgeEventsIfNeeded(
                 conversationId: conversationId,
                 runtime: runtime,
                 chatStore: chatStore
             )
         }
-        guard let runtime = runtimesByConversation[conversationId] else { return nil }
-        guard runtime.beginTeardownIfNeeded() else { return nil }
         flushSnapshotNow(for: conversationId)
         return runtime
     }
@@ -41,11 +41,10 @@ extension PipelineIntegrationService {
         guard runtime.teardownState != .finished else { return }
 
         runtime.finishTeardown()
+        runtime.rustBridgeDebounceTask?.cancel()
+        runtime.rustBridgeDebounceTask = nil
         chatStore?.setLastAssistantStreaming(false, in: conversationId)
         chatStore?.endTask(conversationId: conversationId)
-        if let completionContext {
-            runtime.onCompletion?(completionContext)
-        }
         runtimesByConversation.removeValue(forKey: conversationId)
         snapshotsByConversation.removeValue(forKey: conversationId)
         swarmProgressStore?.clear(conversationId: conversationId)
@@ -53,5 +52,8 @@ extension PipelineIntegrationService {
         unregisterDebugStore(for: conversationId)
         suppressedDebugProjectionConversationIds.remove(conversationId)
         flushSnapshotNow(for: conversationId)
+        if let completionContext {
+            runtime.onCompletion?(completionContext)
+        }
     }
 }

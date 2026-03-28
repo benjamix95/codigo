@@ -785,6 +785,76 @@ final class PipelineIntegrationServiceTests: XCTestCase {
         XCTAssertNil(service.snapshot(for: conversationId))
     }
 
+    func testFinalizeExecutionRunsCompletionAfterRuntimeTeardownIsVisibleToCallbacks() {
+        let suiteName = "PipelineIntegrationServiceTests.finalize-callback-order.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let chatStore = ChatStore(userDefaults: defaults)
+        let todoStore = TodoStore(
+            storageKey: "CoderIDE.todos.tests.\(UUID().uuidString)",
+            userDefaults: defaults
+        )
+        let taskActivityStore = TaskActivityStore()
+        let swarmProgressStore = SwarmProgressStore()
+        let executionController = ExecutionController()
+        let service = PipelineIntegrationService()
+        service.configure(
+            chatStore: chatStore,
+            taskActivityStore: taskActivityStore,
+            swarmProgressStore: swarmProgressStore,
+            todoStore: todoStore,
+            executionController: executionController
+        )
+
+        let conversationId = chatStore.conversations[0].id
+        chatStore.addMessage(
+            ChatMessage(role: .assistant, content: "", isStreaming: true),
+            to: conversationId
+        )
+
+        var callbackRunningStates: [Bool] = []
+        var callbackSnapshotStates: [Bool] = []
+        var callbackTaskStates: [Bool] = []
+
+        let assistantMessageId = UUID()
+        let context = WorkspaceContext(workspacePaths: [URL(fileURLWithPath: "/tmp")])
+        service.executeJob(
+            makeJob(id: "job-finalize-callback"),
+            tasks: [TaskNode(taskId: "task-finalize-callback", title: "Finalize callback ordering")],
+            workerAdapter: AgentWorkerAdapter(
+                provider: DelayedMockPipelineProvider(
+                    id: "provider-finalize-callback",
+                    text: "done",
+                    delayNanoseconds: 500_000_000
+                ),
+                context: context,
+                jobId: "job-finalize-callback"
+            ),
+            providerId: "provider-finalize-callback",
+            conversationId: conversationId,
+            assistantMessageId: assistantMessageId,
+            onCompletion: { _ in
+                callbackRunningStates.append(service.isRunning(for: conversationId))
+                callbackSnapshotStates.append(service.snapshot(for: conversationId) == nil)
+                callbackTaskStates.append(chatStore.isTaskActive(for: conversationId))
+            }
+        )
+
+        XCTAssertTrue(service.isRunning(for: conversationId))
+        XCTAssertTrue(chatStore.isTaskActive(for: conversationId))
+
+        service.finalizeExecution(for: conversationId)
+
+        XCTAssertEqual(callbackRunningStates, [false])
+        XCTAssertEqual(callbackSnapshotStates, [true])
+        XCTAssertEqual(callbackTaskStates, [false])
+        XCTAssertFalse(service.isRunning(for: conversationId))
+        XCTAssertNil(service.snapshot(for: conversationId))
+        XCTAssertFalse(chatStore.isTaskActive(for: conversationId))
+    }
+
     func testConsumePipelineEventsCoalescesConsecutiveTextDeltasForSameTask() async throws {
         let suiteName = "PipelineIntegrationServiceTests.coalesce-text.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
