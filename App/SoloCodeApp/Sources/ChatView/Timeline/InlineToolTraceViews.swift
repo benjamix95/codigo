@@ -12,13 +12,18 @@ struct InlineToolTraceEventView: View {
         event.isRunning && messageIsStreaming
     }
 
+    private var fileChange: ToolTraceFileChange? {
+        ToolTraceFileChangeMapper.from(event: event)
+    }
+
+    func primaryTitle() -> String {
+        fileChange?.displayTitle ?? event.title
+    }
+
     private var compactDetail: String? {
-        let fileChange = ToolTraceFileChangeMapper.from(event: event)
         if let fileChange {
-            let added = max(0, fileChange.added)
-            let removed = max(0, fileChange.removed)
-            if added > 0 || removed > 0 {
-                return "+\(added) -\(removed)"
+            if let lineSummary = fileChange.lineSummary {
+                return lineSummary
             }
             return fileChange.path ?? fileChange.basename
         }
@@ -44,7 +49,7 @@ struct InlineToolTraceEventView: View {
     }
 
     private var openPath: String? {
-        if let change = ToolTraceFileChangeMapper.from(event: event) {
+        if let change = fileChange {
             return FileChangePreviewResolver.resolveOpenPath(
                 for: change,
                 workspaceHints: workspaceHints
@@ -64,7 +69,7 @@ struct InlineToolTraceEventView: View {
                 Button {
                     onOpenFile(openPath)
                 } label: {
-                    Text(event.title)
+                    Text(primaryTitle())
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.primary)
                         .lineLimit(1)
@@ -72,7 +77,7 @@ struct InlineToolTraceEventView: View {
                 }
                 .buttonStyle(.plain)
             } else {
-                Text(event.title)
+                Text(primaryTitle())
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
@@ -88,7 +93,7 @@ struct InlineToolTraceEventView: View {
 
             Spacer(minLength: 0)
 
-            if event.isRunning {
+            if showsRunningChrome {
                 ProgressView()
                     .controlSize(.mini)
                     .scaleEffect(0.6)

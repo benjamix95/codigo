@@ -245,7 +245,8 @@ extension Array where Element == ChatTurnInterleavedSegment {
 
         while index < count {
             guard case .toolEvent(_, let event, _) = self[index],
-                  let category = ChatTurnView.toolGroupCategory(for: event) else {
+                  let category = ChatTurnView.toolGroupCategory(for: event),
+                  ChatTurnInlineToolGroupingPolicy.shouldCollapse(category: category) else {
                 result.append(self[index])
                 index += 1
                 continue
