@@ -1,0 +1,39 @@
+## Bug Fix Record
+- Categoria: B, performance/runtime
+- Bug: il callback di `snapshotDidChangePublisher` della pipeline schedulava anche un refresh completo dei messaggi oltre al refresh del chrome/runtime.
+- Sintomo: fan-out di refresh duplicato sul path chat durante gli aggiornamenti della pipeline.
+- Impatto: lavoro UI evitabile nel ramo piu' caldo della chat, con maggiore rischio di re-render e scheduling ridondante.
+- Gravita': media-alta sul percorso interattivo.
+- Steps to reproduce:
+  - tenere aperta la chat con stream o pipeline attivi;
+  - generare un update della snapshot pipeline;
+  - osservare che il path di refresh toccava sia chrome/runtime sia la lista messaggi.
+- Risultato attuale:
+  - il publisher pipeline rinfresca il chrome/runtime;
+  - il refresh messaggi non viene piu' schedulato da quel callback.
+- Risultato atteso:
+  - refresh della UI limitato al sottoinsieme necessario, senza un secondo passaggio completo dei messaggi.
+- Causa probabile:
+  - la closure di `snapshotDidChangePublisher` era troppo ampia rispetto agli altri trigger gia' presenti per `messagesConversationSnapshot`.
+- Scope consentito:
+  - `App/SoloCodeApp/Sources/Services/ChatThread/Bindings/**`
+  - test mirati in `Tests/SoloCodeAppTests`
+- Non-scope:
+  - refactor del root `ChatPanelView`
+  - riscrittura del modello pipeline
+  - cambi alla persistenza conversazioni
+- Moduli confinanti da verificare:
+  - `ChatPanelView+PartC_MessageAreaRefreshModifiers`
+  - `ChatPanelView+PartC_MessageSnapshotRefresh`
+  - `PipelineIntegrationService+Snapshots`
+- Test da aggiungere o aggiornare:
+  - `ChatPanelPipelineSnapshotRefreshPolicyTests`
+- Strategia di fix minimo:
+  - tenere il publisher pipeline sul solo refresh chrome/runtime;
+  - lasciare i refresh messaggi ai trigger gia' esistenti (`chatStore.objectWillChange`, `streaming.streamContentVersion`).
+- Verifica post-fix:
+  - test policy specifico;
+  - test del publisher snapshot gia' esistente;
+  - smoke test della chat con stream attivo.
+- Commit previsto:
+  - `perf(chat): reduce snapshot-change refresh fan-out`

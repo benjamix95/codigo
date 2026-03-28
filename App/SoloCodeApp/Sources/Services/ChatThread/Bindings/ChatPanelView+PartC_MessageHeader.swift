@@ -267,8 +267,13 @@ extension ChatPanelView {
         }
         .onReceive(pipelineIntegrationService.snapshotDidChangePublisher(for: conversationId)) { _ in
             guard conversationId != nil else { return }
-            scheduleChromeRuntimeSnapshotRefresh()
-            scheduleMessagesSnapshotRefresh()
+            let refreshPlan = chatPanelPipelineSnapshotChangeRefreshPlan()
+            if refreshPlan.refreshChromeRuntimeSnapshot {
+                scheduleChromeRuntimeSnapshotRefresh()
+            }
+            if refreshPlan.refreshMessagesSnapshot {
+                scheduleMessagesSnapshotRefresh()
+            }
         }
         // Inject markdown font settings once at the messages area root.
         // All child MarkdownContentView instances read these via
