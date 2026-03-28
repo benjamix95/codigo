@@ -17,6 +17,7 @@
   - `PromptToolsPolicy`
   - `ToolEnabledLLMProvider+Policy`
   - `ToolEnabledLLMProvider+SummariesAndParsing`
+  - `ToolSchemaCatalog+Exports`
   - test prompt/finalization correlati
 - Non-scope:
   - refactor del runtime MCP
@@ -32,8 +33,10 @@
 - Strategia di fix minimo:
   - rendere MCP-first i nomi canonici nei prompt
   - preservare metadata MCP risolti nei riassunti dei tool
+  - per i provider con function schema, non esportare insieme tool runtime generico e alias `coderide_*` sovrapposti
   - non toccare il dispatch runtime se non necessario
 - Verifica post-fix:
   - test mirati su `SystemPromptsTests`
   - test mirati su `ToolEnabledLLMProviderPolicyAckTests+Finalization`
+  - test mirati su `ToolSchemaCatalogTests`
 - Commit previsto: `fix(prompt): prefer canonical coderide MCP tools in prompts and follow-up summaries`
