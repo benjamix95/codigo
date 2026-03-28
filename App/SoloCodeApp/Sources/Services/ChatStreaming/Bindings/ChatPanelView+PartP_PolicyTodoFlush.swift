@@ -76,10 +76,14 @@ extension ChatPanelView {
             return false
         }
         var state = toolRuntime.toolStartRequirementsStateByMessage[turn.assistantMessageId] ?? ToolStartRequirementsState()
+        let autoTodoRuntimeState = conversationRuntime.autoTodoRuntimeStateByMessage[
+            turn.assistantMessageId.uuidString.lowercased()
+        ]
         if let violation = todoPlanStartPolicyViolation(
             state: state,
             type: type,
-            payload: payload
+            payload: payload,
+            autoTodoRuntimeState: autoTodoRuntimeState
         ) {
             if !state.violationEmitted {
                 // #region agent log

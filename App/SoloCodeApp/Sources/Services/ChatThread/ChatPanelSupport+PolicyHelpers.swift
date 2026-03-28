@@ -93,7 +93,8 @@ func isOperationalEventRequiringTodoPlanStartPolicy(type: String, payload: [Stri
 func todoPlanStartPolicyViolation(
     state: ToolStartRequirementsState,
     type: String,
-    payload: [String: String]
+    payload: [String: String],
+    autoTodoRuntimeState: MainChatUIAutoTodoRuntimeStateBridge? = nil
 ) -> (errorCode: String, title: String, detail: String)? {
     guard isOperationalEventRequiringTodoPlanStartPolicy(type: type, payload: payload) else {
         return nil
@@ -103,8 +104,9 @@ func todoPlanStartPolicyViolation(
         .trimmingCharacters(in: .whitespacesAndNewlines)
         .lowercased()
     let toolName = normalizedTodoPolicyToolName(type: normalizedType, payload: payload)
+    let hasSatisfyingTodoState = state.didSeeTodoWrite || autoTodoRuntimeState != nil
 
-    if !state.didSeeTodoWrite, !isTodoLifecycleEvent(type: normalizedType, payload: payload) {
+    if !hasSatisfyingTodoState, !isTodoLifecycleEvent(type: normalizedType, payload: payload) {
         return (
             "todo_first_required",
             "Todo required before execution",

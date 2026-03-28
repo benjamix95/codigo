@@ -137,6 +137,26 @@ final class ChatTodoVisibilityTests: XCTestCase {
         )
     }
 
+    func testTodoPlanStartPolicyAllowsCommandExecutionWhenAutoTodoRuntimeIsActive() {
+        let autoTodoRuntimeState = MainChatUIAutoTodoRuntimeStateBridge(
+            todoId: "todo-1",
+            conversationId: "conversation-1",
+            title: "Running task",
+            activeForm: "Running task",
+            linkedFiles: ["App/SoloCodeApp/Sources/Services/ChatThread/ChatPanelSupport+PolicyHelpers.swift"],
+            operationCount: 1
+        )
+
+        let violation = todoPlanStartPolicyViolation(
+            state: ToolStartRequirementsState(),
+            type: "command_execution",
+            payload: ["command": "swift test"],
+            autoTodoRuntimeState: autoTodoRuntimeState
+        )
+
+        XCTAssertNil(violation)
+    }
+
     func testTodoPlanStartPolicyAllowsReadOnlySearchCommandWithoutTodo() {
         let violation = todoPlanStartPolicyViolation(
             state: ToolStartRequirementsState(),
