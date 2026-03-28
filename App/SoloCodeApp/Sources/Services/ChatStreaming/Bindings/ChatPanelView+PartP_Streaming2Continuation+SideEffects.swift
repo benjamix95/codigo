@@ -3,6 +3,10 @@ import CoderEngine
 import SwiftUI
 import UniformTypeIdentifiers
 
+func shouldProjectAgentEventIntoSwarmUI(_ payload: [String: String]) -> Bool {
+    SwarmMetadata.isSwarmEvent(payload)
+}
+
 extension ChatPanelView {
     internal func handleRawStreamEventContinuationSideEffects(
         type t: String, payload p: [String: String], providerId pid: String,
@@ -36,14 +40,17 @@ extension ChatPanelView {
             let detail = p["detail"] ?? "started"
             let scopedConversationId = convId ?? selectedConversationId
 
-            // Ensure swarm_id exists — auto-generate from provider + conversation
-            // so SwarmLiveReducer creates a visible subagent card.
-            var enrichedPayload = p
-            if enrichedPayload["swarm_id"] == nil && enrichedPayload["swarmId"] == nil {
-                let autoSwarmId = "swarm-\(pid)-\(scopedConversationId?.uuidString.prefix(8) ?? "unknown")"
-                enrichedPayload["swarm_id"] = autoSwarmId
-                enrichedPayload["group_id"] = autoSwarmId
+            guard shouldProjectAgentEventIntoSwarmUI(p) else {
+                recordTaskActivity(
+                    type: "agent",
+                    payload: p,
+                    providerId: pid,
+                    conversationId: scopedConversationId
+                )
+                return
             }
+
+            var enrichedPayload = p
             if enrichedPayload["agent_name"] == nil {
                 enrichedPayload["agent_name"] = title
             }
@@ -67,6 +74,7 @@ extension ChatPanelView {
                 providerId: pid,
                 conversationId: scopedConversationId
             )
+            return
         }
         if t == "usage",
            let inpStr = p["input_tokens"], let outStr = p["output_tokens"],
