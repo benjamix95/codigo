@@ -9,6 +9,7 @@ enum StreamingTimelineMergeDebug72 {
     private static var lastConvRuntimeAt: CFAbsoluteTime = 0
     private static var lastOutsideSurfaceAt: CFAbsoluteTime = 0
     private static var lastAssistantCacheAt: CFAbsoluteTime = 0
+    private static var lastRustReconcileAt: CFAbsoluteTime = 0
 
     static func logBlocksMergedOutsideActiveSurface(
         messageId: UUID,
@@ -68,6 +69,26 @@ enum StreamingTimelineMergeDebug72 {
                 "conversationId": conversationId.uuidString.lowercased(),
                 "messageId": messageId.uuidString.lowercased(),
                 "pipeMarkers": "\(pipeMarkers)",
+            ],
+        ])
+    }
+
+    /// Timeline Swift con `.toolUse` ripristinata dopo che Rust ha restituito `timelineSegments` vuoti.
+    static func logRustTimelineReconciled(
+        messageId: UUID,
+        preservedToolSegments: Int
+    ) {
+        guard throttle(&lastRustReconcileAt, minInterval: 0.4) else { return }
+        appendPayload([
+            "sessionId": "72ead1",
+            "runId": "rust-timeline-reconcile22",
+            "hypothesisId": "H39",
+            "location": "StreamingTimelineMergeDebug72.swift:logRustTimelineReconciled",
+            "message": "rust_empty_timeline_reused_swift_tool_segments",
+            "timestamp": Int64(Date().timeIntervalSince1970 * 1000),
+            "data": [
+                "messageId": messageId.uuidString.lowercased(),
+                "preservedToolSegments": "\(preservedToolSegments)",
             ],
         ])
     }

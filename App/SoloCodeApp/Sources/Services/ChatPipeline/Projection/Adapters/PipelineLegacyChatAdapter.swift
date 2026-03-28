@@ -271,9 +271,20 @@ extension ChatPanelView {
                 includeAutoTodoRuntimeState: true
             ),
             preserveLocalMessages: false
-        ), let nextState = response.state?.runtimeSnapshot?.turnState.chatTurnState else {
+        ), let rawNext = response.state?.runtimeSnapshot?.turnState.chatTurnState else {
             return nil
         }
+        let nextState = rawNext.reconcilingTimelineWhenRustReturnedEmptyWhileSwiftHadToolMarkers(
+            previous: currentState
+        )
+        // #region agent log
+        if nextState.timelineSegments != rawNext.timelineSegments {
+            StreamingTimelineMergeDebug72.logRustTimelineReconciled(
+                messageId: nextState.assistantMessageId,
+                preservedToolSegments: nextState.timelineSegments.filter { $0.kind == .toolUse }.count
+            )
+        }
+        // #endregion
         if persistImmediately {
             chatStore.saveConversationsImmediately()
         } else {

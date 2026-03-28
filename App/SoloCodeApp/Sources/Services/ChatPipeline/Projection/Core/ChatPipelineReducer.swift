@@ -123,8 +123,16 @@ enum ChatPipelineReducer {
         case .toolTraceArtifact:
             let title = event.payload["title"] ?? "Trace summary"
             let text = event.payload["detail"] ?? ""
+            // Marker timeline **sempre**, anche con `detail` vuoto: altrimenti l’ultimo segmento resta
+            // `.text` e i `textDelta` successivi si appendono alla stessa stringa (risposte unite / H26).
+            // Ogni artifact ha un `.toolUse` distinto: `ensureToolSegment` univa tool consecutivi in un solo marker.
+            appendDistinctToolSegment(in: &next)
+            // #region agent log
+            if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                ChatPipelineReducerDebug72.logEmptyDetailToolTraceMarker()
+            }
+            // #endregion
             if !text.isEmpty {
-                ensureToolSegment(in: &next)
                 next = upsertArtifact(
                     in: next,
                     ChatArtifact(
@@ -188,6 +196,17 @@ enum ChatPipelineReducer {
             )
             state.timelineNextSequence += 1
         }
+    }
+
+    private static func appendDistinctToolSegment(in state: inout ChatTurnState) {
+        state.timelineSegments.append(
+            ChatTimelineSegment(
+                kind: .toolUse,
+                index: 0,
+                sequence: state.timelineNextSequence
+            )
+        )
+        state.timelineNextSequence += 1
     }
 
     private static func streamId(for event: ChatPipelineEvent) -> String {
