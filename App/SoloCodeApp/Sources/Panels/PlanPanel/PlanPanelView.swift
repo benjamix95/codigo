@@ -11,6 +11,7 @@ struct PlanPanelView: View {
     @ObservedObject var taskActivityStore: TaskActivityStore
     @EnvironmentObject var providerRegistry: ProviderRegistry
     @EnvironmentObject var planHistoryStore: PlanHistoryStore
+    @Environment(\.planPanelSuppressCanonicalTodoSummaryCard) var suppressCanonicalTodoSummaryCard
     let conversationId: UUID?
     /// True only when the current task belongs to this conversation (prevents "Building…" on other threads).
     let isCurrentConversationLoading: Bool
@@ -129,8 +130,8 @@ struct PlanPanelView: View {
                         }
                     }
 
-                    // 4) Final todos
-                    if shouldShowCanonicalTodos && !snapshot.canonicalTodos.isEmpty {
+                    // 4) Final todos (skip duplicate when composer overlay lists the same todos)
+                    if shouldShowCanonicalTodoSummaryCardInScroll && !snapshot.canonicalTodos.isEmpty {
                         todosSection(canonicalTodos: snapshot.canonicalTodos)
                     }
 
@@ -147,8 +148,8 @@ struct PlanPanelView: View {
                         planContentSection(snapshot: snapshot)
                     }
 
-                    // 7) Live activity (compact)
-                    if !planTraceActivities.isEmpty {
+                    // 7) Live activity nel pannello Plan solo durante build (resto in chat).
+                    if planFlowPhase == .building, !planTraceActivities.isEmpty {
                         traceSection
                             .animation(.none, value: planTraceActivities.count)
                     }

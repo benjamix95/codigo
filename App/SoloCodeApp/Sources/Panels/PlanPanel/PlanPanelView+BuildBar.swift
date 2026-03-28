@@ -32,6 +32,11 @@ extension PlanPanelView {
         }
     }
 
+    /// Large todo card in the plan scroll area (composer may already show the same list).
+    var shouldShowCanonicalTodoSummaryCardInScroll: Bool {
+        shouldShowCanonicalTodos && !suppressCanonicalTodoSummaryCard
+    }
+
     var isPreBuildPlanState: Bool {
         if case .awaitingClarification = planningState {
             return true

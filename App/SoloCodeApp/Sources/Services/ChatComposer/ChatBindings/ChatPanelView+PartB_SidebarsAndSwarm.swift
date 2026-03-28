@@ -64,6 +64,21 @@ extension ChatPanelView {
                 }
             }
         )
+        .environment(\.planPanelSuppressCanonicalTodoSummaryCard, isComposerTodoOverlayVisibleForCurrentConversation)
+        .onAppear {
+            // #region agent log
+            Session989bc5DebugNDJSONLog.append(
+                hypothesisId: "F",
+                location: "ChatPanelView+PartB_SidebarsAndSwarm.planPanelSidebar",
+                message: "plan_panel_todo_card_suppress_989bc5",
+                runId: "post-fix",
+                data: [
+                    "suppressCanonicalTodoSummaryCard": isComposerTodoOverlayVisibleForCurrentConversation
+                        ? "1" : "0",
+                ]
+            )
+            // #endregion
+        }
         .frame(width: CGFloat(uiSettings.planPanelWidthStorage))
     }
 
@@ -179,6 +194,7 @@ extension ChatPanelView {
                             todoStore: todoStore,
                             conversationId: conversationId,
                             coderMode: coderMode,
+                            planFlowPhase: planFlowPhase,
                             debugPhase: debugStore.phase,
                             onOpenFile: { openFilesStore.openFile($0) },
                             effectivePrimaryPath: effectiveContext.primaryPath,

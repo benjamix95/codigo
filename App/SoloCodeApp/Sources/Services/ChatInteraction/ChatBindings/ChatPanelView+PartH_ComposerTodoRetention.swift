@@ -87,18 +87,63 @@ extension ChatPanelView {
             return
         }
 
-        guard signature != composerTodoLastAutoExpandedSignature else {
+        let lastSig = composerTodoLastAutoExpandedSignature
+        if signature == lastSig {
             if !composerTodoOverlayExpanded, let cid = conversationId {
                 let userDismissedSig = composerTodoOverlayUserDismissedSignatureByConversation[cid]
-                if userDismissedSig != signature {
+                if let dismissed = userDismissedSig, dismissed != signature {
+                    setComposerTodoOverlayUserDismissedForSelection(signature: signature)
+                } else if userDismissedSig == nil {
                     composerTodoOverlayExpanded = true
                 }
             }
+            // #region agent log
+            Session989bc5DebugNDJSONLog.append(
+                hypothesisId: "E",
+                location: "ChatPanelView+PartH_ComposerTodoRetention.syncComposerTodoOverlayExpansionState",
+                message: "composer_todo_expand_same_signature",
+                runId: "post-fix",
+                data: [
+                    "expanded": composerTodoOverlayExpanded ? "1" : "0",
+                    "hadUserDismissed": (conversationId.flatMap {
+                        composerTodoOverlayUserDismissedSignatureByConversation[$0]
+                    } != nil)
+                        ? "1" : "0",
+                ]
+            )
+            // #endregion
+            return
+        }
+
+        composerTodoLastAutoExpandedSignature = signature
+
+        if let cid = conversationId,
+           composerTodoOverlayUserDismissedSignatureByConversation[cid] != nil
+        {
+            setComposerTodoOverlayUserDismissedForSelection(signature: signature)
+            composerTodoOverlayExpanded = false
+            // #region agent log
+            Session989bc5DebugNDJSONLog.append(
+                hypothesisId: "E",
+                location: "ChatPanelView+PartH_ComposerTodoRetention.syncComposerTodoOverlayExpansionState",
+                message: "composer_todo_expand_signature_change_keep_collapsed",
+                runId: "post-fix",
+                data: ["expanded": "0"]
+            )
+            // #endregion
             return
         }
 
         clearComposerTodoOverlayUserDismissedForSelection()
-        composerTodoLastAutoExpandedSignature = signature
         composerTodoOverlayExpanded = true
+        // #region agent log
+        Session989bc5DebugNDJSONLog.append(
+            hypothesisId: "E",
+            location: "ChatPanelView+PartH_ComposerTodoRetention.syncComposerTodoOverlayExpansionState",
+            message: "composer_todo_expand_signature_change_auto_expand",
+            runId: "post-fix",
+            data: ["expanded": "1"]
+        )
+        // #endregion
     }
 }
