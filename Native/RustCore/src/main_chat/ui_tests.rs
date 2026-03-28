@@ -134,6 +134,54 @@ fn ui_intent_stream_replace_text_does_not_overwrite_previous_assistant_when_runt
 }
 
 #[test]
+fn ui_intent_stream_replace_text_preserves_interleaved_runtime_segments() {
+    let mut state = base_ui_state();
+    if let Some(runtime) = state.runtime_snapshot.as_mut() {
+        runtime.turn_state.text_segments = vec!["Prima parte".to_string()];
+        runtime.turn_state.timeline_segments = vec![
+            app_core_protocol::main_chat::TimelineSegment {
+                kind: app_core_protocol::main_chat::TimelineSegmentKind::Text,
+                index: 0,
+                sequence: 0,
+            },
+            app_core_protocol::main_chat::TimelineSegment {
+                kind: app_core_protocol::main_chat::TimelineSegmentKind::ToolUse,
+                index: 0,
+                sequence: 1,
+            },
+        ];
+        runtime.turn_state.timeline_next_sequence = 2;
+        runtime.turn_state.text_by_stream_id =
+            [("main".to_string(), "Prima parte".to_string())].into_iter().collect();
+    }
+
+    let response = handle_ui_intent(MainChatUiIntentRequest {
+        schema_version: 1,
+        intent: "stream_replace_text".to_string(),
+        state,
+        conversation_id: Some("conv-1".to_string()),
+        turn_id: None,
+        artifact_id: None,
+        text: Some("Prima parteSeconda parte".to_string()),
+        timestamp: Some(42.0),
+        pipeline_event: None,
+        pipeline_events: Vec::new(),
+        payload: Default::default(),
+    });
+    let state = response.state.expect("state");
+    let message = &state.store_snapshot.conversations[0].messages[0];
+    let blocks = message.blocks.as_ref().expect("blocks");
+    let kinds: Vec<_> = blocks.iter().map(|block| block.kind.as_str()).collect();
+    let primary_texts: Vec<_> = blocks
+        .iter()
+        .filter(|block| block.kind == "primaryText")
+        .map(|block| block.text.as_str())
+        .collect();
+    assert_eq!(kinds, vec!["primaryText", "toolMarker", "primaryText", "status"]);
+    assert_eq!(primary_texts, vec!["Prima parte", "Seconda parte"]);
+}
+
+#[test]
 fn ui_intent_stream_finish_marks_store_message_not_streaming() {
     let response = handle_ui_intent(MainChatUiIntentRequest {
         schema_version: 1,

@@ -1,5 +1,5 @@
 use app_core_protocol::main_chat::{
-    MainChatArtifact, MainChatArtifactKind, MainChatTurnState, TimelineSegmentKind,
+    MainChatArtifact, MainChatArtifactKind, MainChatTurnState, TimelineSegment, TimelineSegmentKind,
 };
 use app_core_protocol::main_chat_store::MainChatStoreTimelineBlockSnapshot;
 use app_core_protocol::main_chat_ui::MainChatUiState;
@@ -43,6 +43,33 @@ pub fn sync_store_from_runtime(state: &mut MainChatUiState) {
     );
     message.is_streaming = turn_state.is_streaming;
     message.blocks = Some(runtime_blocks(turn_state));
+}
+
+pub fn sync_runtime_text_from_replace_intent(state: &mut MainChatUiState, text: &str) {
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return;
+    }
+    let Some(runtime_snapshot) = state.runtime_snapshot.as_mut() else {
+        return;
+    };
+    let turn_state = &mut runtime_snapshot.turn_state;
+
+    if turn_state.ordered_text_stream_ids.is_empty() {
+        turn_state.ordered_text_stream_ids.push("main".to_string());
+    }
+    if !turn_state
+        .ordered_text_stream_ids
+        .iter()
+        .any(|stream_id| stream_id == "main")
+    {
+        turn_state.ordered_text_stream_ids.push("main".to_string());
+    }
+    turn_state
+        .text_by_stream_id
+        .insert("main".to_string(), text.to_string());
+
+    sync_runtime_text_segments_for_replace(turn_state, text);
 }
 
 pub fn mark_store_stream_finished(state: &mut MainChatUiState) {
@@ -231,6 +258,88 @@ fn runtime_blocks(turn_state: &MainChatTurnState) -> Vec<MainChatStoreTimelineBl
 
     blocks.extend(turn_state.artifacts.iter().map(artifact_block));
     blocks
+}
+
+fn sync_runtime_text_segments_for_replace(turn_state: &mut MainChatTurnState, text: &str) {
+    if turn_state.timeline_segments.is_empty() {
+        turn_state.text_segments = vec![text.to_string()];
+        turn_state.timeline_segments.push(TimelineSegment {
+            kind: TimelineSegmentKind::Text,
+            index: 0,
+            sequence: 0,
+        });
+        turn_state.timeline_next_sequence = turn_state.timeline_next_sequence.max(1);
+        return;
+    }
+
+    let had_text_segment = turn_state
+        .timeline_segments
+        .iter()
+        .any(|segment| segment.kind == TimelineSegmentKind::Text);
+    if !had_text_segment {
+        let sequence = turn_state.timeline_next_sequence;
+        turn_state.timeline_next_sequence += 1;
+        turn_state.text_segments.push(text.to_string());
+        turn_state.timeline_segments.push(TimelineSegment {
+            kind: TimelineSegmentKind::Text,
+            index: turn_state.text_segments.len() - 1,
+            sequence,
+        });
+        return;
+    }
+
+    let last_is_text = turn_state
+        .timeline_segments
+        .last()
+        .map(|segment| segment.kind == TimelineSegmentKind::Text)
+        .unwrap_or(false);
+    let text_segment_indices: Vec<usize> = turn_state
+        .timeline_segments
+        .iter()
+        .filter(|segment| segment.kind == TimelineSegmentKind::Text)
+        .map(|segment| segment.index)
+        .collect();
+    let prefix_without_last = text_segment_indices
+        .iter()
+        .take(text_segment_indices.len().saturating_sub(1))
+        .filter_map(|index| turn_state.text_segments.get(*index))
+        .fold(String::new(), |mut acc, segment| {
+            acc.push_str(segment);
+            acc
+        });
+
+    if last_is_text {
+        if let Some(last_index) = text_segment_indices.last().copied() {
+            let replacement = text
+                .strip_prefix(&prefix_without_last)
+                .unwrap_or(text)
+                .to_string();
+            if last_index < turn_state.text_segments.len() {
+                turn_state.text_segments[last_index] = replacement;
+            }
+        }
+        return;
+    }
+
+    let prefix_with_all_existing = text_segment_indices
+        .iter()
+        .filter_map(|index| turn_state.text_segments.get(*index))
+        .fold(String::new(), |mut acc, segment| {
+            acc.push_str(segment);
+            acc
+        });
+    let suffix = text
+        .strip_prefix(&prefix_with_all_existing)
+        .unwrap_or(text)
+        .to_string();
+    let sequence = turn_state.timeline_next_sequence;
+    turn_state.timeline_next_sequence += 1;
+    turn_state.text_segments.push(suffix);
+    turn_state.timeline_segments.push(TimelineSegment {
+        kind: TimelineSegmentKind::Text,
+        index: turn_state.text_segments.len() - 1,
+        sequence,
+    });
 }
 
 fn artifact_block(artifact: &MainChatArtifact) -> MainChatStoreTimelineBlockSnapshot {

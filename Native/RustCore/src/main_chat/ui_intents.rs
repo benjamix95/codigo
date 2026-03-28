@@ -9,7 +9,8 @@ use crate::main_chat::plan_ui_flow::{
 use crate::main_chat::runtime::handle_runtime_action;
 use crate::main_chat::ui_projection::project_ui;
 use crate::main_chat::ui_state_sync::{
-    apply_terminal_text_override, mark_store_stream_finished, sync_store_from_runtime,
+    apply_terminal_text_override, mark_store_stream_finished, sync_runtime_text_from_replace_intent,
+    sync_store_from_runtime,
 };
 use app_core_protocol::main_chat_runtime::MainChatRuntimeActionRequest;
 use app_core_protocol::main_chat_store::{
@@ -34,6 +35,11 @@ pub fn handle_ui_intent(request: MainChatUiIntentRequest) -> MainChatUiIntentRes
             state.draft_text = request.text.unwrap_or_default();
         }
         "stream_replace_text" | "stream_append_reasoning" => {
+            if request.intent == "stream_replace_text" {
+                if let Some(text) = request.text.as_deref() {
+                    sync_runtime_text_from_replace_intent(&mut state, text);
+                }
+            }
             sync_store_from_runtime(&mut state);
         }
         "stream_apply_raw_event" => {

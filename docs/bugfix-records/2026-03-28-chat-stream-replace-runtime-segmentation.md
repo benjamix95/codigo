@@ -1,0 +1,42 @@
+## Bug Fix Record
+- Categoria: A
+- Bug: il path `stream_replace_text` aggiornava lo store con il testo completo dello stream ma non riallineava i `textSegments` del `turnState` runtime quando il turno conteneva già `toolUse`.
+- Sintomo: in runtime la timeline teneva i marker tool, ma il testo restava aggregato o finiva nel segmento sbagliato; la resa finale appariva ancora monolitica tra i tool.
+- Impatto: il feed assistant perdeva l'interleave `text/tool/text` proprio nel ramo live usato dallo stream standard.
+- Gravità: alta.
+- Steps to reproduce:
+  - avviare un turno assistant con testo iniziale;
+  - far arrivare uno o più tool trace nel mezzo del turno;
+  - continuare a ricevere `stream_replace_text` con testo cumulativo;
+  - osservare che la timeline visibile non separa più correttamente il testo dopo i tool.
+- Risultato attuale:
+  - `stream_replace_text` aggiorna anche il `turnState` runtime;
+  - i segmenti testo vengono riallineati al suffisso dopo i segmenti già confermati;
+  - se l'ultimo segmento non è testo, viene creato un nuovo segmento testuale dopo il tool.
+- Risultato atteso:
+  - il turno live deve mantenere una timeline interleavata coerente con l'ordine testo/tool/testo durante tutto lo stream.
+- Causa probabile:
+  - `handle_ui_intent("stream_replace_text")` chiamava solo `sync_store_from_runtime`;
+  - il runtime snapshot restava con segmentazione testuale obsoleta mentre i marker tool continuavano a crescere.
+- Scope consentito:
+  - UI intent Rust della main chat;
+  - test Rust mirati sul runtime live.
+- Non-scope:
+  - refactor del renderer SwiftUI;
+  - cambi ai provider;
+  - modifiche ai model store persistiti non necessarie.
+- Moduli confinanti da verificare:
+  - `ui_state_sync.rs`
+  - `ui_intents.rs`
+  - `ui_tests.rs`
+- Test da aggiungere o aggiornare:
+  - `ui_intent_stream_replace_text_preserves_interleaved_runtime_segments`
+- Strategia di fix minimo:
+  - aggiornare il runtime snapshot su `stream_replace_text` prima della proiezione store;
+  - preservare i segmenti testuali precedenti e riallineare solo il segmento corrente / finale.
+- Verifica post-fix:
+  - `cargo test --manifest-path Native/RustCore/Cargo.toml ui_intent_stream_replace_text_preserves_interleaved_runtime_segments -- --nocapture`
+  - `cargo test --manifest-path Native/RustCore/Cargo.toml sync_assistant_pipeline_state_preserves_interleaved_primary_blocks -- --nocapture`
+  - `xcodebuild test -workspace "Solo Code.xcworkspace" -scheme "Solo Code-Debug" -only-testing:SoloCodeAppTests/MainChatUIIntentRuntimeSyncTests -only-testing:SoloCodeAppTests/ChatStorePipelineInterleavingPersistenceTests -only-testing:SoloCodeAppTests/ChatTimelineInterleavingTests -only-testing:SoloCodeAppTests/ChatPipelineTimelineStateTests`
+- Commit previsto:
+  - `fix(chat): preserve runtime text segmentation on stream replace`
