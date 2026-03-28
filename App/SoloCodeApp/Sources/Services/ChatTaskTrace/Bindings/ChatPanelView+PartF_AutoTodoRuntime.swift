@@ -11,18 +11,31 @@ extension ChatPanelView {
         preferPlanRuntime: Bool = false,
         includeAutoTodoRuntimeState: Bool = false
     ) -> MainChatUIBridgeContext {
+        let selectedConversationId = targetConversationId ?? conversationId
         let effectiveSnapshot: MainChatRuntimeSnapshotBridge? = {
-            if let runtimeSnapshot { return runtimeSnapshot }
-            guard let cur = conversationId else {
-                return resolvedMainChatRuntimeSnapshot(preferPlanRuntime: preferPlanRuntime)
+            if let runtimeSnapshot {
+                return preferredMainChatRuntimeSnapshot(
+                    baseSnapshot: runtimeSnapshot,
+                    conversationId: selectedConversationId
+                )
             }
-            let selected = targetConversationId ?? cur
-            guard selected == cur else { return nil }
-            return resolvedMainChatRuntimeSnapshot(preferPlanRuntime: preferPlanRuntime)
+            guard let cur = conversationId else {
+                return preferredMainChatRuntimeSnapshot(
+                    baseSnapshot: resolvedMainChatRuntimeSnapshot(preferPlanRuntime: preferPlanRuntime),
+                    conversationId: selectedConversationId
+                )
+            }
+            guard let selectedConversationId,
+                  selectedConversationId == cur
+            else { return nil }
+            return preferredMainChatRuntimeSnapshot(
+                baseSnapshot: resolvedMainChatRuntimeSnapshot(preferPlanRuntime: preferPlanRuntime),
+                conversationId: selectedConversationId
+            )
         }()
         return MainChatUIBridgeContext(
             runtimeSnapshot: effectiveSnapshot,
-            selectedConversationId: targetConversationId ?? conversationId,
+            selectedConversationId: selectedConversationId,
             draftText: inputText,
             planPanelVisible: showPlanPanel,
             followLive: isFollowingLive,
@@ -34,43 +47,12 @@ extension ChatPanelView {
     }
 
     @MainActor
-    internal func resolvedMainChatRuntimeSnapshot(
-        preferPlanRuntime: Bool = false
-    ) -> MainChatRuntimeSnapshotBridge? {
-        if preferPlanRuntime {
-            return flowCoordinator.planRuntimeSnapshotState()
-                ?? flowCoordinator.directRuntimeSnapshotState()
-        }
-        return flowCoordinator.directRuntimeSnapshotState()
-            ?? flowCoordinator.planRuntimeSnapshotState()
-    }
-
-    /// In-memory plan runtime è legato alla conversazione attiva: evita di mescolare lo stato del
-    /// flow coordinator con un altro `conversationId` negli intent (dopo await o switch tab).
-    @MainActor
-    internal func runtimeSnapshotForPlanUIIntent(
-        targetConversationId: UUID?
-    ) -> MainChatRuntimeSnapshotBridge? {
-        let target = targetConversationId ?? conversationId
-        guard let target else {
-            return resolvedMainChatRuntimeSnapshot(preferPlanRuntime: true)
-        }
-        guard let current = conversationId else {
-            return nil
-        }
-        guard target == current else {
-            return nil
-        }
-        return resolvedMainChatRuntimeSnapshot(preferPlanRuntime: true)
-    }
-
-    @MainActor
     internal func currentMainChatUIState(
         conversationId targetConversationId: UUID?,
         runtimeSnapshot: MainChatRuntimeSnapshotBridge? = nil,
         preferPlanRuntime: Bool = false,
         includeAutoTodoRuntimeState: Bool = false
-    ) -> MainChatUIStateBridge {
+        ) -> MainChatUIStateBridge {
         RustMainChatStoreAdapter.uiState(
             from: chatStore,
             context: currentMainChatUIBridgeContext(
@@ -81,7 +63,6 @@ extension ChatPanelView {
             )
         )
     }
-
     @MainActor
     @discardableResult
     internal func applyMainChatUIIntentBridge(
@@ -125,7 +106,6 @@ extension ChatPanelView {
             preserveLocalMessages: preserveLocalMessages
         )
     }
-
     @MainActor
     internal func projectMainChatUISnapshot(
         conversationId targetConversationId: UUID?,
@@ -142,7 +122,6 @@ extension ChatPanelView {
         guard let snapshot = RustMainChatStoreAdapter.projectUI(state) else { return nil }
         return (snapshot, state)
     }
-
     @MainActor
     internal func startAutoTodoIfNeeded(
         activity: TaskActivity,
