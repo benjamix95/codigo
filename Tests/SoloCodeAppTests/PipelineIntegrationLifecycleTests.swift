@@ -163,6 +163,81 @@ final class PipelineIntegrationLifecycleTests: XCTestCase {
         try? await Task.sleep(nanoseconds: 100_000_000)
         XCTAssertFalse(service.isRunning(for: conversationId))
     }
+
+    func testExecuteJobReplacesExistingRunningRuntimeForSameConversation() async throws {
+        let suiteName = "PipelineIntegrationLifecycleReplaceTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let chatStore = ChatStore(userDefaults: defaults)
+        let todoStore = TodoStore(
+            storageKey: "CoderIDE.todos.tests.\(UUID().uuidString)",
+            userDefaults: defaults
+        )
+        let taskActivityStore = TaskActivityStore()
+        let swarmProgressStore = SwarmProgressStore()
+        let executionController = ExecutionController()
+        let service = PipelineIntegrationService()
+        service.configure(
+            chatStore: chatStore,
+            taskActivityStore: taskActivityStore,
+            swarmProgressStore: swarmProgressStore,
+            todoStore: todoStore,
+            executionController: executionController
+        )
+
+        let conversationId = try XCTUnwrap(chatStore.conversations.first?.id)
+        let firstAssistantMessageId = UUID()
+        let secondAssistantMessageId = UUID()
+        chatStore.addMessage(
+            ChatMessage(id: firstAssistantMessageId, role: .assistant, content: "", isStreaming: true),
+            to: conversationId
+        )
+        chatStore.addMessage(
+            ChatMessage(id: secondAssistantMessageId, role: .assistant, content: "", isStreaming: true),
+            to: conversationId
+        )
+
+        let context = WorkspaceContext(workspacePaths: [URL(fileURLWithPath: "/tmp")])
+        service.executeJob(
+            PipelineJob(jobId: "job-first", workspace: "/tmp", request: "First job"),
+            tasks: [TaskNode(taskId: "task-first", title: "First task")],
+            workerAdapter: AgentWorkerAdapter(
+                provider: SlowLifecycleMockProvider(delayNanoseconds: 2_000_000_000),
+                context: context,
+                jobId: "job-first"
+            ),
+            providerId: "provider-first",
+            conversationId: conversationId,
+            assistantMessageId: firstAssistantMessageId
+        )
+
+        XCTAssertEqual(service.snapshot(for: conversationId)?.assistantMessageId, firstAssistantMessageId)
+        XCTAssertTrue(service.isRunning(for: conversationId))
+
+        service.executeJob(
+            PipelineJob(jobId: "job-second", workspace: "/tmp", request: "Second job"),
+            tasks: [TaskNode(taskId: "task-second", title: "Second task")],
+            workerAdapter: AgentWorkerAdapter(
+                provider: SlowLifecycleMockProvider(delayNanoseconds: 2_000_000_000),
+                context: context,
+                jobId: "job-second"
+            ),
+            providerId: "provider-second",
+            conversationId: conversationId,
+            assistantMessageId: secondAssistantMessageId
+        )
+
+        XCTAssertEqual(service.snapshot(for: conversationId)?.assistantMessageId, secondAssistantMessageId)
+        XCTAssertEqual(service.providerId(for: conversationId), "provider-second")
+        XCTAssertTrue(service.isRunning(for: conversationId))
+        XCTAssertTrue(chatStore.isTaskActive(for: conversationId))
+
+        XCTAssertTrue(service.cancelCurrentJob(for: conversationId))
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertFalse(service.isRunning(for: conversationId))
+    }
 }
 
 private final class SlowLifecycleMockProvider: LLMProvider, @unchecked Sendable {

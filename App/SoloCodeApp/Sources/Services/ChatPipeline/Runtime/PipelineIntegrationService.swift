@@ -145,8 +145,8 @@ final class PipelineIntegrationService: ObservableObject {
         onCompletion: ((PipelineCompletionContext) -> Void)? = nil,
         rawEventHandler: ((_ type: String, _ payload: [String: String], _ providerId: String, _ conversationId: UUID?) -> Void)? = nil
     ) {
-        guard !isRunning(for: conversationId) else {
-            return
+        if isRunning(for: conversationId) {
+            _ = discardConversationRuntime(for: conversationId)
         }
 
         executionController?.clearSwarmStopRequested()
