@@ -54,6 +54,64 @@ final class SidebarThreadSnapshotTests: XCTestCase {
         XCTAssertEqual(snapshot.dateBuckets.flatMap(\.threads).map(\.title), ["Favorite Thread"])
     }
 
+    func testCapturedSnapshotRequestIsUnaffectedByLaterContextChanges() {
+        let defaults = UserDefaults(suiteName: #filePath + ".\(UUID().uuidString)") ?? .standard
+        let chatStore = ChatStore(userDefaults: defaults)
+        let capturedContextId = UUID()
+        let laterContextId = UUID()
+        let earlierDate = Date(timeIntervalSince1970: 1_710_000_000)
+        let laterDate = Date(timeIntervalSince1970: 1_710_000_100)
+
+        chatStore.conversations = [
+            Conversation(
+                title: "Captured Thread",
+                createdAt: earlierDate,
+                contextId: capturedContextId
+            ),
+            Conversation(
+                title: "Later Thread",
+                createdAt: laterDate,
+                contextId: laterContextId
+            )
+        ]
+
+        let request = SidebarThreadSnapshotBuilder.makeRequest(
+            contextId: capturedContextId,
+            query: "",
+            showArchived: false,
+            favoritesOnly: false
+        )
+
+        // Simulate a later UI state change that would otherwise point the refresh
+        // at a different context if the refresh read live state after debounce.
+        chatStore.conversations = [
+            Conversation(
+                title: "Captured Thread",
+                createdAt: earlierDate,
+                contextId: capturedContextId
+            ),
+            Conversation(
+                title: "Later Thread",
+                createdAt: laterDate,
+                contextId: laterContextId
+            ),
+            Conversation(
+                title: "Newest Later Thread",
+                createdAt: laterDate.addingTimeInterval(50),
+                contextId: laterContextId
+            )
+        ]
+
+        let snapshot = SidebarThreadSnapshotBuilder.build(
+            chatStore: chatStore,
+            request: request
+        )
+
+        XCTAssertEqual(snapshot.threads.map(\.title), ["Captured Thread"])
+        XCTAssertEqual(snapshot.pinnedThreads.map(\.title), [])
+        XCTAssertEqual(snapshot.dateBuckets.flatMap(\.threads).map(\.title), ["Captured Thread"])
+    }
+
     func testBuildRenderStatesPrecomputesDraftTaskAndTodoMetadata() throws {
         let defaults = UserDefaults(suiteName: #filePath + ".\(UUID().uuidString)") ?? .standard
         let chatStore = ChatStore(userDefaults: defaults)

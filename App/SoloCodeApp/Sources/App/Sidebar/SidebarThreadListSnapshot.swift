@@ -22,6 +22,13 @@ struct SidebarThreadListSnapshot {
     )
 }
 
+struct SidebarThreadSnapshotRequest: Equatable {
+    let contextId: UUID?
+    let query: String
+    let showArchived: Bool
+    let favoritesOnly: Bool
+}
+
 struct SidebarThreadSnapshotFingerprint: Equatable {
     let contextId: UUID?
     let query: String
@@ -48,23 +55,35 @@ enum SidebarThreadSnapshotBuilder {
     }
 
     @MainActor
-    private static func filteredThreads(
-        chatStore: ChatStore,
+    static func makeRequest(
         contextId: UUID?,
         query: String,
         showArchived: Bool,
         favoritesOnly: Bool
+    ) -> SidebarThreadSnapshotRequest {
+        SidebarThreadSnapshotRequest(
+            contextId: contextId,
+            query: query,
+            showArchived: showArchived,
+            favoritesOnly: favoritesOnly
+        )
+    }
+
+    @MainActor
+    private static func filteredThreads(
+        chatStore: ChatStore,
+        request: SidebarThreadSnapshotRequest
     ) -> [Conversation] {
-        let normalizedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let normalizedQuery = request.query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         return chatStore.conversations
             .filter { conversation in
-                if let contextId {
+                if let contextId = request.contextId {
                     return conversation.contextId == contextId
                 }
                 return conversation.contextId == nil
             }
-            .filter { showArchived || !$0.isArchived || $0.isFavorite }
-            .filter { !favoritesOnly || $0.isFavorite }
+            .filter { request.showArchived || !$0.isArchived || $0.isFavorite }
+            .filter { !request.favoritesOnly || $0.isFavorite }
             .filter { normalizedQuery.isEmpty || $0.title.lowercased().contains(normalizedQuery) }
             .sorted { lhs, rhs in
                 if lhs.isPinned != rhs.isPinned { return lhs.isPinned && !rhs.isPinned }
@@ -76,13 +95,10 @@ enum SidebarThreadSnapshotBuilder {
     @MainActor
     private static func snapshotUpdate(
         from filteredThreads: [Conversation],
-        contextId: UUID?,
-        query: String,
-        showArchived: Bool,
-        favoritesOnly: Bool,
+        request: SidebarThreadSnapshotRequest,
         chatStore: ChatStore
     ) -> SnapshotUpdate {
-        let normalizedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let normalizedQuery = request.query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let pinnedThreads = filteredThreads.filter(\.isPinned)
         let dateBuckets = SidebarDateGrouper.group(filteredThreads.filter { !$0.isPinned }).map {
             SidebarThreadDateBucket(group: $0.group, threads: $0.threads)
@@ -106,10 +122,10 @@ enum SidebarThreadSnapshotBuilder {
                 aiSearchHits: aiSearchHits
             ),
             fingerprint: SidebarThreadSnapshotFingerprint(
-                contextId: contextId,
+                contextId: request.contextId,
                 query: normalizedQuery,
-                showArchived: showArchived,
-                favoritesOnly: favoritesOnly,
+                showArchived: request.showArchived,
+                favoritesOnly: request.favoritesOnly,
                 threads: filteredThreads.map { conversation in
                     SidebarThreadSnapshotFingerprint.Thread(
                         id: conversation.id,
@@ -134,19 +150,29 @@ enum SidebarThreadSnapshotBuilder {
         showArchived: Bool,
         favoritesOnly: Bool
     ) -> SidebarThreadListSnapshot {
+        build(
+            chatStore: chatStore,
+            request: makeRequest(
+                contextId: contextId,
+                query: query,
+                showArchived: showArchived,
+                favoritesOnly: favoritesOnly
+            )
+        )
+    }
+
+    @MainActor
+    static func build(
+        chatStore: ChatStore,
+        request: SidebarThreadSnapshotRequest
+    ) -> SidebarThreadListSnapshot {
         let filteredThreads = filteredThreads(
             chatStore: chatStore,
-            contextId: contextId,
-            query: query,
-            showArchived: showArchived,
-            favoritesOnly: favoritesOnly
+            request: request
         )
         return snapshotUpdate(
             from: filteredThreads,
-            contextId: contextId,
-            query: query,
-            showArchived: showArchived,
-            favoritesOnly: favoritesOnly,
+            request: request,
             chatStore: chatStore
         ).snapshot
     }
@@ -159,19 +185,29 @@ enum SidebarThreadSnapshotBuilder {
         showArchived: Bool,
         favoritesOnly: Bool
     ) -> SidebarThreadSnapshotFingerprint {
+        snapshotFingerprint(
+            chatStore: chatStore,
+            request: makeRequest(
+                contextId: contextId,
+                query: query,
+                showArchived: showArchived,
+                favoritesOnly: favoritesOnly
+            )
+        )
+    }
+
+    @MainActor
+    static func snapshotFingerprint(
+        chatStore: ChatStore,
+        request: SidebarThreadSnapshotRequest
+    ) -> SidebarThreadSnapshotFingerprint {
         let filteredThreads = filteredThreads(
             chatStore: chatStore,
-            contextId: contextId,
-            query: query,
-            showArchived: showArchived,
-            favoritesOnly: favoritesOnly
+            request: request
         )
         return snapshotUpdate(
             from: filteredThreads,
-            contextId: contextId,
-            query: query,
-            showArchived: showArchived,
-            favoritesOnly: favoritesOnly,
+            request: request,
             chatStore: chatStore
         ).fingerprint
     }
@@ -184,19 +220,29 @@ enum SidebarThreadSnapshotBuilder {
         showArchived: Bool,
         favoritesOnly: Bool
     ) -> (snapshot: SidebarThreadListSnapshot, fingerprint: SidebarThreadSnapshotFingerprint) {
+        buildSnapshotAndFingerprint(
+            chatStore: chatStore,
+            request: makeRequest(
+                contextId: contextId,
+                query: query,
+                showArchived: showArchived,
+                favoritesOnly: favoritesOnly
+            )
+        )
+    }
+
+    @MainActor
+    static func buildSnapshotAndFingerprint(
+        chatStore: ChatStore,
+        request: SidebarThreadSnapshotRequest
+    ) -> (snapshot: SidebarThreadListSnapshot, fingerprint: SidebarThreadSnapshotFingerprint) {
         let filteredThreads = filteredThreads(
             chatStore: chatStore,
-            contextId: contextId,
-            query: query,
-            showArchived: showArchived,
-            favoritesOnly: favoritesOnly
+            request: request
         )
         let update = snapshotUpdate(
             from: filteredThreads,
-            contextId: contextId,
-            query: query,
-            showArchived: showArchived,
-            favoritesOnly: favoritesOnly,
+            request: request,
             chatStore: chatStore
         )
         return (update.snapshot, update.fingerprint)

@@ -45,16 +45,19 @@ extension SidebarView {
 
     @MainActor
     func scheduleSidebarSnapshotRefresh() {
+        let request = SidebarThreadSnapshotBuilder.makeRequest(
+            contextId: activeContext?.id,
+            query: query,
+            showArchived: showArchived,
+            favoritesOnly: favoritesOnly
+        )
         sidebarSnapshotRefreshTask?.cancel()
         sidebarSnapshotRefreshTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 120_000_000)
             guard !Task.isCancelled else { return }
             let update = SidebarThreadSnapshotBuilder.buildSnapshotAndFingerprint(
                 chatStore: chatStore,
-                contextId: activeContext?.id,
-                query: query,
-                showArchived: showArchived,
-                favoritesOnly: favoritesOnly
+                request: request
             )
             guard update.fingerprint != sidebarSnapshotFingerprint else {
                 scheduleSidebarRenderStateRefresh()
