@@ -23,6 +23,23 @@ enum ChatTodoMarkdownInspection {
         ) != nil
     }
 
+    /// Documento piano/todo strutturato che merita la soppressione dell’overlay duplicato.
+    /// Non richiede una lunghezza minima: anche un piano breve con heading/task list deve contare.
+    static func hasStructuredPlanMarkdownDocument(_ text: String) -> Bool {
+        let cleaned = ChatStore
+            .stripCoderideMarkers(text, aggressive: false)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty else { return false }
+
+        if hasStructuredPlanOrTodoHeader(cleaned) { return true }
+        if hasGitHubStyleTaskList(cleaned) { return true }
+        if hasOrderedListLines(cleaned) { return true }
+        return cleaned.range(
+            of: #"(?im)^\s*```mermaid\b"#,
+            options: .regularExpression
+        ) != nil
+    }
+
     /// Testo unificato blocchi timeline “testuali” visibili (primaryText + markdown artifact).
     static func combinedVisibleTextualPayload(for message: ChatMessage) -> String {
         let blocks = ChatTurnTimelineOrdering.visibleBlocks(from: message.resolvedTimelineBlocks)

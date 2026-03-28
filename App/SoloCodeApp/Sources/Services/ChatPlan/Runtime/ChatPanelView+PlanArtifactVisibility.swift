@@ -67,15 +67,7 @@ extension ChatPanelView {
         else { return false }
         return msgs.contains { message in
             guard message.role == .assistant else { return false }
-            let text = message.content
-            guard text.count >= 400 else { return false }
-            let cleaned = ChatStore
-                .stripCoderideMarkers(text, aggressive: false)
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            return cleaned.range(
-                of: #"(?im)^\s*##\s*(?:plan|piano|todo|to-do|questions?|clarification|option(?:s)?)\b"#,
-                options: .regularExpression
-            ) != nil
+            return ChatTodoMarkdownInspection.hasStructuredPlanMarkdownDocument(message.content)
         }
     }
 

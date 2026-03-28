@@ -349,6 +349,30 @@ final class ChatTodoVisibilityTests: XCTestCase {
         )
     }
 
+    func testStructuredPlanMarkdownDocumentDetectionDoesNotRequireLongPayload() {
+        let shortStructuredPlan = """
+        ## Todo
+        - [ ] Fix the workflow
+        - [ ] Add a regression test
+        """
+
+        XCTAssertTrue(
+            ChatTodoMarkdownInspection.hasStructuredPlanMarkdownDocument(shortStructuredPlan)
+        )
+    }
+
+    func testStructuredPlanMarkdownDocumentDetectionIgnoresPlainBulletReplies() {
+        let plainReply = """
+        Here is a brief summary:
+        - one detail
+        - another detail
+        """
+
+        XCTAssertFalse(
+            ChatTodoMarkdownInspection.hasStructuredPlanMarkdownDocument(plainReply)
+        )
+    }
+
     func testTodoCardDoesNotBindToInvisiblePipelineAssistantStub() {
         let visibleAssistantId = UUID()
         let pipelineAssistantId = UUID()
