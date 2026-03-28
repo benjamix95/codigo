@@ -292,6 +292,104 @@ final class ChatTimelineInterleavingTests: XCTestCase {
         }
     }
 
+    func testSyntheticFallbackPreservesMultiplePrimaryBlocksWithoutToolMarkers() {
+        let conversationId = UUID()
+        let assistantMessageId = UUID()
+        let base = ChatMessage(
+            id: assistantMessageId,
+            role: .assistant,
+            content: "Prima parte\n\nSeconda parte",
+            primaryTextSnapshot: "Prima parte\n\nSeconda parte",
+            blocks: [
+                PersistedChatTimelineBlock(
+                    id: "text-0",
+                    kind: .primaryText,
+                    text: "Prima parte",
+                    sequence: 0
+                ),
+                PersistedChatTimelineBlock(
+                    id: "text-1",
+                    kind: .primaryText,
+                    text: "Seconda parte",
+                    sequence: 2
+                ),
+            ],
+            isStreaming: true
+        )
+
+        let events = [
+            makeEvent(sequence: 3, title: "Read file", tool: "read", path: "/tmp/A.swift"),
+        ]
+
+        let synthetic = SyntheticChatTurnStateFromTraceEvents.makeForMergeIfNeeded(
+            base: base,
+            conversationId: conversationId,
+            traceEvents: events
+        )
+
+        guard let synthetic else {
+            XCTFail("Expected synthetic timeline state")
+            return
+        }
+
+        let blocks = synthetic.blocks
+        XCTAssertEqual(blocks.map(\.kind), [.primaryText, .primaryText, .toolMarker])
+        XCTAssertEqual(blocks.map(\.sequence), [0, 2, 3])
+        XCTAssertEqual(
+            blocks.filter { $0.kind == .primaryText }.compactMap(\.text),
+            ["Prima parte", "Seconda parte"]
+        )
+    }
+
+    func testSyntheticFallbackInterleavesToolMarkersBetweenPrimaryBlocks() {
+        let conversationId = UUID()
+        let assistantMessageId = UUID()
+        let base = ChatMessage(
+            id: assistantMessageId,
+            role: .assistant,
+            content: "Prima parte\n\nSeconda parte",
+            primaryTextSnapshot: "Prima parte\n\nSeconda parte",
+            blocks: [
+                PersistedChatTimelineBlock(
+                    id: "text-0",
+                    kind: .primaryText,
+                    text: "Prima parte",
+                    sequence: 0
+                ),
+                PersistedChatTimelineBlock(
+                    id: "text-1",
+                    kind: .primaryText,
+                    text: "Seconda parte",
+                    sequence: 2
+                ),
+            ],
+            isStreaming: true
+        )
+
+        let events = [
+            makeEvent(sequence: 1, title: "Read file", tool: "read", path: "/tmp/A.swift"),
+        ]
+
+        let synthetic = SyntheticChatTurnStateFromTraceEvents.makeForMergeIfNeeded(
+            base: base,
+            conversationId: conversationId,
+            traceEvents: events
+        )
+
+        guard let synthetic else {
+            XCTFail("Expected synthetic timeline state")
+            return
+        }
+
+        let blocks = synthetic.blocks
+        XCTAssertEqual(blocks.map(\.kind), [.primaryText, .toolMarker, .primaryText])
+        XCTAssertEqual(blocks.map(\.sequence), [0, 1, 2])
+        XCTAssertEqual(
+            blocks.filter { $0.kind == .primaryText }.compactMap(\.text),
+            ["Prima parte", "Seconda parte"]
+        )
+    }
+
     private func makeEvent(
         sequence: Int,
         title: String,
