@@ -1,46 +1,6 @@
 import Foundation
 
 extension ToolEnabledLLMProvider {
-    /// Generates the system prompt section listing all natively-registered MCP tools, grouped by server.
-    private var mcpNativeToolsPromptSection: String {
-        let registry = MCPNativeToolRegistry.shared
-        let entries = registry.entries
-        guard !entries.isEmpty else {
-            return "No MCP tools currently available. Use `mcp_list_servers` and `mcp_list_tools` to discover tools at runtime."
-        }
-
-        let routing = registry.routing
-        var serverTools: [String: [(functionName: String, entry: ToolSchemaEntry)]] = [:]
-        for entry in entries {
-            let serverName: String
-            if let route = routing[entry.name] {
-                serverName = route.serverId
-            } else {
-                serverName = "unknown"
-            }
-            serverTools[serverName, default: []].append((functionName: entry.name, entry: entry))
-        }
-
-        var lines: [String] = []
-        lines.append("**Available MCP tools** (call directly by function name):")
-        for (server, tools) in serverTools.sorted(by: { $0.key < $1.key }) {
-            lines.append("")
-            let displayServer = server.components(separatedBy: "|").last ?? server
-            lines.append("Server: **\(displayServer)**")
-            for tool in tools {
-                let params = tool.entry.required.isEmpty
-                    ? ""
-                    : " Args: \(tool.entry.required.map { "`\($0)`" }.joined(separator: ", "))."
-                let desc = tool.entry.description
-                    .replacingOccurrences(of: "[\(displayServer)] ", with: "")
-                    .replacingOccurrences(of: "[\(server)] ", with: "")
-                lines.append("- **\(tool.functionName)** — \(desc)\(params)")
-            }
-        }
-
-        return lines.joined(separator: "\n")
-    }
-
     var toolProtocolPrompt: String {
         """
         # Tool Protocol
@@ -58,6 +18,7 @@ extension ToolEnabledLLMProvider {
         ## Core Principles
         1. ALWAYS read a file before editing it — understand current content first.
         1b. If your schema exposes prefixed aliases (for example `coderide_read`, `coderide_grep`, `coderide_semantic_search`), treat them as canonical equivalents and use them before Bash for code inspection/discovery.
+        1c. If a workspace tool is available both as a generic runtime name and as a `coderide_*` MCP alias, you MUST prefer the `coderide_*` alias and keep that exact MCP name in subsequent reasoning and summaries.
         2. Use `str_replace` for surgical edits (search-and-replace). ONLY use `write` for brand new files or complete rewrites.
         3. Prefer `semantic_search` for natural language queries ("where is auth handled?", "data saving flow").
         4. Prefer `codebase_search` and `find_symbol` over `grep` when looking for symbol definitions (classes, functions, structs). They use the index and are faster and more precise.
@@ -69,7 +30,7 @@ extension ToolEnabledLLMProvider {
         10. Use `parallel_apply` for making multiple independent edits across files in a single call.
         11. If AGENTS.md / SKILL.md / repository runbooks or **Detected local skills** are present, USE the `skill` tool when the task matches. Skills (doc, imagegen, transcribe, playwright, etc.) provide optimized workflows — invoke them instead of reinventing.
         12. If the context contains a mandatory policy acknowledgment, use the `policy_ack` tool with the hash before any operational tool action.
-        13. MCP tools from connected servers are registered as native function tools — call them directly by name. Use `mcp_call` only for tools not registered natively. Use `mcp_list_tools` if you need to discover additional tools at runtime.
+        13. MCP tools from connected servers are registered as native function tools — call them directly by name. If a `coderide_*` alias exists for a workspace tool, do NOT fall back to the generic builtin name. Use `mcp_call` only for tools not registered natively. Use `mcp_list_tools` if you need to discover additional tools at runtime.
         14. Use `web_search` and `web_fetch` when you need current information, documentation, API references, or anything beyond your training data.
         15. When done, provide a clear summary: what changed, which files, outcome.
         16. Do NOT stop until the task is fully resolved or you've clearly stated a blocker with next steps.
@@ -153,6 +114,7 @@ extension ToolEnabledLLMProvider {
 
         **MCP best practices:**
         - Call native MCP tools directly — no discovery needed, schemas are already registered.
+        - For overlapping workspace tools, prefer the concrete `coderide_*` name over `read`/`grep`/`semantic_search`/other generic aliases whenever the session exposes it.
         - Only use `mcp_call` for tools that aren't registered natively (rare).
         - If a native MCP tool call fails with "not found", the server may have restarted — use `mcp_reconnect` then retry.
         - MCP tools can be called in parallel with other tools when they are read-only.

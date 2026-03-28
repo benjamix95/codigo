@@ -13,12 +13,14 @@ extension ToolEnabledLLMProvider {
             if type == "tool_execution_error" || payload["status"] == "failed" {
                 summary["status"] = "failed"
                 summary["detail"] = payload["detail"] ?? payload["stderr"] ?? "tool failed"
+                mergeResolvedMCPMetadata(into: &summary, from: payload)
                 foundCompletion = true
                 sawFailure = true
             } else if !sawFailure, (payload["status"] == "completed" || payload["status"] == "success") {
                 // Only accept success if no failure was seen (failure-wins precedence)
                 summary["status"] = "completed"
                 summary["detail"] = payload["detail"] ?? payload["title"] ?? "ok"
+                mergeResolvedMCPMetadata(into: &summary, from: payload)
                 let toolName = summary["name"] ?? ""
                 if shouldIncludeToolOutputInFollowUp(toolName: toolName),
                    let output = payload["output"],
@@ -49,6 +51,16 @@ extension ToolEnabledLLMProvider {
             let formatted = toolResults.map { result in
                 let id = result["id"] ?? "-"
                 let name = result["name"] ?? "-"
+                let resolvedToolLine: String
+                if result["is_mcp"] == "true" {
+                    let resolved = result["mcp_tool"] ?? result["resolved_name"] ?? "-"
+                    let server = result["mcp_server"] ?? result["server_id"] ?? ""
+                    resolvedToolLine = server.isEmpty
+                        ? "\n  resolved_mcp_tool: \(resolved)"
+                        : "\n  resolved_mcp_tool: \(resolved) @ \(server)"
+                } else {
+                    resolvedToolLine = ""
+                }
                 let status = result["status"] ?? "unknown"
                 let detail = result["detail"] ?? ""
                 let path = result["path"].map { "\npath: \($0)" } ?? ""
@@ -58,7 +70,7 @@ extension ToolEnabledLLMProvider {
                 } else {
                     output = ""
                 }
-                return "- tool_call id=\(id), name=\(name), status=\(status)\n  detail: \(detail)\(path)\(output)"
+                return "- tool_call id=\(id), name=\(name), status=\(status)\(resolvedToolLine)\n  detail: \(detail)\(path)\(output)"
             }.joined(separator: "\n")
             resultsSection = """
             Tool results from previous round:
@@ -90,6 +102,24 @@ extension ToolEnabledLLMProvider {
             return false
         default:
             return true
+        }
+    }
+
+    func mergeResolvedMCPMetadata(into summary: inout [String: String], from payload: [String: String]) {
+        let isMCP = (payload["is_mcp"] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased() == "true"
+        guard isMCP else { return }
+
+        summary["is_mcp"] = "true"
+        if let mcpTool = payload["mcp_tool"], !mcpTool.isEmpty {
+            summary["mcp_tool"] = mcpTool
+            summary["resolved_name"] = mcpTool
+        }
+        if let mcpServer = payload["mcp_server"], !mcpServer.isEmpty {
+            summary["mcp_server"] = mcpServer
+        } else if let serverID = payload["server_id"], !serverID.isEmpty {
+            summary["server_id"] = serverID
         }
     }
 

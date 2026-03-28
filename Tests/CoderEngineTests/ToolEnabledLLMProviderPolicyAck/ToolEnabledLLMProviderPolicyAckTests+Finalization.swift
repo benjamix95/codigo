@@ -138,4 +138,58 @@ extension ToolEnabledLLMProviderPolicyAckTests {
         XCTAssertNil(summary?["output"])
         XCTAssertFalse(prompt.contains("FAIL SampleTests.testExample()"))
     }
+
+    func testSummarizeToolResultEventsPreservesResolvedMCPMetadata() {
+        let provider = ToolEnabledLLMProvider(
+            base: SequencedEventProvider(events: []),
+            maxToolRounds: 1
+        )
+
+        let summary = provider.summarizeToolResultEvents(
+            [
+                .raw(type: "mcp_tool_call", payload: [
+                    "status": "completed",
+                    "detail": "Read complete",
+                    "is_mcp": "true",
+                    "mcp_tool": "coderide_read",
+                    "mcp_server": "coderide",
+                    "path": "/tmp/Sample.swift",
+                ]),
+            ],
+            marker: CoderIDEMarker(kind: "tool_call", payload: [
+                "id": "mcp-1",
+                "name": "read",
+            ])
+        )
+
+        XCTAssertEqual(summary?["name"], "read")
+        XCTAssertEqual(summary?["is_mcp"], "true")
+        XCTAssertEqual(summary?["mcp_tool"], "coderide_read")
+        XCTAssertEqual(summary?["resolved_name"], "coderide_read")
+        XCTAssertEqual(summary?["mcp_server"], "coderide")
+    }
+
+    func testFollowUpPromptIncludesResolvedMCPMetadata() {
+        let provider = ToolEnabledLLMProvider(
+            base: SequencedEventProvider(events: []),
+            maxToolRounds: 1
+        )
+
+        let prompt = provider.buildFollowUpPrompt(
+            originalPrompt: "Inspect the file",
+            transcript: "[assistant]\nUsing MCP\n",
+            toolResults: [[
+                "id": "mcp-2",
+                "name": "read",
+                "status": "completed",
+                "detail": "Read complete",
+                "is_mcp": "true",
+                "mcp_tool": "coderide_read",
+                "mcp_server": "coderide",
+            ]]
+        )
+
+        XCTAssertTrue(prompt.contains("resolved_mcp_tool: coderide_read @ coderide"))
+        XCTAssertTrue(prompt.contains("name=read"))
+    }
 }

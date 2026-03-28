@@ -43,6 +43,14 @@ final class SystemPromptsTests: XCTestCase {
         XCTAssertTrue(prompt.contains("str_replace"))
     }
 
+    func testTaskCompletionStrictPrefersCoderideAliasesInToolGuidance() {
+        let prompt = SystemPrompts.taskCompletionStrict
+        XCTAssertTrue(prompt.contains("coderide_read"))
+        XCTAssertTrue(prompt.contains("coderide_grep"))
+        XCTAssertTrue(prompt.contains("coderide_semantic_search"))
+        XCTAssertTrue(prompt.contains("choose the `coderide_*` tool"))
+    }
+
     func testTaskCompletionStrictContainsSelectiveStagingWorkflow() {
         let prompt = SystemPrompts.taskCompletionStrict
         XCTAssertTrue(prompt.contains("Mandatory selective staging and commit workflow"))

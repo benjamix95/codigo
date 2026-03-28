@@ -20,8 +20,8 @@ enum PromptToolsPolicy {
       • Skills → \(canonicalFamilyInlineSummary(family: "skill"))
     - CRITICAL: Do NOT default to Bash for everything. Use the right structured family first, then Bash only as a fallback when the current runtime truly lacks the needed structured tool.
     - ALWAYS read a file before editing it — never edit blind.
-    - If the tool schema exposes prefixed aliases (for example `coderide_read`, `coderide_grep`, `coderide_semantic_search`), those are just live aliases for the same canonical tool family. Use the exact alias shown by the session, not a guessed variant.
-    - **CoderIDE MCP (server Rust):** when connected, the function-calling schema lists tools as `coderide_*` (for example `\(canonicalToolName("read"))`, `\(canonicalToolName("plan_create"))`, `\(canonicalToolName("review_start"))`). Use those exact names from the live tool list for this session. Unprefixed names (`read`, `grep`, `todo_write`) may appear in other runtimes but are not guaranteed here.
+    - If the tool schema exposes prefixed aliases (for example `coderide_read`, `coderide_grep`, `coderide_semantic_search`), those are the canonical workspace tools for this session. Use the exact alias shown by the session, not a guessed variant.
+    - **CoderIDE MCP (server Rust):** when connected, the function-calling schema lists tools as `coderide_*` (for example `\(canonicalToolName("read"))`, `\(canonicalToolName("plan_create"))`, `\(canonicalToolName("review_start"))`). Use those exact names from the live tool list for this session. If both generic and `coderide_*` forms appear, choose the `coderide_*` tool and treat the generic form as a compatibility alias only.
     - For workspace discovery and file/content inspection, first use structured tools (`read`/`read_range`, `grep`, `semantic_search`, `codebase_search`). Use Bash (`cat`, `rg`, `grep`, `find`) only as a fallback when those tools fail in the current turn.
     - For macOS app/UI work, use native verification tools proactively whenever they materially reduce uncertainty. Do NOT wait for the user to explicitly ask if you are:
       • debugging a visual/UI bug;
@@ -150,10 +150,7 @@ enum PromptToolsPolicy {
         }
         let lines = records.map { record in
             let summary = shortDescription(record.description)
-            let promptName = CoderIDECanonicalToolRegistry.shared.preferredPromptName(
-                forRuntimeName: record.runtimeName,
-                on: .app
-            )
+            let promptName = preferredPromptName(for: record.runtimeName)
             return "- `\(promptName)` — \(summary)"
         }
         return lines.joined(separator: "\n    ")
@@ -164,13 +161,36 @@ enum PromptToolsPolicy {
         guard !records.isEmpty else {
             return "none registered"
         }
-        let names = records.prefix(limit).map { "`\($0.runtimeName)`" }
+        let names = records.prefix(limit).map { "`\(preferredPromptName(for: $0.runtimeName))`" }
         let suffix = records.count > limit ? ", ..." : ""
         return names.joined(separator: ", ") + suffix
     }
 
     private static func canonicalToolName(_ runtimeName: String) -> String {
-        "`\(CoderIDECanonicalToolRegistry.shared.preferredPromptName(forRuntimeName: runtimeName))`"
+        "`\(preferredPromptName(for: runtimeName))`"
+    }
+
+    private static let runtimeOnlyPromptToolNames: Set<String> = [
+        "policy_ack",
+        "activate_debug_mode",
+        "activate_plan_mode",
+        "debug_set_phase",
+        "debug_request_user",
+        "debug_resolve",
+        "show_task_panel",
+        "show_swarm_panel",
+    ]
+
+    private static func preferredPromptName(for runtimeName: String) -> String {
+        let normalized = runtimeName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if runtimeOnlyPromptToolNames.contains(normalized) {
+            return runtimeName
+        }
+        return CoderIDECanonicalToolRegistry.shared.preferredPromptName(
+            forRuntimeName: runtimeName,
+            preferMCP: true,
+            on: .app
+        )
     }
 
     private static func shortDescription(_ description: String) -> String {
