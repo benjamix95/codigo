@@ -78,3 +78,8 @@
 
 - **Evidenza:** log H26 con `preview` tipo `0R,0T,3G`: reasoning e primary condividono `sequence` 0; l’ordine dipendeva da `id` (UUID), quindi non garantito tra sessioni.
 - **Fix:** ordinamento esplicito a parità di sequenza: reasoning → text → tool → subagent live → snapshot → artifact, poi `id`. Test `testInterleaverReasoningBeforeTextWhenSequenceEqualRegardlessOfId`.
+
+### Fix 13 — `toolTraceArtifact` perso se il bridge Rust non restituisce stato (mar 2026)
+
+- **Evidenza:** H26 con `traceCount` alto ma caso “no toolMarker” nei blocchi: `appendToolTraceEvent` chiama `applyChatPipelineEvent(.toolTraceArtifact)` per aggiungere un segmento `toolUse` in `ChatTurnState.timelineSegments` (vedi commento in `PartF_DebugTodoLifecycle.swift`). Se `applyPipelineEventThroughRustBoundary` restituisce `nil`, in produzione l’evento veniva scartato (non solo nei test con `shouldSkipRustStoreBootstrapForTests`), quindi `timelineSegments` restava vuota → fallback `blocks` monolitico senza marker.
+- **Fix:** in `PipelineLegacyChatAdapter.applyChatPipelineEvent`, se Rust fallisce e `sequenced.kind == .toolTraceArtifact`, applicare `ChatPipelineReducer` + `ChatPipelineCommitter.commit` come nel path test-only.

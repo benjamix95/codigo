@@ -87,6 +87,21 @@ extension ChatPanelView {
                 chatStore: chatStore,
                 persistImmediately: persistImmediately
             )
+        } else if sequenced.kind == .toolTraceArtifact {
+            // `appendToolTraceEvent` emette `.toolTraceArtifact` per inserire un `toolUse` in
+            // `timelineSegments` (marker + split testo). Se il bridge Rust non restituisce stato,
+            // l’evento veniva perso → blocchi senza toolMarker e H26 “monolitico” nonostante trace.
+            let state = ChatPipelineReducer.apply(
+                state: currentState,
+                event: sequenced
+            )
+            conversationRuntime.activeTurnStateByConversation[event.conversationId] = state
+            conversationRuntime.renderSnapshotByConversation[event.conversationId] = state
+            ChatPipelineCommitter.commit(
+                state,
+                chatStore: chatStore,
+                persistImmediately: persistImmediately
+            )
         } else {
             NSLog(
                 "[ChatPipeline] Rust pipeline boundary unavailable for %@",
