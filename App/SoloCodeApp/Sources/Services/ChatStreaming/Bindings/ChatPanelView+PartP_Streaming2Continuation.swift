@@ -22,7 +22,10 @@ extension ChatPanelView {
             )
             streaming.streamingSegmentTurnIndex += 1
             resetReasoningMessageState(for: convId)
-            if shouldUseLinearChat(providerId: pid) {
+            if shouldSplitStreamingAssistantOnRawTurnStarted(
+                shouldApplyPipelineArtifacts: shouldApplyPipelineArtifacts,
+                shouldUseLinearChat: shouldUseLinearChat(providerId: pid)
+            ) {
                 splitStreamingMessageForNewTurn(conversationId: convId, providerId: pid)
             }
         }

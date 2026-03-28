@@ -111,7 +111,10 @@ extension ChatPanelView {
            !output.isEmpty
         {
             mainChatTraceLog("assistant_update kept_internal chars=\(output.count)")
-            if pid == "codex-cli",
+            if shouldProjectRawAssistantUpdateIntoLiveChat(
+                shouldApplyPipelineArtifacts: shouldApplyPipelineArtifacts,
+                providerId: pid
+            ),
                let targetConversationId = convId ?? selectedConversationId,
                let target = currentAssistantPipelineTarget(for: targetConversationId)
             {
