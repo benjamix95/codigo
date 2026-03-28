@@ -10,6 +10,7 @@ enum StreamingTimelineMergeDebug72 {
     private static var lastOutsideSurfaceAt: CFAbsoluteTime = 0
     private static var lastAssistantCacheAt: CFAbsoluteTime = 0
     private static var lastRustReconcileAt: CFAbsoluteTime = 0
+    private static var lastHydrateFromStoreAt: CFAbsoluteTime = 0
 
     static func logBlocksMergedOutsideActiveSurface(
         messageId: UUID,
@@ -74,6 +75,29 @@ enum StreamingTimelineMergeDebug72 {
     }
 
     /// Timeline Swift con `.toolUse` ripristinata dopo che Rust ha restituito `timelineSegments` vuoti.
+    static func logPipelineTurnCacheHydratedFromStore(
+        conversationId: UUID,
+        hydratedMessageIds: [UUID],
+        totalMarkerCount: Int
+    ) {
+        guard throttle(&lastHydrateFromStoreAt, minInterval: 0.28) else { return }
+        let preview = hydratedMessageIds.prefix(4).map { $0.uuidString.lowercased() }.joined(separator: ",")
+        appendPayload([
+            "sessionId": "72ead1",
+            "runId": "pipeline-cache-hydrate23",
+            "hypothesisId": "H40",
+            "location": "StreamingTimelineMergeDebug72.swift:logPipelineTurnCacheHydratedFromStore",
+            "message": "pipeline_turn_cache_hydrated_from_persisted_blocks",
+            "timestamp": Int64(Date().timeIntervalSince1970 * 1000),
+            "data": [
+                "conversationId": conversationId.uuidString.lowercased(),
+                "hydratedCount": "\(hydratedMessageIds.count)",
+                "totalMarkerCount": "\(totalMarkerCount)",
+                "messageIdsPreview": String(preview.prefix(180)),
+            ],
+        ])
+    }
+
     static func logRustTimelineReconciled(
         messageId: UUID,
         preservedToolSegments: Int

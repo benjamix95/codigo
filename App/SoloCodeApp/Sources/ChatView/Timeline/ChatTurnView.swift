@@ -159,7 +159,9 @@ struct ChatTurnView: View {
             traceEvents: inlineTraceEvents,
             liveSubagentCards: liveSubagentCards,
             subagentSnapshots: message.subagentCards ?? [],
-            suppressReasoningBlocks: suppressReasoning
+            suppressReasoningBlocks: suppressReasoning,
+            debugAssistantMessageId: message.id,
+            debugConversationId: conversationId
         )
     }
 

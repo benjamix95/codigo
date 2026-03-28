@@ -277,6 +277,8 @@ extension ChatPanelView {
         )
         if let lastApplyAt = streaming.lastMainChatStreamApplyAt {
         }
+
+        hydratePipelineTurnCacheFromPersistedAssistantMessagesIfNeeded()
     }
 }
 

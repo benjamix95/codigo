@@ -8,7 +8,9 @@ enum ChatTurnTimelineInterleaver {
         traceEvents: [ToolTraceEvent],
         liveSubagentCards: [SwarmLiveCardState] = [],
         subagentSnapshots: [SubagentCardSnapshot] = [],
-        suppressReasoningBlocks: Bool = false
+        suppressReasoningBlocks: Bool = false,
+        debugAssistantMessageId: UUID? = nil,
+        debugConversationId: UUID? = nil
     ) -> [ChatTurnInterleavedSegment] {
         var segments: [ChatTurnInterleavedSegment] = []
 
@@ -90,7 +92,9 @@ enum ChatTurnTimelineInterleaver {
         ChatTurnTimelineInterleaverDebug72.logIfMonolithicNoMarkersCase(
             blocks: blocks,
             collapsedTraceCount: collapsedTraceEvents.count,
-            merged: merged
+            merged: merged,
+            assistantMessageId: debugAssistantMessageId,
+            conversationId: debugConversationId
         )
         // #endregion
 
@@ -155,7 +159,9 @@ private enum ChatTurnTimelineInterleaverDebug72 {
     static func logIfMonolithicNoMarkersCase(
         blocks: [PersistedChatTimelineBlock],
         collapsedTraceCount: Int,
-        merged: [ChatTurnInterleavedSegment]
+        merged: [ChatTurnInterleavedSegment],
+        assistantMessageId: UUID? = nil,
+        conversationId: UUID? = nil
     ) {
         let toolMarkers = blocks.filter { $0.kind == .toolMarker }.count
         let textBlocks = blocks.filter { $0.kind == .primaryText && !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
@@ -179,6 +185,17 @@ private enum ChatTurnTimelineInterleaverDebug72 {
             if case .text = $0 { return true }
             return false
         })?.sequence ?? -1
+        var fields: [String: String] = [
+            "firstTextSeq": "\(firstTextSeq)",
+            "preview": preview,
+            "traceCount": "\(collapsedTraceCount)",
+        ]
+        if let assistantMessageId {
+            fields["assistantMessageId"] = assistantMessageId.uuidString.lowercased()
+        }
+        if let conversationId {
+            fields["conversationId"] = conversationId.uuidString.lowercased()
+        }
         let payload: [String: Any] = [
             "sessionId": "72ead1",
             "runId": "interleaver-fix11",
@@ -186,23 +203,19 @@ private enum ChatTurnTimelineInterleaverDebug72 {
             "location": "ChatTurnTimelineInterleaver.swift:segments",
             "message": "monolithic_no_markers_merged_order",
             "timestamp": Int64(Date().timeIntervalSince1970 * 1000),
-            "data": [
-                "firstTextSeq": "\(firstTextSeq)",
-                "preview": preview,
-                "traceCount": "\(collapsedTraceCount)",
-            ],
+            "data": fields,
         ]
         guard let json = try? JSONSerialization.data(withJSONObject: payload),
               var line = String(data: json, encoding: .utf8)
         else { return }
         line.append("\n")
-        let data = Data(line.utf8)
+        let ndjsonLine = Data(line.utf8)
         if !FileManager.default.fileExists(atPath: logPath) {
-            FileManager.default.createFile(atPath: logPath, contents: data)
+            FileManager.default.createFile(atPath: logPath, contents: ndjsonLine)
         } else if let h = try? FileHandle(forWritingTo: URL(fileURLWithPath: logPath)) {
             defer { try? h.close() }
             _ = try? h.seekToEnd()
-            h.write(data)
+            h.write(ndjsonLine)
         }
     }
 
