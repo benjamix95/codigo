@@ -129,9 +129,39 @@ extension ChatPanelView {
                         message: streamMerged,
                         conversationId: conversationId
                     )
-                    let displayMessage = suppressPlanArtifacts
+                    let displayMessageRaw = suppressPlanArtifacts
                         ? chatDisplayMessage(from: streamMerged, conversationId: conversationId)
                         : streamMerged
+                    let displayMessage: ChatMessage = {
+                        guard displayMessageRaw.role == .assistant,
+                              isComposerTodoOverlayVisibleForCurrentConversation
+                        else { return displayMessageRaw }
+                        return displayMessageRaw.redactingComposerDuplicateTodoMarkdown()
+                    }()
+                    let _: Void = {
+                        guard displayMessageRaw.role == .assistant,
+                              isComposerTodoOverlayVisibleForCurrentConversation
+                        else { return }
+                        let pre = ChatTodoMarkdownInspection.combinedVisibleTextualPayload(
+                            for: displayMessageRaw
+                        ).count
+                        let post = ChatTodoMarkdownInspection.combinedVisibleTextualPayload(
+                            for: displayMessage
+                        ).count
+                        guard pre != post else { return }
+                        Session989bc5DebugNDJSONLog.append(
+                            hypothesisId: "C",
+                            location: "ChatPanelView+PartD_MessageCell.redaction",
+                            message: "todo_timeline_redacted",
+                            runId: "post-fix",
+                            data: [
+                                "conversationId": conversationId.uuidString.lowercased(),
+                                "messageId": displayMessage.id.uuidString.lowercased(),
+                                "preCombinedLen": String(pre),
+                                "postCombinedLen": String(post),
+                            ]
+                        )
+                    }()
                     let fallbackStreamingStatusText = streamingStatusText(for: displayMessage)
                     let fallbackStreamingDetailText = streamingDetailText(
                         for: displayMessage,
@@ -210,6 +240,41 @@ extension ChatPanelView {
                             .map(\.kind.rawValue).joined(separator: ",")
                         // #region agent log
                         let _: Void = {
+                            let combinedTextual = ChatTodoMarkdownInspection.combinedVisibleTextualPayload(
+                                for: displayMessage
+                            )
+                            let overlayNow = isComposerTodoOverlayVisibleForCurrentConversation
+                            Session989bc5DebugNDJSONLog.append(
+                                hypothesisId: "A",
+                                location: "ChatPanelView+PartD_MessageCell.assistant_branch",
+                                message: "timeline_todo_markdown_vs_composer_overlay",
+                                data: [
+                                    "conversationId": conversationId.uuidString.lowercased(),
+                                    "messageId": message.id.uuidString.lowercased(),
+                                    "isLastAssistant": isLastAssistant ? "1" : "0",
+                                    "composerOverlayVisible": overlayNow ? "1" : "0",
+                                    "suppressPlanArtifacts": suppressPlanArtifacts ? "1" : "0",
+                                    "hasTaskListMarkdown": ChatTodoMarkdownInspection.hasGitHubStyleTaskList(
+                                        combinedTextual
+                                    )
+                                        ? "1" : "0",
+                                    "hasOrderedList": ChatTodoMarkdownInspection.hasOrderedListLines(
+                                        combinedTextual
+                                    )
+                                        ? "1" : "0",
+                                    "hasPlanTodoHeader": ChatTodoMarkdownInspection.hasStructuredPlanOrTodoHeader(
+                                        combinedTextual
+                                    )
+                                        ? "1" : "0",
+                                    "shouldShowTodoCardInTurn": shouldShowTodoCardInTurn ? "1" : "0",
+                                    "planScopedTodoCount": String(planScopedTodoItems.count),
+                                    "combinedLen": String(combinedTextual.count),
+                                ]
+                            )
+                        }()
+                        // #endregion
+                        // #region agent log
+                        let _: Void = {
                             PlanFlowDebugNDJSONLog.append(
                                 hypothesisId: "J",
                                 location: "ChatPanelView+PartD_MessageCell.chatTurn_assistant",
@@ -253,6 +318,8 @@ extension ChatPanelView {
                             conversationId: conversationId,
                             reasoningPolicyProviderId: resolvedTurnProviderId(for: conversationId),
                             shouldShowTodo: shouldShowTodoCardInTurn,
+                            suppressInlineTodoToolTraceBecauseComposerOverlay:
+                                isComposerTodoOverlayVisibleForCurrentConversation,
                             canEdit: displayMessage.role == .user,
                             canDelete: deleteAction != nil,
                             onAction: { action in

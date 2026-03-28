@@ -36,6 +36,12 @@
 
 - I blocchi `.reasoning` in timeline possono contenere checklist non coperte da `combinedVisibleTextualPayload` (prima: solo primary/plan/status). Ora: strip anche su `.reasoning` nel sanitizer display-only; il probe A include il testo reasoning per allineamento.
 
+## Iterazione 6 (trace MCP todo vs overlay)
+
+- **Sintomo**: in chat restavano righe tipo `mcp__coderide__coderide_todo_read` (feed lineare) che si aggiornano dal `ToolTraceStore`, mentre l’overlay legge `TodoStore` — due superfici sovrapposte e “vive” sullo sfondo del composer semi-trasparente.
+- **Evidenza logica**: `shouldShowOperationEventInLinearChat` nasconde MCP `todo_read`/`todo_write` solo se `showTodoCard` è true (vecchia card legata a `shouldShowTodoCardInTurn`). Con overlay composer, `shouldShowTodoCardInTurn` è 0 → le righe MCP restavano visibili.
+- **Fix**: `suppressInlineTodoToolTraceBecauseComposerOverlay` su `ChatTurnView` (da `isComposerTodoOverlayVisibleForCurrentConversation`), stessa unione `(shouldShowTodo && !todoItems.isEmpty) || suppress…` per il filtro trace. Sfondo **opaco** su `ComposerTodoOverlayView` per eliminare bleed-through del gradient composer. Log `composer_overlay_suppresses_inline_todo_traces` (`H`).
+
 ## Stato
 
 - Instrumentazione `989bc5` lasciata attiva finché la verifica post-fix non è confermata.

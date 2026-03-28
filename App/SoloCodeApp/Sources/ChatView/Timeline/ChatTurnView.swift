@@ -104,6 +104,8 @@ struct ChatTurnView: View {
     /// Provider effettivo del turno (es. da `resolvedTurnProviderId`); serve se `message.turnMetadata` non ha ancora `providerId`.
     let reasoningPolicyProviderId: String
     let shouldShowTodo: Bool
+    /// Quando l’overlay todo del composer è visivo, nascondi nel feed lineare le righe MCP `todo_read`/`todo_write` (stesso effetto della vecchia card in-chat).
+    var suppressInlineTodoToolTraceBecauseComposerOverlay: Bool = false
     let canEdit: Bool
     let canDelete: Bool
     let onAction: (ChatTurnAction) -> Void
@@ -119,8 +121,10 @@ struct ChatTurnView: View {
         ChatTurnTimelineOrdering.visibleBlocks(from: message.resolvedTimelineBlocks)
     }
     private var inlineTraceEvents: [ToolTraceEvent] {
+        let showTodoCardForTraceFiltering =
+            (shouldShowTodo && !todoItems.isEmpty) || suppressInlineTodoToolTraceBecauseComposerOverlay
         let filtered = traceEvents
-            .filter { shouldShowInLinearChatOperationFeed($0, showTodoCard: shouldShowTodo && !todoItems.isEmpty) }
+            .filter { shouldShowInLinearChatOperationFeed($0, showTodoCard: showTodoCardForTraceFiltering) }
         // traceEvents from ToolTraceStore are already in insertion order
         // (NDJSON append-only). .filter() preserves relative order, so the
         // result is almost always already sorted. Check in O(n) before
@@ -165,6 +169,45 @@ struct ChatTurnView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
+            Color.clear
+                .frame(width: 0, height: 0)
+                .onAppear {
+                    // #region agent log
+                    let kinds = visibleBlocks.map(\.kind.rawValue).joined(separator: ",")
+                    PlanFlowDebugNDJSONLog.append(
+                        hypothesisId: "J",
+                        location: "ChatTurnView.body.onAppear",
+                        message: "chat_turn_visible_blocks",
+                        data: [
+                            "messageId": message.id.uuidString.lowercased(),
+                            "conversationId": conversationId.uuidString.lowercased(),
+                            "shouldShowTodo": shouldShowTodo ? "1" : "0",
+                            "todoItemsCount": String(todoItems.count),
+                            "visibleBlockCount": String(visibleBlocks.count),
+                            "blockKinds": String(kinds.prefix(240)),
+                            "isStreaming": message.isStreaming ? "1" : "0",
+                        ]
+                    )
+                    if suppressInlineTodoToolTraceBecauseComposerOverlay, !traceEvents.isEmpty {
+                        let hiddenBySuppress = traceEvents.filter { ev in
+                            shouldShowInLinearChatOperationFeed(ev, showTodoCard: false)
+                                && !shouldShowInLinearChatOperationFeed(ev, showTodoCard: true)
+                        }.count
+                        Session989bc5DebugNDJSONLog.append(
+                            hypothesisId: "H",
+                            location: "ChatTurnView.body.onAppear",
+                            message: "composer_overlay_suppresses_inline_todo_traces",
+                            runId: "verify-h1",
+                            data: [
+                                "messageId": message.id.uuidString.lowercased(),
+                                "traceTotal": String(traceEvents.count),
+                                "inlineAfterSuppress": String(inlineTraceEvents.count),
+                                "hiddenTodoTraceRows": String(hiddenBySuppress),
+                            ]
+                        )
+                    }
+                    // #endregion
+                }
             if showTopDivider {
                 Rectangle()
                     .fill(Color.primary.opacity(0.06))

@@ -43,11 +43,35 @@ struct ComposerTodoOverlayView: View {
 
     @State private var isFileListExpanded = false
 
+    /// Sfondo opaco allineato al grigio del composer: evita che la lista todo in chat trapeli dal gradient semi-trasparente.
+    private var opaqueComposerChromeFill: Color {
+        isIDEStyle
+            ? Color(red: 34 / 255, green: 34 / 255, blue: 36 / 255)
+            : Color(red: 42 / 255, green: 42 / 255, blue: 42 / 255)
+    }
+
     // MARK: - Body
 
     var body: some View {
         if hasActiveTodos {
             VStack(alignment: .leading, spacing: 0) {
+                Color.clear
+                    .frame(width: 0, height: 0)
+                    .onAppear {
+                        // #region agent log
+                        PlanFlowDebugNDJSONLog.append(
+                            hypothesisId: "J",
+                            location: "ComposerTodoOverlayView.body",
+                            message: "composer_todo_overlay_visible",
+                            data: [
+                                "itemsCount": String(items.count),
+                                "activeNonDoneCount": String(
+                                    items.filter { $0.status != .done && !$0.isOperationalPlaceholder }.count
+                                ),
+                            ]
+                        )
+                        // #endregion
+                    }
                 header
 
                 if let microStatusText, !microStatusText.isEmpty {
@@ -78,6 +102,10 @@ struct ComposerTodoOverlayView: View {
 
                 Divider().overlay(Color.primary.opacity(0.08))
             }
+            .background(
+                RoundedRectangle(cornerRadius: isIDEStyle ? 10 : 12, style: .continuous)
+                    .fill(opaqueComposerChromeFill)
+            )
         }
     }
 
