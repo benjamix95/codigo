@@ -82,11 +82,9 @@ enum ChatTurnTimelineInterleaver {
             )
         }
 
-        let merged = segments.sorted { lhs, rhs in
-            if lhs.sequence != rhs.sequence { return lhs.sequence < rhs.sequence }
-            return lhs.id < rhs.id
-        }
-        .collapsedConsecutiveToolEvents()
+        let merged = segments
+            .sorted { compareSegmentsForTimeline($0, $1) }
+            .collapsedConsecutiveToolEvents()
 
         // #region agent log
         ChatTurnTimelineInterleaverDebug72.logIfMonolithicNoMarkersCase(
@@ -97,6 +95,31 @@ enum ChatTurnTimelineInterleaver {
         // #endregion
 
         return merged
+    }
+
+    /// Ordine con `sequence` identica: non dipendere dal solo `id` (UUID), altrimenti
+    /// reasoning e primary possono invertirsi tra run e confondere la UX (log H26 `0R,0T`).
+    private static func compareSegmentsForTimeline(
+        _ lhs: ChatTurnInterleavedSegment,
+        _ rhs: ChatTurnInterleavedSegment
+    ) -> Bool {
+        if lhs.sequence != rhs.sequence { return lhs.sequence < rhs.sequence }
+        let lp = segmentSequenceTiePriority(lhs)
+        let rp = segmentSequenceTiePriority(rhs)
+        if lp != rp { return lp < rp }
+        return lhs.id < rhs.id
+    }
+
+    /// Valori più bassi = più in alto nella colonna.
+    private static func segmentSequenceTiePriority(_ segment: ChatTurnInterleavedSegment) -> Int {
+        switch segment {
+        case .reasoning: return 0
+        case .text: return 1
+        case .toolEvent, .toolGroup: return 2
+        case .subagentLiveCard: return 3
+        case .subagentSnapshot: return 4
+        case .artifact: return 5
+        }
     }
 
     private static func sequenceForSubagentCard(

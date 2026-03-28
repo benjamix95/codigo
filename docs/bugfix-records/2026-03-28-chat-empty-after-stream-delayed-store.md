@@ -73,3 +73,8 @@
 - **Sintomo:** con trace tool popolate ma **nessun** `toolMarker` nei blocchi, tutte le card tool sopra e un unico blocco di risposta sotto (ordine non cronologico rispetto a `sequence`).
 - **Causa:** `ChatTurnTimelineInterleaver` trattava il caso “un solo primaryText(0) + tool senza marker” spostando il testo a `maxToolSequence + 1`, quindi dopo tutti gli eventi tool.
 - **Fix:** per `.primaryText` usare **sempre** `block.sequence` (rimossa l’euristica monolitica). Test `testInterleaverKeepsSinglePrimaryBeforeToolsWhenNoToolMarkers`. Log NDJSON throttled **H26** su `.cursor/debug-72ead1.log` per il caso monolitico senza marker (verifica post-fix: `preview` inizia con `0T`,…).
+
+### Fix 12 — tie-break stabile a parità di `sequence` (mar 2026)
+
+- **Evidenza:** log H26 con `preview` tipo `0R,0T,3G`: reasoning e primary condividono `sequence` 0; l’ordine dipendeva da `id` (UUID), quindi non garantito tra sessioni.
+- **Fix:** ordinamento esplicito a parità di sequenza: reasoning → text → tool → subagent live → snapshot → artifact, poi `id`. Test `testInterleaverReasoningBeforeTextWhenSequenceEqualRegardlessOfId`.

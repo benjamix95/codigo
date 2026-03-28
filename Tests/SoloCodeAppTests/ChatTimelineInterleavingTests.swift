@@ -246,6 +246,28 @@ final class ChatTimelineInterleavingTests: XCTestCase {
         XCTAssertEqual(liveCardSequences, [2])
     }
 
+    func testInterleaverReasoningBeforeTextWhenSequenceEqualRegardlessOfId() {
+        let blocks = [
+            PersistedChatTimelineBlock(id: "aaaa-text", kind: .primaryText, text: "Answer", sequence: 0),
+            PersistedChatTimelineBlock(id: "zzzz-reason", kind: .reasoning, text: "Think", sequence: 0),
+        ]
+        let segments = ChatTurnTimelineInterleaver.segments(blocks: blocks, traceEvents: [])
+        XCTAssertEqual(segments.count, 2)
+        if case .reasoning(let id, let text, let seq) = segments[0] {
+            XCTAssertEqual(seq, 0)
+            XCTAssertEqual(id, "zzzz-reason")
+            XCTAssertEqual(text, "Think")
+        } else {
+            XCTFail("Con sequence uguale il reasoning deve precedere il testo (tie-break stabile)")
+        }
+        if case .text(let id, _, let seq) = segments[1] {
+            XCTAssertEqual(seq, 0)
+            XCTAssertEqual(id, "aaaa-text")
+        } else {
+            XCTFail("Secondo segmento atteso: testo")
+        }
+    }
+
     func testInterleaverKeepsSinglePrimaryBeforeToolsWhenNoToolMarkers() {
         let blocks = [
             PersistedChatTimelineBlock(id: "text-0", kind: .primaryText, text: "Riepilogo", sequence: 0),
