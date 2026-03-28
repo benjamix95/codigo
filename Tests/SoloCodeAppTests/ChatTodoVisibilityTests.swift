@@ -347,19 +347,29 @@ final class ChatTodoVisibilityTests: XCTestCase {
         XCTAssertEqual(resolved, visibleAssistantId)
     }
 
-    func testLinearChatHidesTodoEventsWhenTodoCardIsVisible() {
+    func testLinearChatAlwaysHidesTodoLifecycleToolRows() {
         XCTAssertFalse(
             shouldShowOperationEventInLinearChat(
                 eventType: "todo_write",
-                payload: [:],
-                showTodoCard: true
+                payload: [:]
             )
         )
         XCTAssertFalse(
             shouldShowOperationEventInLinearChat(
                 eventType: "mcp_tool_call",
-                payload: ["mcp_tool": "coderide_todo_write"],
-                showTodoCard: true
+                payload: ["mcp_tool": "coderide_todo_write"]
+            )
+        )
+        XCTAssertFalse(
+            shouldShowOperationEventInLinearChat(
+                eventType: "coderide_todo_read",
+                payload: [:]
+            )
+        )
+        XCTAssertFalse(
+            shouldShowOperationEventInLinearChat(
+                eventType: "mcp_tool_call",
+                payload: ["mcp_tool": "mcp__coderide__coderide_todo_read", "is_mcp": "true"]
             )
         )
     }
@@ -368,15 +378,13 @@ final class ChatTodoVisibilityTests: XCTestCase {
         XCTAssertFalse(
             shouldShowOperationEventInLinearChat(
                 eventType: "policy_ack",
-                payload: [:],
-                showTodoCard: false
+                payload: [:]
             )
         )
         XCTAssertTrue(
             shouldShowOperationEventInLinearChat(
                 eventType: "command_execution",
-                payload: ["command": "rg Chat ."],
-                showTodoCard: false
+                payload: ["command": "rg Chat ."]
             )
         )
     }
@@ -385,8 +393,7 @@ final class ChatTodoVisibilityTests: XCTestCase {
         XCTAssertFalse(
             shouldShowOperationEventInLinearChat(
                 eventType: "mcp_tool_call",
-                payload: ["mcp_tool": "coderide_policy_ack", "is_mcp": "true"],
-                showTodoCard: false
+                payload: ["mcp_tool": "coderide_policy_ack", "is_mcp": "true"]
             )
         )
     }
@@ -395,15 +402,13 @@ final class ChatTodoVisibilityTests: XCTestCase {
         XCTAssertFalse(
             shouldShowOperationEventInLinearChat(
                 eventType: "mcp_tool_call",
-                payload: ["mcp_tool": "functions.coderide_policy_ack", "is_mcp": "true"],
-                showTodoCard: false
+                payload: ["mcp_tool": "functions.coderide_policy_ack", "is_mcp": "true"]
             )
         )
         XCTAssertFalse(
             shouldShowOperationEventInLinearChat(
                 eventType: "mcp_tool_call",
-                payload: ["mcp_tool": "functions.coderide_activate_debug_mode", "is_mcp": "true"],
-                showTodoCard: false
+                payload: ["mcp_tool": "functions.coderide_activate_debug_mode", "is_mcp": "true"]
             )
         )
     }
@@ -412,8 +417,7 @@ final class ChatTodoVisibilityTests: XCTestCase {
         XCTAssertTrue(
             shouldShowOperationEventInLinearChat(
                 eventType: "mcp_tool_call",
-                payload: ["mcp_tool": "coderide_read", "path": "README.md", "is_mcp": "true"],
-                showTodoCard: false
+                payload: ["mcp_tool": "coderide_read", "path": "README.md", "is_mcp": "true"]
             )
         )
     }

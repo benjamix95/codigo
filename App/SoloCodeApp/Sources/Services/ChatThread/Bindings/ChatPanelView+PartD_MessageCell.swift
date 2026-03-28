@@ -318,8 +318,6 @@ extension ChatPanelView {
                             conversationId: conversationId,
                             reasoningPolicyProviderId: resolvedTurnProviderId(for: conversationId),
                             shouldShowTodo: shouldShowTodoCardInTurn,
-                            suppressInlineTodoToolTraceBecauseComposerOverlay:
-                                isComposerTodoOverlayVisibleForCurrentConversation,
                             canEdit: displayMessage.role == .user,
                             canDelete: deleteAction != nil,
                             onAction: { action in

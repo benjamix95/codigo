@@ -104,8 +104,6 @@ struct ChatTurnView: View {
     /// Provider effettivo del turno (es. da `resolvedTurnProviderId`); serve se `message.turnMetadata` non ha ancora `providerId`.
     let reasoningPolicyProviderId: String
     let shouldShowTodo: Bool
-    /// Quando l’overlay todo del composer è visivo, nascondi nel feed lineare le righe MCP `todo_read`/`todo_write` (stesso effetto della vecchia card in-chat).
-    var suppressInlineTodoToolTraceBecauseComposerOverlay: Bool = false
     let canEdit: Bool
     let canDelete: Bool
     let onAction: (ChatTurnAction) -> Void
@@ -121,10 +119,8 @@ struct ChatTurnView: View {
         ChatTurnTimelineOrdering.visibleBlocks(from: message.resolvedTimelineBlocks)
     }
     private var inlineTraceEvents: [ToolTraceEvent] {
-        let showTodoCardForTraceFiltering =
-            (shouldShowTodo && !todoItems.isEmpty) || suppressInlineTodoToolTraceBecauseComposerOverlay
         let filtered = traceEvents
-            .filter { shouldShowInLinearChatOperationFeed($0, showTodoCard: showTodoCardForTraceFiltering) }
+            .filter { shouldShowInLinearChatOperationFeed($0) }
         // traceEvents from ToolTraceStore are already in insertion order
         // (NDJSON append-only). .filter() preserves relative order, so the
         // result is almost always already sorted. Check in O(n) before
@@ -188,21 +184,21 @@ struct ChatTurnView: View {
                             "isStreaming": message.isStreaming ? "1" : "0",
                         ]
                     )
-                    if suppressInlineTodoToolTraceBecauseComposerOverlay, !traceEvents.isEmpty {
-                        let hiddenBySuppress = traceEvents.filter { ev in
-                            shouldShowInLinearChatOperationFeed(ev, showTodoCard: false)
-                                && !shouldShowInLinearChatOperationFeed(ev, showTodoCard: true)
+                    if !traceEvents.isEmpty {
+                        let todoLikeHidden = traceEvents.filter { ev in
+                            let n = normalizedTodoPolicyToolName(type: ev.type, payload: ev.payload)
+                            return n == "todo_read" || n == "todo_write"
                         }.count
                         Session989bc5DebugNDJSONLog.append(
                             hypothesisId: "H",
                             location: "ChatTurnView.body.onAppear",
-                            message: "composer_overlay_suppresses_inline_todo_traces",
-                            runId: "verify-h1",
+                            message: "linear_chat_todo_trace_rows_normalized",
+                            runId: "post-h2-fix",
                             data: [
                                 "messageId": message.id.uuidString.lowercased(),
                                 "traceTotal": String(traceEvents.count),
-                                "inlineAfterSuppress": String(inlineTraceEvents.count),
-                                "hiddenTodoTraceRows": String(hiddenBySuppress),
+                                "inlineVisible": String(inlineTraceEvents.count),
+                                "todoNormalizedRowsInTrace": String(todoLikeHidden),
                             ]
                         )
                     }
@@ -235,11 +231,10 @@ struct ChatTurnView: View {
 
     // MARK: - Filter
 
-    private func shouldShowInLinearChatOperationFeed(_ event: ToolTraceEvent, showTodoCard: Bool) -> Bool {
+    private func shouldShowInLinearChatOperationFeed(_ event: ToolTraceEvent) -> Bool {
         shouldShowOperationEventInLinearChat(
             eventType: event.type,
-            payload: event.payload,
-            showTodoCard: showTodoCard
+            payload: event.payload
         )
     }
 

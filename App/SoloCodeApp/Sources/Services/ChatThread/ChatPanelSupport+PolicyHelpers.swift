@@ -118,7 +118,7 @@ func todoPlanStartPolicyViolation(
 func shouldShowOperationEventInLinearChat(
     eventType: String,
     payload: [String: String],
-    showTodoCard: Bool
+    showTodoCard _: Bool = false
 ) -> Bool {
     let type = eventType
         .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -126,21 +126,15 @@ func shouldShowOperationEventInLinearChat(
     if ["policy_ack", "usage", "reasoning", "turn_started", "turn_completed"].contains(type) {
         return false
     }
-    if showTodoCard && (type == "todo_write" || type == "todo_read") {
-        return false
-    }
-    if type == "todo_write" || type == "todo_read" {
+    let normalizedTodoTool = normalizedTodoPolicyToolName(type: type, payload: payload)
+    if normalizedTodoTool == "todo_read" || normalizedTodoTool == "todo_write" {
         return false
     }
     if type == "mcp_tool_call" {
-        let tool = normalizedTodoPolicyToolName(type: type, payload: payload)
-        if tool == "policy_ack" {
+        if normalizedTodoTool == "policy_ack" {
             return false
         }
-        if tool == "activate_plan_mode" || tool == "activate_debug_mode" {
-            return false
-        }
-        if showTodoCard && (tool == "todo_write" || tool == "todo_read") {
+        if normalizedTodoTool == "activate_plan_mode" || normalizedTodoTool == "activate_debug_mode" {
             return false
         }
     }
@@ -190,6 +184,16 @@ func normalizedTodoPolicyToolName(type: String, payload: [String: String]) -> St
     var candidate = rawToolName
     for prefix in namespacedPrefixes where rawToolName.hasPrefix(prefix) {
         candidate = String(rawToolName.dropFirst(prefix.count))
+        break
+    }
+
+    let mcpCoderidePrefixes = [
+        "functions.mcp__coderide__coderide_",
+        "mcp__coderide__coderide_",
+    ]
+    let loweredCandidate = candidate.lowercased()
+    for prefix in mcpCoderidePrefixes where loweredCandidate.hasPrefix(prefix) {
+        candidate = String(candidate.dropFirst(prefix.count))
         break
     }
 

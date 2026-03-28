@@ -74,8 +74,7 @@ extension ChatPanelView {
             }
             return shouldShowOperationEventInLinearChat(
                 eventType: activity.type,
-                payload: activity.payload,
-                showTodoCard: false
+                payload: activity.payload
             )
         }
 

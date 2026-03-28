@@ -42,6 +42,11 @@
 - **Evidenza logica**: `shouldShowOperationEventInLinearChat` nasconde MCP `todo_read`/`todo_write` solo se `showTodoCard` è true (vecchia card legata a `shouldShowTodoCardInTurn`). Con overlay composer, `shouldShowTodoCardInTurn` è 0 → le righe MCP restavano visibili.
 - **Fix**: `suppressInlineTodoToolTraceBecauseComposerOverlay` su `ChatTurnView` (da `isComposerTodoOverlayVisibleForCurrentConversation`), stessa unione `(shouldShowTodo && !todoItems.isEmpty) || suppress…` per il filtro trace. Sfondo **opaco** su `ComposerTodoOverlayView` per eliminare bleed-through del gradient composer. Log `composer_overlay_suppresses_inline_todo_traces` (`H`).
 
+## Iterazione 7 (log H: `hiddenTodoTraceRows` sempre 0)
+
+- **Evidenza**: `composer_overlay_suppresses_inline_todo_traces` mostrava `hiddenTodoTraceRows=0` ma `traceTotal > inlineAfterSuppress` — il filtro con `showTodoCard` non classificava molti eventi come todo (es. `type == "coderide_todo_read"` o `mcp_tool` con prefisso `mcp__coderide__coderide_`), quindi restavano nel feed mentre il testo sullo schermo duplicava l’overlay.
+- **Fix**: strip `mcp__coderide__coderide_` / `functions.mcp__coderide__coderide_` in `normalizedTodoPolicyToolName`; in `shouldShowOperationEventInLinearChat` nascondere **sempre** qualunque evento il cui nome normalizzato sia `todo_read` o `todo_write` (parametro `showTodoCard` deprecato con default). Rimosso flag `suppressInlineTodoToolTraceBecauseComposerOverlay`. Log `linear_chat_todo_trace_rows_normalized` (`H`, `post-h2-fix`) con `todoNormalizedRowsInTrace`.
+
 ## Stato
 
 - Instrumentazione `989bc5` lasciata attiva finché la verifica post-fix non è confermata.
