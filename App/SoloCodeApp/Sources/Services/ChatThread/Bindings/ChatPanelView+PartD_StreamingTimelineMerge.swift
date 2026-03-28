@@ -34,9 +34,13 @@ extension ChatPanelView {
                 if merged.content.count < pipelinePrimary.count {
                     merged.content = pipelinePrimary
                 }
-            } else if pipelinePrimary.count > merged.resolvedPrimaryText.count {
-                merged.primaryTextSnapshot = pipelinePrimary
-                merged.content = pipelinePrimary
+            } else {
+                let pNorm = pipelinePrimary.trimmingCharacters(in: .whitespacesAndNewlines)
+                let rNorm = merged.resolvedPrimaryText.trimmingCharacters(in: .whitespacesAndNewlines)
+                let vNorm = streamingVisiblePrimaryBlockNorm(merged)
+                if !pNorm.isEmpty, pNorm != rNorm || pNorm != vNorm {
+                    applyLivePrimaryStreamText(&merged, text: pipelinePrimary)
+                }
             }
         }
 
@@ -45,11 +49,12 @@ extension ChatPanelView {
            !pending.isEmpty
         {
             let trimmed = pending.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmed.count > merged.resolvedPrimaryText.count
-                || (merged.resolvedPrimaryText.isEmpty && !trimmed.isEmpty)
-            {
-                merged.content = pending
-                merged.primaryTextSnapshot = pending
+            if !trimmed.isEmpty {
+                let rNorm = merged.resolvedPrimaryText.trimmingCharacters(in: .whitespacesAndNewlines)
+                let vNorm = streamingVisiblePrimaryBlockNorm(merged)
+                if trimmed != rNorm || trimmed != vNorm || (rNorm.isEmpty && !trimmed.isEmpty) {
+                    applyLivePrimaryStreamText(&merged, text: pending)
+                }
             }
         }
 
@@ -82,6 +87,27 @@ extension ChatPanelView {
 
         return merged
     }
+}
+
+/// Testo del primo blocco `.primaryText` se presente; altrimenti `resolvedPrimaryText` (trim).
+private func streamingVisiblePrimaryBlockNorm(_ message: ChatMessage) -> String {
+    if let blocks = message.blocks, !blocks.isEmpty,
+       let primary = blocks.first(where: { $0.kind == .primaryText })
+    {
+        return primary.text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    return message.resolvedPrimaryText.trimmingCharacters(in: .whitespacesAndNewlines)
+}
+
+/// Allinea `content` / `primaryTextSnapshot` e, se ci sono blocchi, il testo del blocco primary così
+/// `resolvedTimelineBlocks` non resta fermo su payload identico (H11 + H25 senza delta visivo).
+private func applyLivePrimaryStreamText(_ merged: inout ChatMessage, text: String) {
+    merged.content = text
+    merged.primaryTextSnapshot = text
+    guard var blocks = merged.blocks, !blocks.isEmpty else { return }
+    guard let idx = blocks.firstIndex(where: { $0.kind == .primaryText }) else { return }
+    blocks[idx].text = text
+    merged.blocks = blocks
 }
 
 private func streamingTimelinePayloadCharSum(_ message: ChatMessage) -> Int {

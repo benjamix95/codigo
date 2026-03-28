@@ -55,3 +55,9 @@
 - **Evidenza:** H11 con `freshLastContentLen` / `freshTimelinePayloadLen` **uguali** (es. 98) mentre `streamContentVersion` sale (13→19): il dato può essere aggiornato ma la UI no se il testo cambia **senza** cambiare `utf16.count`.
 - **Causa:** `MarkdownContentView.buildStreamingAttributed` usava solo `lastStreamingAttributedLength` come chiave della cache statica.
 - **Fix:** chiave sulla **stringa sorgente** (`lastStreamingAttributedSource == text`) prima di riusare `AttributedString` cache (`MarkdownContentView+Views.swift`). H25 log solo su merge materiale (`content` / `blocks` / `primaryTextSnapshot` / payload).
+
+### Fix 9 — pending/pipeline vs blocco `primaryText` (mar 2026)
+
+- **Evidenza:** H11 con payload fermo (es. `199`) mentre `streamContentVersion` sale; H25 con `storePayload` == `mergedPayload` e `hadPending: true` — il buffer c’è ma la timeline non si muove.
+- **Causa:** con `blocks` non vuoti la UI legge il testo dal blocco `.primaryText`; aggiornare solo `content` / `primaryTextSnapshot` (e merge solo se `count` cresce) lasciava il blocco obsoleto; stessa lunghezza sostitutiva non passava il gate.
+- **Fix:** confronto normalizzato con `resolvedPrimaryText` **e** con il testo del primo blocco primary; `applyLivePrimaryStreamText` aggiorna anche `blocks[idx].text` (`ChatPanelView+PartD_StreamingTimelineMerge.swift`).
