@@ -28,6 +28,7 @@ extension CodeReviewAuditService {
     /// the very pattern strings it searches for).
     static let auditSelfExclusionSuffixes: [String] = [
         "CodeReviewAuditService+Bug.swift",
+        "CodeReviewAuditService+Performance.swift",
         "CodeReviewAuditService+Security.swift",
         "CodeReviewAuditService+Support.swift",
         "CodeReviewAuditService.swift",
@@ -212,6 +213,10 @@ extension CodeReviewAuditService {
             return ReviewAuditToolName.bugTools.map {
                 runTool(named: $0, scopeFiles: scopeFiles, workspacePath: workspacePath)
             }
+        case .performanceDeep:
+            return ReviewAuditToolName.performanceTools.map {
+                runTool(named: $0, scopeFiles: scopeFiles, workspacePath: workspacePath)
+            }
         case .releaseGate:
             return [
                 runTool(named: ReviewAuditToolName.securitySupplyChain, scopeFiles: scopeFiles, workspacePath: workspacePath),
@@ -223,6 +228,9 @@ extension CodeReviewAuditService {
                 runTool(named: ReviewAuditToolName.securitySurface, scopeFiles: scopeFiles, workspacePath: workspacePath),
                 runTool(named: ReviewAuditToolName.securityCrypto, scopeFiles: scopeFiles, workspacePath: workspacePath),
                 runTool(named: ReviewAuditToolName.bugConcurrency, scopeFiles: scopeFiles, workspacePath: workspacePath),
+                runTool(named: ReviewAuditToolName.perfUIResponsiveness, scopeFiles: scopeFiles, workspacePath: workspacePath),
+                runTool(named: ReviewAuditToolName.perfMemory, scopeFiles: scopeFiles, workspacePath: workspacePath),
+                runTool(named: ReviewAuditToolName.perfStartup, scopeFiles: scopeFiles, workspacePath: workspacePath),
             ]
         case .backendRegression:
             return [
@@ -230,6 +238,7 @@ extension CodeReviewAuditService {
                 runTool(named: ReviewAuditToolName.bugErrorHandling, scopeFiles: scopeFiles, workspacePath: workspacePath),
                 runTool(named: ReviewAuditToolName.bugAPIContracts, scopeFiles: scopeFiles, workspacePath: workspacePath),
                 runTool(named: ReviewAuditToolName.bugDiffSemantics, scopeFiles: scopeFiles, workspacePath: workspacePath),
+                runTool(named: ReviewAuditToolName.perfBottlenecks, scopeFiles: scopeFiles, workspacePath: workspacePath),
             ]
         }
     }

@@ -1,5 +1,8 @@
 use super::bugs;
 use super::helpers::run_pattern_tool;
+use super::perf_correlate;
+use super::perf_trending;
+use super::performance;
 use super::security;
 use serde_json::{json, Value};
 
@@ -97,6 +100,27 @@ pub(crate) fn dispatch_standard_audit(
         "audit_bug_hotspots" => bugs::run_bug_hotspots(scope_files, workspace_path),
         "audit_bug_dependency_drift" => bugs::run_bug_dependency_drift(scope_files, workspace_path),
         "audit_bug_diff_semantics" => bugs::run_bug_diff_semantics(scope_files, workspace_path),
+        // Performance tools
+        "audit_perf_bottlenecks" => performance::run_perf_bottlenecks(scope_files, workspace_path),
+        "audit_perf_memory" => performance::run_perf_memory(scope_files, workspace_path),
+        "audit_perf_ui_responsiveness" => {
+            performance::run_perf_ui_responsiveness(scope_files, workspace_path)
+        }
+        "audit_perf_startup" => performance::run_perf_startup(scope_files, workspace_path),
+        "audit_perf_hot_paths" => performance::run_perf_hot_paths(scope_files, workspace_path),
+        "audit_perf_correlate" => {
+            perf_correlate::run_perf_correlate(scope_files, workspace_path)
+        }
+        "audit_perf_trending" => {
+            // Gather all perf results first, then compute trending
+            let mut results = Vec::new();
+            for t in performance_deep_tools() {
+                if let Ok(r) = dispatch_standard_audit(t, scope_files.clone(), workspace_path) {
+                    results.push(r);
+                }
+            }
+            perf_trending::run_perf_trending(&results, workspace_path, true)
+        }
         _ => Err("unsupported_tool".to_string()),
     }
 }
@@ -128,5 +152,27 @@ pub(crate) fn bug_hunt_deep_tools() -> &'static [&'static str] {
         "audit_bug_test_impact",
         "audit_bug_dependency_drift",
         "audit_bug_diff_semantics",
+    ]
+}
+
+pub(crate) fn performance_deep_tools() -> &'static [&'static str] {
+    &[
+        "audit_perf_bottlenecks",
+        "audit_perf_memory",
+        "audit_perf_ui_responsiveness",
+        "audit_perf_startup",
+        "audit_perf_hot_paths",
+    ]
+}
+
+pub(crate) fn performance_extended_tools() -> &'static [&'static str] {
+    &[
+        "audit_perf_bottlenecks",
+        "audit_perf_memory",
+        "audit_perf_ui_responsiveness",
+        "audit_perf_startup",
+        "audit_perf_hot_paths",
+        "audit_perf_correlate",
+        "audit_perf_trending",
     ]
 }

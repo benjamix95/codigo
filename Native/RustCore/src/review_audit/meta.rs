@@ -1,4 +1,7 @@
-use super::dispatch::{bug_hunt_deep_tools, dispatch_standard_audit, security_deep_tools};
+use super::dispatch::{
+    bug_hunt_deep_tools, dispatch_standard_audit, performance_deep_tools,
+    performance_extended_tools, security_deep_tools,
+};
 use super::helpers::pack_payload;
 use super::merge::merge_audit_results;
 use serde_json::{json, Value};
@@ -26,16 +29,24 @@ pub(crate) fn run_audit_profile(
             "audit_bug_diff_semantics",
             "audit_bug_test_impact",
         ],
+        "performance_deep" | "performancedeep" | "performance" => performance_deep_tools(),
+        "performance_extended" | "performanceextended" | "performance_full" => {
+            performance_extended_tools()
+        }
         "ios_preflight" | "iospreflight" => &[
             "audit_security_surface",
             "audit_security_crypto",
             "audit_bug_concurrency",
+            "audit_perf_ui_responsiveness",
+            "audit_perf_memory",
+            "audit_perf_startup",
         ],
         "backend_regression" | "backendregression" => &[
             "audit_security_dataflow",
             "audit_bug_error_handling",
             "audit_bug_api_contracts",
             "audit_bug_diff_semantics",
+            "audit_perf_bottlenecks",
         ],
         _ => &[
             "audit_security_patterns",

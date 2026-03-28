@@ -22,6 +22,14 @@ public enum ReviewAuditToolName {
     public static let bugDependencyDrift = "audit_bug_dependency_drift"
     public static let bugDiffSemantics = "audit_bug_diff_semantics"
 
+    // MARK: - Performance Tools
+
+    public static let perfBottlenecks = "audit_perf_bottlenecks"
+    public static let perfMemory = "audit_perf_memory"
+    public static let perfUIResponsiveness = "audit_perf_ui_responsiveness"
+    public static let perfStartup = "audit_perf_startup"
+    public static let perfHotPaths = "audit_perf_hot_paths"
+
     public static let runProfile = "audit_run_profile"
     public static let correlateFindings = "audit_correlate_findings"
     public static let verifyBundle = "audit_verify_bundle"
@@ -53,6 +61,14 @@ public enum ReviewAuditToolName {
         bugDiffSemantics,
     ]
 
+    public static let performanceTools = [
+        perfBottlenecks,
+        perfMemory,
+        perfUIResponsiveness,
+        perfStartup,
+        perfHotPaths,
+    ]
+
     public static let metaTools = [
         runProfile,
         correlateFindings,
@@ -60,7 +76,7 @@ public enum ReviewAuditToolName {
         explainFinding,
     ]
 
-    public static let all = securityTools + bugTools
+    public static let all = securityTools + bugTools + performanceTools
     public static let allToolNames = all + metaTools
 }
 
@@ -68,6 +84,7 @@ public enum ReviewAuditProfile: String, Sendable, Codable, CaseIterable {
     case quick
     case securityDeep = "security_deep"
     case bugHuntDeep = "bug_hunt_deep"
+    case performanceDeep = "performance_deep"
     case releaseGate = "release_gate"
     case iosPreflight = "ios_preflight"
     case backendRegression = "backend_regression"

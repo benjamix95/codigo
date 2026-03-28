@@ -428,6 +428,86 @@ enum CoderIDECanonicalToolRegistryGenerated {
           }
         },
         {
+          "mcp_name": "coderide_audit_perf_bottlenecks",
+          "runtime_name": "audit_perf_bottlenecks",
+          "family": "audit",
+          "description": "Read-only performance audit: detect bottlenecks such as blocking calls, synchronous main-thread work, and expensive loops. Usage: optional path, scope_files or scopeFiles (JSON array or CSV).",
+          "read_only": false,
+          "mutating_runtime": false,
+          "first_round_exempt": false,
+          "plugin_capabilities": [],
+          "runtime_aliases": [],
+          "availability": {
+            "app": "available",
+            "subagents": "available",
+            "providers": "available"
+          }
+        },
+        {
+          "mcp_name": "coderide_audit_perf_memory",
+          "runtime_name": "audit_perf_memory",
+          "family": "audit",
+          "description": "Read-only performance audit: detect memory issues such as retain cycles, strong self captures, and cache misuse. Usage: optional path, scope_files or scopeFiles (JSON array or CSV).",
+          "read_only": false,
+          "mutating_runtime": false,
+          "first_round_exempt": false,
+          "plugin_capabilities": [],
+          "runtime_aliases": [],
+          "availability": {
+            "app": "available",
+            "subagents": "available",
+            "providers": "available"
+          }
+        },
+        {
+          "mcp_name": "coderide_audit_perf_ui_responsiveness",
+          "runtime_name": "audit_perf_ui_responsiveness",
+          "family": "audit",
+          "description": "Read-only performance audit: detect UI responsiveness issues such as main-thread blocking, heavy onAppear, and synchronous I/O in UI code. Usage: optional path, scope_files or scopeFiles (JSON array or CSV).",
+          "read_only": false,
+          "mutating_runtime": false,
+          "first_round_exempt": false,
+          "plugin_capabilities": [],
+          "runtime_aliases": [],
+          "availability": {
+            "app": "available",
+            "subagents": "available",
+            "providers": "available"
+          }
+        },
+        {
+          "mcp_name": "coderide_audit_perf_startup",
+          "runtime_name": "audit_perf_startup",
+          "family": "audit",
+          "description": "Read-only performance audit: detect startup-time issues such as +load methods, constructors, and eager initialization. Usage: optional path, scope_files or scopeFiles (JSON array or CSV).",
+          "read_only": false,
+          "mutating_runtime": false,
+          "first_round_exempt": false,
+          "plugin_capabilities": [],
+          "runtime_aliases": [],
+          "availability": {
+            "app": "available",
+            "subagents": "available",
+            "providers": "available"
+          }
+        },
+        {
+          "mcp_name": "coderide_audit_perf_hot_paths",
+          "runtime_name": "audit_perf_hot_paths",
+          "family": "audit",
+          "description": "Read-only performance audit: detect hot paths via git churn analysis, nested loops, and file complexity indicators. Usage: optional path, scope_files or scopeFiles (JSON array or CSV).",
+          "read_only": false,
+          "mutating_runtime": false,
+          "first_round_exempt": false,
+          "plugin_capabilities": [],
+          "runtime_aliases": [],
+          "availability": {
+            "app": "available",
+            "subagents": "available",
+            "providers": "available"
+          }
+        },
+        {
           "mcp_name": "coderide_bughunter_autofix_apply",
           "runtime_name": "bughunter_autofix_apply",
           "family": "bughunter",

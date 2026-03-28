@@ -2,6 +2,70 @@ use serde_json::{json, Value};
 use std::fs;
 use std::path::PathBuf;
 
+// ---------------------------------------------------------------------------
+// Language detection
+// ---------------------------------------------------------------------------
+
+/// Supported languages for multi-language audit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Lang {
+    Swift,
+    Rust,
+    TypeScript,
+    Python,
+    Go,
+    Other,
+}
+
+/// Detect the programming language from a file path extension.
+pub(crate) fn detect_language(file: &str) -> Lang {
+    let lower = file.to_lowercase();
+    if lower.ends_with(".swift") || lower.ends_with(".m") || lower.ends_with(".mm") || lower.ends_with(".h") {
+        Lang::Swift
+    } else if lower.ends_with(".rs") {
+        Lang::Rust
+    } else if lower.ends_with(".ts") || lower.ends_with(".tsx") || lower.ends_with(".js") || lower.ends_with(".jsx") || lower.ends_with(".mjs") || lower.ends_with(".cjs") {
+        Lang::TypeScript
+    } else if lower.ends_with(".py") || lower.ends_with(".pyi") {
+        Lang::Python
+    } else if lower.ends_with(".go") {
+        Lang::Go
+    } else {
+        Lang::Other
+    }
+}
+
+/// Check if a file path indicates a test, mock, or fixture file.
+pub(crate) fn is_test_or_mock_file(file: &str) -> bool {
+    let lower = file.to_lowercase();
+    let segments: Vec<&str> = lower.split('/').collect();
+    // Check path segments
+    for seg in &segments {
+        if *seg == "tests" || *seg == "test" || *seg == "__tests__"
+            || *seg == "mocks" || *seg == "mock" || *seg == "__mocks__"
+            || *seg == "fixtures" || *seg == "fixture"
+            || *seg == "testdata" || *seg == "test_data"
+            || *seg == "stubs"
+        {
+            return true;
+        }
+    }
+    // Check filename
+    let filename = segments.last().unwrap_or(&"");
+    filename.contains("test") || filename.contains("mock")
+        || filename.contains("fixture") || filename.contains("stub")
+        || filename.contains("spec") || filename.contains("fake")
+        || filename.starts_with("test_") || filename.ends_with("_test.go")
+        || filename.ends_with("_test.rs")
+}
+
+pub(crate) fn read_file_lines(file: &str, workspace_path: &str) -> Option<Vec<String>> {
+    let path = PathBuf::from(workspace_path).join(file);
+    fs::read_to_string(&path)
+        .ok()
+        .map(|c| c.lines().map(ToString::to_string).collect())
+}
+
 pub(crate) fn scoped_lines(
     scope_files: Vec<String>,
     workspace_path: &str,

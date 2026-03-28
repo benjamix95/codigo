@@ -13,6 +13,13 @@ public enum CodeReviewAuditService {
         ReviewAuditToolName.bugTestImpact,
         ReviewAuditToolName.bugConcurrency,
     ]
+    private static let rustBackedPerformanceTools: Set<String> = [
+        ReviewAuditToolName.perfBottlenecks,
+        ReviewAuditToolName.perfMemory,
+        ReviewAuditToolName.perfUIResponsiveness,
+        ReviewAuditToolName.perfStartup,
+        ReviewAuditToolName.perfHotPaths,
+    ]
 
     struct ReviewAuditAdapterReport {
         let name: String
@@ -68,7 +75,8 @@ public enum CodeReviewAuditService {
                 metadata: ["signal_type": "manual", "verification_hint": "explanation_only", "promotion_gate": "none"]
             )
         case let toolName where rustBackedSecurityTools.contains(toolName)
-            || rustBackedBugTools.contains(toolName):
+            || rustBackedBugTools.contains(toolName)
+            || rustBackedPerformanceTools.contains(toolName):
             result = requiredRustAuditToolResult(
                 named: toolName,
                 scopeFiles: scopeFiles,

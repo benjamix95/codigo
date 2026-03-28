@@ -5,6 +5,11 @@ mod dispatch;
 mod helpers;
 mod merge;
 mod meta;
+mod perf_churn;
+mod perf_config;
+mod perf_correlate;
+mod perf_trending;
+mod performance;
 mod security;
 
 use dispatch::dispatch_standard_audit;
@@ -160,4 +165,11 @@ mod tests {
         let e = run_audit("audit_explain_finding", vec![], ".", AuditParams::default());
         assert!(e.is_err());
     }
+
 }
+
+#[cfg(test)]
+mod tests_performance;
+
+#[cfg(test)]
+mod tests_perf_trending;
