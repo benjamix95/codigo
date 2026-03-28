@@ -191,6 +191,20 @@ struct PlanPanelView: View {
             planProviderId = nil
             didAutoSelectSingleOption = false
             refreshProviderAuthCache()
+            // #region agent log
+            let snap = resolveSnapshot()
+            Session989bc5DebugNDJSONLog.append(
+                hypothesisId: "G",
+                location: "PlanPanelView.onAppear",
+                message: "plan_panel_env_and_todo_card_visibility",
+                runId: "verify",
+                data: [
+                    "suppressEnv": suppressCanonicalTodoSummaryCard ? "1" : "0",
+                    "showTodoSummaryCardInScroll": shouldShowCanonicalTodoSummaryCardInScroll ? "1" : "0",
+                    "canonicalTodoCount": String(snap.canonicalTodos.count),
+                ]
+            )
+            // #endregion
         }
         .onChange(of: providerRegistry.selectedProviderId) { _ in refreshProviderAuthCache() }
         .onChange(of: planProviderId) { _ in refreshProviderAuthCache() }

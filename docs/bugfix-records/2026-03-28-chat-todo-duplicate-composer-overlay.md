@@ -27,6 +27,15 @@
 - **Problema**: `TodoSummaryCardView` nel pannello Plan e `ComposerTodoOverlayView` mostravano la stessa lista; in più il collapse del composer sembrava ignorato quando i todo aggiornavano lo stato (firma cambiava e `syncComposerTodoOverlayExpansionState` azzerava il dismiss utente e forzava `expanded = true`).
 - **Fix**: `EnvironmentValues.planPanelSuppressCanonicalTodoSummaryCard` impostato da `ChatPanelView` con `isComposerTodoOverlayVisibleForCurrentConversation`, letto da `PlanPanelView` per nascondere la card duplicata nello scroll; barra inferiore `x/y` resta. In `syncComposerTodoOverlayExpansionState`, se l’utente ha chiuso l’overlay (`userDismissed` valorizzato), si mantiene il collapse e si aggiorna la firma salvata invece di `clearComposerTodoOverlayUserDismissedForSelection` + auto-expand.
 
+## Verifica runtime (log `989bc5` dopo iterazione 4)
+
+- Con `composerOverlayVisible=1`, i probe sulla timeline (`hypothesisId` A) risultano `hasTaskListMarkdown=0`, `hasOrderedList=0`, `hasPlanTodoHeader=0` sui messaggi campionati; `todo_timeline_redacted` (C) conferma riduzione del payload combinato.
+- Log `F`/`G` assenti se il pannello Plan non è stato aperto (`showPlanPanel` false); per la barra laterale aprire il Plan e cercare `plan_panel_env_and_todo_card_visibility` (G) con `suppressEnv=1` e `showTodoSummaryCardInScroll=0` quando l’overlay composer è attivo.
+
+## Iterazione 5 (reasoning + probe)
+
+- I blocchi `.reasoning` in timeline possono contenere checklist non coperte da `combinedVisibleTextualPayload` (prima: solo primary/plan/status). Ora: strip anche su `.reasoning` nel sanitizer display-only; il probe A include il testo reasoning per allineamento.
+
 ## Stato
 
 - Instrumentazione `989bc5` lasciata attiva finché la verifica post-fix non è confermata.
