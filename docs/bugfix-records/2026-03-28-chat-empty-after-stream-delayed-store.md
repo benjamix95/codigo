@@ -67,3 +67,9 @@
 - **Sintomo:** durante lo stream, tutti i tool sopra e un unico blocco di risposta sotto; manca l’ordine atteso (testo / tool / testo…).
 - **Causa:** merge UI che faceva `merged.blocks = pipelineBlocks` quando la pipeline aveva **meno** `toolMarker` del messaggio nello store. Senza marker, `ChatTurnTimelineInterleaver` classifica un solo `primaryText`(0) come monolitico e sposta il testo dopo tutti i tool (`maxToolSequence + 1`).
 - **Fix:** se `pipeToolMarkers < baseToolMarkers`, aggiornare solo il testo primary con `applyLivePrimaryStreamText`, senza sostituire l’intera array di blocchi (`PartD_StreamingTimelineMerge.swift`).
+
+### Fix 11 — ordine verticale: niente bump “monolitico” nell’interleaver (mar 2026)
+
+- **Sintomo:** con trace tool popolate ma **nessun** `toolMarker` nei blocchi, tutte le card tool sopra e un unico blocco di risposta sotto (ordine non cronologico rispetto a `sequence`).
+- **Causa:** `ChatTurnTimelineInterleaver` trattava il caso “un solo primaryText(0) + tool senza marker” spostando il testo a `maxToolSequence + 1`, quindi dopo tutti gli eventi tool.
+- **Fix:** per `.primaryText` usare **sempre** `block.sequence` (rimossa l’euristica monolitica). Test `testInterleaverKeepsSinglePrimaryBeforeToolsWhenNoToolMarkers`. Log NDJSON throttled **H26** su `.cursor/debug-72ead1.log` per il caso monolitico senza marker (verifica post-fix: `preview` inizia con `0T`,…).

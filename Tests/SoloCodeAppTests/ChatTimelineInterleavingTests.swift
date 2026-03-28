@@ -246,6 +246,30 @@ final class ChatTimelineInterleavingTests: XCTestCase {
         XCTAssertEqual(liveCardSequences, [2])
     }
 
+    func testInterleaverKeepsSinglePrimaryBeforeToolsWhenNoToolMarkers() {
+        let blocks = [
+            PersistedChatTimelineBlock(id: "text-0", kind: .primaryText, text: "Riepilogo", sequence: 0),
+        ]
+        let events = [
+            makeEvent(sequence: 1, title: "Read file", tool: "read", path: "/tmp/A.swift"),
+            makeEvent(sequence: 2, title: "Write patch", tool: "write", path: "/tmp/B.swift"),
+        ]
+
+        let segments = ChatTurnTimelineInterleaver.segments(blocks: blocks, traceEvents: events)
+
+        XCTAssertEqual(
+            segments.map(\.sequence),
+            [0, 1, 2],
+            "Con un solo primaryText a sequence 0 e trace senza toolMarker, il testo non va dopo tutti i tool."
+        )
+        if case .text(_, let content, let seq) = segments[0] {
+            XCTAssertEqual(seq, 0)
+            XCTAssertEqual(content, "Riepilogo")
+        } else {
+            XCTFail("Atteso segmento .text come primo")
+        }
+    }
+
     private func makeEvent(
         sequence: Int,
         title: String,

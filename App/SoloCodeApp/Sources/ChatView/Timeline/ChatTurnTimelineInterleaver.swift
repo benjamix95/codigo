@@ -12,42 +12,17 @@ enum ChatTurnTimelineInterleaver {
     ) -> [ChatTurnInterleavedSegment] {
         var segments: [ChatTurnInterleavedSegment] = []
 
-        // Collect toolMarker sequences from Rust pipeline.
-        // These mark where tool invocations occurred in the text stream.
-        let toolMarkerSequences = blocks
-            .filter { $0.kind == .toolMarker }
-            .map(\.sequence)
-            .sorted()
-
         let collapsedTraceEvents = ToolTraceEventCollapser.collapseSupersededToolStates(traceEvents)
-
-        // Detect the "single monolithic text block" case:
-        // one primaryText at sequence 0, no other text blocks, and tool events exist.
-        let textBlocks = blocks.filter { $0.kind == .primaryText && !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-        let hasToolEvents = !collapsedTraceEvents.isEmpty
-        let isSingleMonolithicText = textBlocks.count == 1
-            && textBlocks[0].sequence == 0
-            && hasToolEvents
-            && toolMarkerSequences.isEmpty
-
-        let maxToolSequence = collapsedTraceEvents.map(\.sequence).max() ?? 0
 
         for block in blocks {
             switch block.kind {
             case .primaryText:
                 let text = block.text.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !text.isEmpty else { continue }
-                // When we have a single text block at sequence 0 and tool events
-                // exist but no toolMarkers (pipeline didn't track tool segments),
-                // place text AFTER the last tool event. This is the common case:
-                // LLM uses tools then writes a summary/response.
-                let effectiveSequence: Int
-                if isSingleMonolithicText {
-                    effectiveSequence = maxToolSequence + 1
-                } else {
-                    effectiveSequence = block.sequence
-                }
-                segments.append(.text(id: block.id, content: block.text, sequence: effectiveSequence))
+                // Usa sempre `block.sequence` così testo e tool seguono la timeline
+                // del bridge/Rust. L’euristica "monolitico" (maxToolSequence+1) metteva
+                // tutte le card tool sopra e un unico blocco risposta sotto.
+                segments.append(.text(id: block.id, content: block.text, sequence: block.sequence))
             case .reasoning:
                 if suppressReasoningBlocks { continue }
                 segments.append(.reasoning(id: block.id, text: block.text, sequence: block.sequence))
@@ -107,11 +82,21 @@ enum ChatTurnTimelineInterleaver {
             )
         }
 
-        return segments.sorted { lhs, rhs in
+        let merged = segments.sorted { lhs, rhs in
             if lhs.sequence != rhs.sequence { return lhs.sequence < rhs.sequence }
             return lhs.id < rhs.id
         }
         .collapsedConsecutiveToolEvents()
+
+        // #region agent log
+        ChatTurnTimelineInterleaverDebug72.logIfMonolithicNoMarkersCase(
+            blocks: blocks,
+            collapsedTraceCount: collapsedTraceEvents.count,
+            merged: merged
+        )
+        // #endregion
+
+        return merged
     }
 
     private static func sequenceForSubagentCard(
@@ -136,6 +121,84 @@ enum ChatTurnTimelineInterleaver {
         return fallbackBase + offset + 1
     }
 }
+
+// #region agent log
+/// NDJSON mirror sessione Cursor `72ead1` (ordine timeline monolitico vs tool).
+private enum ChatTurnTimelineInterleaverDebug72 {
+    private static let logPath = "/Users/benjaminstoica/SoloCode/.cursor/debug-72ead1.log"
+    private static let monoLogLock = NSLock()
+    private static var lastMonoLogAt: CFAbsoluteTime = 0
+
+    static func logIfMonolithicNoMarkersCase(
+        blocks: [PersistedChatTimelineBlock],
+        collapsedTraceCount: Int,
+        merged: [ChatTurnInterleavedSegment]
+    ) {
+        let toolMarkers = blocks.filter { $0.kind == .toolMarker }.count
+        let textBlocks = blocks.filter { $0.kind == .primaryText && !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        guard textBlocks.count == 1,
+              textBlocks[0].sequence == 0,
+              toolMarkers == 0,
+              collapsedTraceCount > 0
+        else { return }
+
+        monoLogLock.lock()
+        let now = CFAbsoluteTimeGetCurrent()
+        guard now - lastMonoLogAt > 0.55 else {
+            monoLogLock.unlock()
+            return
+        }
+        lastMonoLogAt = now
+        monoLogLock.unlock()
+
+        let preview = merged.prefix(12).map(_debugInterleavedTag).joined(separator: ",")
+        let firstTextSeq = merged.first(where: {
+            if case .text = $0 { return true }
+            return false
+        })?.sequence ?? -1
+        let payload: [String: Any] = [
+            "sessionId": "72ead1",
+            "runId": "interleaver-fix11",
+            "hypothesisId": "H26",
+            "location": "ChatTurnTimelineInterleaver.swift:segments",
+            "message": "monolithic_no_markers_merged_order",
+            "timestamp": Int64(Date().timeIntervalSince1970 * 1000),
+            "data": [
+                "firstTextSeq": "\(firstTextSeq)",
+                "preview": preview,
+                "traceCount": "\(collapsedTraceCount)",
+            ],
+        ]
+        guard let json = try? JSONSerialization.data(withJSONObject: payload),
+              var line = String(data: json, encoding: .utf8)
+        else { return }
+        line.append("\n")
+        let data = Data(line.utf8)
+        if !FileManager.default.fileExists(atPath: logPath) {
+            FileManager.default.createFile(atPath: logPath, contents: data)
+        } else if let h = try? FileHandle(forWritingTo: URL(fileURLWithPath: logPath)) {
+            defer { try? h.close() }
+            _ = try? h.seekToEnd()
+            h.write(data)
+        }
+    }
+
+    private static func _debugInterleavedTag(_ s: ChatTurnInterleavedSegment) -> String {
+        let tag: String
+        switch s {
+        case .text: tag = "T"
+        case .reasoning: tag = "R"
+        case .toolEvent: tag = "E"
+        case .toolGroup: tag = "G"
+        case .subagentLiveCard: tag = "L"
+        case .subagentSnapshot: tag = "S"
+        case .artifact: tag = "A"
+        }
+        return "\(s.sequence)\(tag)"
+    }
+}
+
+// #endregion
 
 // MARK: - Consecutive Tool Event Collapsing
 
