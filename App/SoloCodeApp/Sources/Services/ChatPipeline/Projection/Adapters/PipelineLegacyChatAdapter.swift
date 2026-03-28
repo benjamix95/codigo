@@ -66,16 +66,9 @@ extension ChatPanelView {
             payload: event.payload,
             timestamp: event.timestamp
         )
-        if let nextState = applyPipelineEventThroughRustBoundary(
-            sequenced,
-            currentState: currentState,
-            persistImmediately: persistImmediately
-        ) {
-            conversationRuntime.activeTurnStateByConversation[event.conversationId] = nextState
-            conversationRuntime.renderSnapshotByConversation[event.conversationId] = nextState
-        } else if shouldSkipRustStoreBootstrapForTests(
-            environment: ProcessInfo.processInfo.environment
-        ) {
+        // `.toolTraceArtifact`: sempre Swift — il bridge Rust può restituire stato ma senza
+        // aggiornare `timelineSegments` / marker (log H26 con trace ricco e zero toolMarker).
+        if sequenced.kind == .toolTraceArtifact {
             let state = ChatPipelineReducer.apply(
                 state: currentState,
                 event: sequenced
@@ -87,10 +80,16 @@ extension ChatPanelView {
                 chatStore: chatStore,
                 persistImmediately: persistImmediately
             )
-        } else if sequenced.kind == .toolTraceArtifact {
-            // `appendToolTraceEvent` emette `.toolTraceArtifact` per inserire un `toolUse` in
-            // `timelineSegments` (marker + split testo). Se il bridge Rust non restituisce stato,
-            // l’evento veniva perso → blocchi senza toolMarker e H26 “monolitico” nonostante trace.
+        } else if let nextState = applyPipelineEventThroughRustBoundary(
+            sequenced,
+            currentState: currentState,
+            persistImmediately: persistImmediately
+        ) {
+            conversationRuntime.activeTurnStateByConversation[event.conversationId] = nextState
+            conversationRuntime.renderSnapshotByConversation[event.conversationId] = nextState
+        } else if shouldSkipRustStoreBootstrapForTests(
+            environment: ProcessInfo.processInfo.environment
+        ) {
             let state = ChatPipelineReducer.apply(
                 state: currentState,
                 event: sequenced

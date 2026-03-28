@@ -171,16 +171,22 @@ extension ChatPanelView {
         toolTraceStore.append(event: event)
         toolRuntime.toolTraceNextSequenceByMessage[turn.assistantMessageId] = sequence + 1
 
-        // Emit a pipeline event so the Rust reducer can split text at
-        // tool boundaries (ensure_tool_segment). Without this, text
-        // accumulates in a single monolithic segment and renders above
-        // all tool traces instead of being interleaved.
-        if let cid = conversationId,
-           let target = currentAssistantPipelineTarget(for: cid) {
+        // Proiezione timeline: segmento toolUse + (eventuale) split testo. Usa sempre
+        // `turn` se `currentAssistantPipelineTarget` fallisce (trace senza marker, H26).
+        if let cid = conversationId {
+            let bound = currentAssistantPipelineTarget(for: cid)
+            let messageId = bound?.messageId ?? turn.assistantMessageId
+            let turnId: String = {
+                if let t = bound?.turnId { return t }
+                let msg = chatStore.conversation(for: cid)?
+                    .messages
+                    .first(where: { $0.id == messageId })
+                return msg?.turnMetadata?.turnId ?? messageId.uuidString
+            }()
             let pipelineEvent = ChatPipelineEvent(
                 conversationId: cid,
-                assistantMessageId: target.messageId,
-                turnId: target.turnId,
+                assistantMessageId: messageId,
+                turnId: turnId,
                 sequence: 0,
                 source: providerId,
                 kind: .toolTraceArtifact,

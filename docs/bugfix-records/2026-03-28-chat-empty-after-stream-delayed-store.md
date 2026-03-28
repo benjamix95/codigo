@@ -82,4 +82,9 @@
 ### Fix 13 — `toolTraceArtifact` perso se il bridge Rust non restituisce stato (mar 2026)
 
 - **Evidenza:** H26 con `traceCount` alto ma caso “no toolMarker” nei blocchi: `appendToolTraceEvent` chiama `applyChatPipelineEvent(.toolTraceArtifact)` per aggiungere un segmento `toolUse` in `ChatTurnState.timelineSegments` (vedi commento in `PartF_DebugTodoLifecycle.swift`). Se `applyPipelineEventThroughRustBoundary` restituisce `nil`, in produzione l’evento veniva scartato (non solo nei test con `shouldSkipRustStoreBootstrapForTests`), quindi `timelineSegments` restava vuota → fallback `blocks` monolitico senza marker.
-- **Fix:** in `PipelineLegacyChatAdapter.applyChatPipelineEvent`, se Rust fallisce e `sequenced.kind == .toolTraceArtifact`, applicare `ChatPipelineReducer` + `ChatPipelineCommitter.commit` come nel path test-only.
+- **Fix (storico):** fallback Swift quando Rust restituiva `nil`.
+
+### Fix 14 — `toolTraceArtifact` sempre via Swift + emissione pipeline con turn fallback (mar 2026)
+
+- **Evidenza post–Fix 13:** H26 ancora con `preview` tipo `0T,3G` e `traceCount` 88: il bridge Rust può **restituire stato** ma **senza** aggiornare correttamente `timelineSegments` per l’artifact, quindi il ramo Rust “vincente” lasciava i blocchi senza marker. Inoltre, se `currentAssistantPipelineTarget` era `nil`, l’evento `.toolTraceArtifact` non veniva proprio emesso.
+- **Fix:** (1) In `applyChatPipelineEvent`, per `kind == .toolTraceArtifact` applicare **solo** `ChatPipelineReducer` + `ChatPipelineCommitter.commit`, senza passare dal bridge Rust. (2) In `appendToolTraceEvent`, usare `turn.assistantMessageId` e `turnId` derivato dal messaggio nello store se il pipeline target è `nil`.
