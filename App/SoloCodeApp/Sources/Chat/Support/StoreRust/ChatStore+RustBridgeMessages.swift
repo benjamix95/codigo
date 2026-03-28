@@ -273,6 +273,10 @@ extension ChatStore {
             isStreaming: state.isStreaming
         )
         pipelineMessage.reasoningText = state.reasoningTextSnapshot
+        let existingLocalMessage = conversationIndex(for: conversationId)
+            .flatMap { convIdx in
+                conversations[convIdx].messages.first(where: { $0.id == messageId })
+            }
         let applied = applyRustStoreAction("sync_assistant_pipeline_state") { request in
             request.conversationId = conversationId.uuidString.lowercased()
             request.messageId = messageId.uuidString.lowercased()
@@ -288,18 +292,13 @@ extension ChatStore {
         }
         if let convIdx = conversationIndex(for: conversationId),
            let msgIdx = conversations[convIdx].messages.firstIndex(where: { $0.id == messageId }) {
-            if !applied {
-                conversations[convIdx].messages[msgIdx] = pipelineMessage
-            } else {
-                let incoming = (pipelineMessage.primaryTextSnapshot ?? pipelineMessage.content)
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                let msg = conversations[convIdx].messages[msgIdx]
-                let visible = (msg.primaryTextSnapshot ?? msg.content)
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                if !incoming.isEmpty, visible.isEmpty {
-                    conversations[convIdx].messages[msgIdx] = pipelineMessage
-                }
-            }
+            applyCommittedPipelineMessageToLocalAssistant(
+                convIdx: convIdx,
+                msgIdx: msgIdx,
+                applied: applied,
+                pipelineMessage: pipelineMessage,
+                existingLocalMessage: existingLocalMessage
+            )
         } else {
             repairAppendMessageIfMissing(pipelineMessage, conversationId: conversationId)
         }

@@ -322,6 +322,103 @@ fn ui_intent_plan_phase0_screening_seeds_runtime_when_snapshot_missing() {
 }
 
 #[test]
+fn ui_intent_plan_phase0_request_conversation_overrides_stale_selected_conversation() {
+    let mut state = base_ui_state();
+    state.runtime_snapshot = None;
+    state.selected_conversation_id = Some("conv-stale".to_string());
+    state.store_snapshot.conversations.push(MainChatStoreConversationSnapshot {
+        id: "conv-2".to_string(),
+        thread_root_conversation_id: "conv-2".to_string(),
+        title: "Second".to_string(),
+        messages: Vec::new(),
+        created_at: None,
+        context_id: None,
+        context_folder_path: None,
+        mode: Some("Agent".to_string()),
+        preferred_provider_id: None,
+        context_memory_summary_markdown: None,
+        context_memory_generated_at: None,
+        context_memory_source_message_count: None,
+        is_archived: false,
+        is_pinned: false,
+        is_favorite: false,
+        last_input_tokens: None,
+        workspace_id: None,
+        ad_hoc_folder_paths: vec![],
+        checkpoints: vec![],
+    });
+    let response = handle_ui_intent(MainChatUiIntentRequest {
+        schema_version: 1,
+        intent: "apply_plan_runtime_action".to_string(),
+        state,
+        conversation_id: Some("conv-2".to_string()),
+        turn_id: None,
+        artifact_id: None,
+        text: Some("Plan request should target the explicit conversation".to_string()),
+        timestamp: Some(42.0),
+        pipeline_event: None,
+        pipeline_events: Vec::new(),
+        payload: [
+            (
+                "action".to_string(),
+                "plan_prepare_phase0_screening_prompt".to_string(),
+            ),
+            ("should_run_inline".to_string(), "true".to_string()),
+        ]
+        .into_iter()
+        .collect(),
+    });
+    assert!(
+        response.error.is_none(),
+        "unexpected error: {:?}",
+        response.error
+    );
+    let state = response.state.expect("state");
+    let snapshot = response.snapshot.expect("snapshot");
+    assert_eq!(state.selected_conversation_id.as_deref(), Some("conv-2"));
+    assert_eq!(snapshot.selected_conversation_id.as_deref(), Some("conv-2"));
+    assert_eq!(
+        state
+            .runtime_snapshot
+            .as_ref()
+            .map(|runtime| runtime.turn_state.conversation_id.as_str()),
+        Some("conv-2")
+    );
+}
+
+#[test]
+fn ui_intent_plan_phase0_requires_conversation_when_no_runtime_snapshot() {
+    let mut state = base_ui_state();
+    state.runtime_snapshot = None;
+    state.selected_conversation_id = None;
+    let response = handle_ui_intent(MainChatUiIntentRequest {
+        schema_version: 1,
+        intent: "apply_plan_runtime_action".to_string(),
+        state,
+        conversation_id: None,
+        turn_id: None,
+        artifact_id: None,
+        text: Some("request".to_string()),
+        timestamp: Some(42.0),
+        pipeline_event: None,
+        pipeline_events: Vec::new(),
+        payload: [
+            (
+                "action".to_string(),
+                "plan_prepare_phase0_screening_prompt".to_string(),
+            ),
+            ("should_run_inline".to_string(), "true".to_string()),
+        ]
+        .into_iter()
+        .collect(),
+    });
+    assert_eq!(
+        response.error.as_ref().map(|e| e.code.as_str()),
+        Some("missing_conversation_for_plan")
+    );
+}
+
+#[test]
 fn ui_intent_pipeline_apply_event_syncs_runtime_and_store_snapshot() {
     let response = handle_ui_intent(MainChatUiIntentRequest {
         schema_version: 1,

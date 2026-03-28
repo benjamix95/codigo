@@ -29,21 +29,27 @@ extension ChatStore {
         convIdx: Int,
         msgIdx: Int,
         applied: Bool,
-        pipelineMessage: ChatMessage
+        pipelineMessage: ChatMessage,
+        existingLocalMessage: ChatMessage? = nil
     ) {
+        let msg = conversations[convIdx].messages[msgIdx]
+        let preservedLocalMessage = existingLocalMessage ?? msg
+        let mergedPipelineMessage = Self.mergePipelineMessageWithLocalMetadata(
+            pipelineMessage,
+            localMessage: preservedLocalMessage
+        )
         if !applied {
-            conversations[convIdx].messages[msgIdx] = pipelineMessage
+            conversations[convIdx].messages[msgIdx] = mergedPipelineMessage
             return
         }
-        let msg = conversations[convIdx].messages[msgIdx]
-        if Self.pipelineLocalShouldTakeSwiftBlocks(local: msg, pipeline: pipelineMessage) {
-            conversations[convIdx].messages[msgIdx] = pipelineMessage
+        if Self.pipelineLocalShouldTakeSwiftBlocks(local: msg, pipeline: mergedPipelineMessage) {
+            conversations[convIdx].messages[msgIdx] = mergedPipelineMessage
             // #region agent log
             let locB = msg.blocks ?? []
-            let pipeB = pipelineMessage.blocks ?? []
+            let pipeB = mergedPipelineMessage.blocks ?? []
             ChatStorePipelineSyncDebug72.logPreferPipeline(
                 reason: "prefer_pipeline_structure",
-                msgId: pipelineMessage.id,
+                msgId: mergedPipelineMessage.id,
                 locMarkers: locB.filter { $0.kind == .toolMarker }.count,
                 pipeMarkers: pipeB.filter { $0.kind == .toolMarker }.count,
                 locBlocks: locB.count,
@@ -53,24 +59,28 @@ extension ChatStore {
             // #endregion
             return
         }
-        let incoming = (pipelineMessage.primaryTextSnapshot ?? pipelineMessage.content)
+        let incoming = (mergedPipelineMessage.primaryTextSnapshot ?? mergedPipelineMessage.content)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let visible = (msg.primaryTextSnapshot ?? msg.content)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         if !incoming.isEmpty, visible.isEmpty {
-            conversations[convIdx].messages[msgIdx] = pipelineMessage
+            conversations[convIdx].messages[msgIdx] = mergedPipelineMessage
             // #region agent log
             ChatStorePipelineSyncDebug72.logPreferPipeline(
                 reason: "visible_empty_fallback",
                 msgId: pipelineMessage.id,
                 locMarkers: (msg.blocks ?? []).filter { $0.kind == .toolMarker }.count,
-                pipeMarkers: (pipelineMessage.blocks ?? []).filter { $0.kind == .toolMarker }.count,
+                pipeMarkers: (mergedPipelineMessage.blocks ?? []).filter { $0.kind == .toolMarker }.count,
                 locBlocks: (msg.blocks ?? []).count,
-                pipeBlocks: (pipelineMessage.blocks ?? []).count,
+                pipeBlocks: (mergedPipelineMessage.blocks ?? []).count,
                 applied: true
             )
             // #endregion
         }
+        conversations[convIdx].messages[msgIdx] = Self.mergePipelineMessageWithLocalMetadata(
+            conversations[convIdx].messages[msgIdx],
+            localMessage: preservedLocalMessage
+        )
     }
 
     private static func pipelineLocalShouldTakeSwiftBlocks(local: ChatMessage, pipeline: ChatMessage) -> Bool {
@@ -80,6 +90,32 @@ extension ChatStore {
             localBlocks: locBlocks,
             pipelineBlocks: pipeBlocks
         )
+    }
+
+    private static func mergePipelineMessageWithLocalMetadata(
+        _ pipelineMessage: ChatMessage,
+        localMessage: ChatMessage
+    ) -> ChatMessage {
+        var mergedMessage = pipelineMessage
+        if mergedMessage.turnMetadata == nil {
+            mergedMessage.turnMetadata = localMessage.turnMetadata
+        }
+        if mergedMessage.imagePaths?.isEmpty ?? true {
+            mergedMessage.imagePaths = localMessage.imagePaths
+        }
+        if mergedMessage.attachments?.isEmpty ?? true {
+            mergedMessage.attachments = localMessage.attachments
+        }
+        if mergedMessage.planAttachment == nil {
+            mergedMessage.planAttachment = localMessage.planAttachment
+        }
+        if mergedMessage.reasoningText?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true {
+            mergedMessage.reasoningText = localMessage.reasoningText
+        }
+        if mergedMessage.subagentCards?.isEmpty ?? true {
+            mergedMessage.subagentCards = localMessage.subagentCards
+        }
+        return mergedMessage
     }
 }
 

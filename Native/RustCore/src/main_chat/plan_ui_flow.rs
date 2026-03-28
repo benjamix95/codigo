@@ -14,12 +14,39 @@ pub fn apply_plan_runtime_action(
     mut state: MainChatUiState,
     request: &MainChatUiIntentRequest,
 ) -> Result<MainChatUiState, MainChatUiIntentResponse> {
+    if let Some(request_conversation_id) = request
+        .conversation_id
+        .as_ref()
+        .filter(|value| !value.trim().is_empty())
+    {
+        if state.runtime_snapshot.is_none() {
+            state.selected_conversation_id = Some(request_conversation_id.clone());
+        } else if state
+            .selected_conversation_id
+            .as_ref()
+            .map_or(true, |value| value.trim().is_empty())
+        {
+            state.selected_conversation_id = Some(request_conversation_id.clone());
+        }
+    }
+
     let Some(action) = request.payload.get("action").cloned() else {
         return Err(MainChatUiIntentResponse::error(
             "missing_action",
             "payload.action is required",
         ));
     };
+    if state.runtime_snapshot.is_none()
+        && state
+            .selected_conversation_id
+            .as_ref()
+            .map_or(true, |value| value.trim().is_empty())
+    {
+        return Err(MainChatUiIntentResponse::error(
+            "missing_conversation_for_plan",
+            "conversationId is required when runtimeSnapshot is absent",
+        ));
+    }
     let response = handle_runtime_action(MainChatRuntimeActionRequest {
         schema_version: 1,
         action,
@@ -113,7 +140,11 @@ fn required_runtime_snapshot(
 }
 
 /// Primo invio in modalità Plan: spesso non esiste ancora uno `runtime_snapshot` (nessun direct stream).
-/// Senza snapshot, `plan_prepare_phase0_screening_prompt` falliva lato UI intent. Seed minimo dalla conversazione selezionata.
+/// Seed minimo compatible con decode Swift: `MainChatBridgeState` richiede UUID non vuoti per
+/// `conversationId` / `assistantMessageId` (stringhe vuote → fallimento decode JSON della risposta FFI).
+const PLAN_RUNTIME_SEED_ASSISTANT_MESSAGE_ID: &str = "00000000-0000-0000-0000-000000000001";
+const PLAN_RUNTIME_SEED_TURN_ID: &str = "plan-ui-intent-seed";
+
 fn runtime_snapshot_for_plan_action(state: &MainChatUiState) -> MainChatRuntimeSnapshot {
     if let Some(snapshot) = state.runtime_snapshot.clone() {
         return snapshot;
@@ -121,10 +152,13 @@ fn runtime_snapshot_for_plan_action(state: &MainChatUiState) -> MainChatRuntimeS
     let conversation_id = state
         .selected_conversation_id
         .clone()
-        .unwrap_or_default();
+        .filter(|value| !value.trim().is_empty())
+        .expect("conversation id checked before seeding runtime snapshot");
     MainChatRuntimeSnapshot {
         turn_state: MainChatTurnState {
             conversation_id,
+            assistant_message_id: PLAN_RUNTIME_SEED_ASSISTANT_MESSAGE_ID.to_string(),
+            turn_id: PLAN_RUNTIME_SEED_TURN_ID.to_string(),
             status: "idle".to_string(),
             ..Default::default()
         },
