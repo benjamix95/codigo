@@ -103,7 +103,7 @@ extension ChatPanelView {
         payload: [String: String] = [:]
     ) {
         let bridgeStartedAt = Date()
-        let applied = applyMainChatUIIntentBridge(
+        let response = applyMainChatUIIntentBridge(
             intent,
             conversationId: targetConversationId,
             providerId: providerId,
@@ -111,7 +111,12 @@ extension ChatPanelView {
             timestamp: Date(),
             payload: payload,
             preserveLocalMessages: false
-        ) != nil
+        )
+        syncConversationRuntimeFromMainChatUIIntent(
+            response: response,
+            conversationId: targetConversationId
+        )
+        let applied = response != nil
         let bridgeMs = Int(Date().timeIntervalSince(bridgeStartedAt) * 1000)
         if applied {
             streaming.streamContentVersion &+= 1

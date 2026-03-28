@@ -1,0 +1,37 @@
+## Bug Fix Record
+- Categoria: A
+- Bug: il path live `stream_replace_text` aggiornava lo store ma non riallineava `conversationRuntime` con il `turnState` restituito dal bridge UI Rust.
+- Sintomo: durante lo stream i log entravano in `no_pipeline_turn`, la timeline visibile restava monolitica e i tool venivano mostrati solo come fallback dopo il testo.
+- Impatto: perdita dell'interleave `text/tool/text` nel flusso live reale, nonostante reducer e store persistito fossero già corretti.
+- Gravità: alta.
+- Steps to reproduce:
+  - avviare una risposta assistant con testo e tool nello stesso turno;
+  - lasciare che il testo passi da `stream_replace_text`;
+  - osservare nei log `merge_uses_synthetic_turn_from_tool_trace_events` con `reason=no_pipeline_turn`.
+- Risultato attuale:
+  - il bridge `stream_replace_text` propaga anche il `runtimeSnapshot.turnState` al runtime locale della chat;
+  - il renderer può usare il turno live corretto invece di ricostruire solo dai trace.
+- Risultato atteso:
+  - il turno assistant deve restare disponibile in `conversationRuntime` lungo tutto lo stream, così la UI può mantenere la timeline interleavata.
+- Causa probabile:
+  - `applyMainChatUIIntentBridge` ritornava un `runtimeSnapshot` utile ma il caller non lo copiava nello stato runtime della `ChatPanelView`.
+- Scope consentito:
+  - binding streaming chat live;
+  - test app mirati sul bridge runtime.
+- Non-scope:
+  - refactor del reducer pipeline;
+  - redesign del renderer timeline;
+  - modifiche ai provider.
+- Moduli confinanti da verificare:
+  - `ChatPanelView+PartQ_StreamApply`
+  - `ChatPanelView+PartD_StreamingTimelineMerge`
+  - `MainChatUIIntentResponseBridge`
+- Test da aggiungere o aggiornare:
+  - `MainChatUIIntentRuntimeSyncTests`
+- Strategia di fix minimo:
+  - estrarre il `ChatTurnState` dal `runtimeSnapshot` del bridge UI;
+  - aggiornare `activeTurnStateByConversation`, `renderSnapshotByConversation` e `pipelineTurnStateByAssistantMessageId`.
+- Verifica post-fix:
+  - `xcodebuild test -workspace "Solo Code.xcworkspace" -scheme "Solo Code-Debug" -only-testing:SoloCodeAppTests/MainChatUIIntentRuntimeSyncTests -only-testing:SoloCodeAppTests/ChatStorePipelineInterleavingPersistenceTests -only-testing:SoloCodeAppTests/ChatTimelineInterleavingTests -only-testing:SoloCodeAppTests/ChatPipelineTimelineStateTests`
+- Commit previsto:
+  - `fix(chat): sync runtime turn state after ui stream intent`
