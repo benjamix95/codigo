@@ -76,6 +76,28 @@ struct InlineToolTraceGroupView: View {
         }
     }
 
+    private var headerSymbolName: String {
+        switch group.category {
+        case .exploration:
+            return "magnifyingglass.circle.fill"
+        case .terminal:
+            return "terminal.fill"
+        case .edit:
+            return "square.and.pencil"
+        }
+    }
+
+    private var headerTint: Color {
+        switch group.category {
+        case .exploration:
+            return DesignSystem.Colors.info
+        case .terminal:
+            return DesignSystem.Colors.warning
+        case .edit:
+            return DesignSystem.Colors.planColor
+        }
+    }
+
     private var exploredTargets: [String] {
         var values: [String] = []
         var seen: Set<String> = []
@@ -114,21 +136,35 @@ struct InlineToolTraceGroupView: View {
                 }
             } label: {
                 HStack(spacing: 8) {
+                    Image(systemName: headerSymbolName)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(headerTint)
+
                     Text(summaryTitle)
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(DesignSystem.Colors.textPrimary)
                     Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
                         .font(.system(size: 9, weight: .semibold))
                         .foregroundStyle(DesignSystem.Colors.textTertiary)
                     Spacer(minLength: 0)
                 }
+                .padding(.vertical, 4)
+                .padding(.horizontal, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(DesignSystem.Colors.backgroundSecondary.opacity(0.2))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .strokeBorder(DesignSystem.Colors.borderSubtle.opacity(0.75), lineWidth: 0.5)
+                )
             }
             .buttonStyle(.plain)
 
             if isExpanded {
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(group.events) { event in
-                        InlineToolTraceGroupRow(
+                        ChatTurnInlineToolGroupRowView(
                             event: event,
                             messageIsStreaming: messageIsStreaming,
                             workspaceHints: workspaceHints,
@@ -176,107 +212,5 @@ struct InlineToolTraceGroupView: View {
         messageIsStreaming: Bool
     ) -> Bool {
         messageIsStreaming && events.contains(where: \.isRunning)
-    }
-}
-
-struct InlineToolTraceGroupRow: View {
-    let event: ToolTraceEvent
-    var messageIsStreaming: Bool = true
-    let workspaceHints: [String]
-    let onOpenFile: (String) -> Void
-
-    private var showsRunningChrome: Bool {
-        event.isRunning && messageIsStreaming
-    }
-
-    private var title: String {
-        let tool = MessageToolTraceToolIdentity.normalizedToolName(for: event)
-        let target = displayTarget
-
-        if event.type == "bash" || event.type == "command_execution" {
-            return target
-        }
-        switch tool {
-        case "read", "read_range", "batch_read":
-            return "Read \(target)"
-        case "list_dir", "glob", "find_files", "file_outline":
-            return "List \(target)"
-        case "grep", "search", "semantic_search", "codebase_search", "find_symbol", "find_references":
-            return "Search \(target)"
-        case "edit", "write", "str_replace", "regex_replace", "create_file", "delete_file":
-            return "Edit \(target)"
-        default:
-            if !target.isEmpty, target != event.title {
-                return "\(event.title) \(target)"
-            }
-            return event.title
-        }
-    }
-
-    private var displayTarget: String {
-        let raw = event.payload["path"]
-            ?? event.payload["file"]
-            ?? event.payload["query"]
-            ?? event.payload["command"]
-            ?? ""
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let change = ToolTraceFileChangeMapper.from(event: event) {
-            return change.path ?? change.basename
-        }
-        if event.type == "bash" || event.type == "command_execution" {
-            return String(trimmed.prefix(120))
-        }
-        if trimmed.contains("/") {
-            return (trimmed as NSString).lastPathComponent
-        }
-        return trimmed
-    }
-
-    private var openPath: String? {
-        if let change = ToolTraceFileChangeMapper.from(event: event) {
-            return FileChangePreviewResolver.resolveOpenPath(
-                for: change,
-                workspaceHints: workspaceHints
-            )
-        }
-        let candidate = event.payload["path"] ?? event.payload["file"] ?? ""
-        let trimmed = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
-    }
-
-    var body: some View {
-        HStack(spacing: 8) {
-            if let openPath {
-                Button {
-                    onOpenFile(openPath)
-                } label: {
-                    Text(title)
-                        .font(.system(size: 10.5))
-                        .foregroundStyle(DesignSystem.Colors.textSecondary)
-                        .lineLimit(1)
-                }
-                .buttonStyle(.plain)
-            } else {
-                Text(title)
-                    .font(.system(size: 10.5))
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
-                    .lineLimit(1)
-            }
-            Spacer(minLength: 0)
-            if showsRunningChrome {
-                ProgressView()
-                    .controlSize(.mini)
-                    .scaleEffect(0.55)
-                    .frame(width: 10, height: 10)
-            } else if MessageToolTraceView.isErrorType(event) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 9))
-                    .foregroundStyle(DesignSystem.Colors.error)
-            } else {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 9))
-                    .foregroundStyle(DesignSystem.Colors.success.opacity(0.8))
-            }
-        }
     }
 }

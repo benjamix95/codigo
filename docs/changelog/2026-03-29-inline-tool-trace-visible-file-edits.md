@@ -5,7 +5,8 @@
 - Introdotta una policy di grouping inline dedicata in [`ChatTurnInlineToolGroupingPolicy.swift`](/Users/benjaminstoica/SoloCode/App/SoloCodeApp/Sources/ChatView/Timeline/ChatTurnInlineToolGroupingPolicy.swift), lasciando collassabili solo i gruppi `exploration` e `terminal`.
 - Rifinita la riga inline del file change in [`InlineToolTraceViews.swift`](/Users/benjaminstoica/SoloCode/App/SoloCodeApp/Sources/ChatView/Timeline/InlineToolTraceViews.swift) per usare il titolo presentazionale del file modificato e mantenere il riepilogo `+/-`.
 - Estratta una view dedicata [`ChatTurnInlineFileChangeRowView.swift`](/Users/benjaminstoica/SoloCode/App/SoloCodeApp/Sources/ChatView/Timeline/ChatTurnInlineFileChangeRowView.swift) con stile piu' vicino al mock Codex app: label azione soft, filename enfatizzato e counters colorati.
+- Estratta anche [`ChatTurnInlineToolGroupRowView.swift`](/Users/benjaminstoica/SoloCode/App/SoloCodeApp/Sources/ChatView/Timeline/ChatTurnInlineToolGroupRowView.swift) per dare a righe `exploration` e `terminal` lo stesso linguaggio visivo compatto delle righe edit; aggiornato anche l'header di gruppo in [`InlineToolTraceGroupView.swift`](/Users/benjaminstoica/SoloCode/App/SoloCodeApp/Sources/ChatView/Timeline/InlineToolTraceGroupView.swift).
 
 ## Verifiche
-- `xcodebuild test -workspace '/Users/benjaminstoica/SoloCode/Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/ChatTimelineInlineToolGroupingTests -only-testing:SoloCodeAppTests/InlineToolTraceEventViewDisplayTests`
-- Esito: successo, 3 test eseguiti senza failure.
+- `xcodebuild test -workspace '/Users/benjaminstoica/SoloCode/Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/ChatTimelineInlineToolGroupingTests -only-testing:SoloCodeAppTests/InlineToolTraceEventViewDisplayTests -only-testing:SoloCodeAppTests/ChatTurnInlineToolGroupRowPresentationTests`
+- Esito: successo, 6 test eseguiti senza failure.
