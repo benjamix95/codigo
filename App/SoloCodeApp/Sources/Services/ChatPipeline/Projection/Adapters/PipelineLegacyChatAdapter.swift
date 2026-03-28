@@ -75,11 +75,13 @@ extension ChatPanelView {
             )
             conversationRuntime.activeTurnStateByConversation[event.conversationId] = state
             conversationRuntime.renderSnapshotByConversation[event.conversationId] = state
+            conversationRuntime.cachePipelineTurnStateForAssistantMessage(state)
             ChatPipelineCommitter.commit(
                 state,
                 chatStore: chatStore,
                 persistImmediately: persistImmediately
             )
+            pipelineIntegrationService.mirrorToolTraceArtifactIntoActivePipelineRuntime(sequenced)
         } else if let nextState = applyPipelineEventThroughRustBoundary(
             sequenced,
             currentState: currentState,
@@ -87,6 +89,7 @@ extension ChatPanelView {
         ) {
             conversationRuntime.activeTurnStateByConversation[event.conversationId] = nextState
             conversationRuntime.renderSnapshotByConversation[event.conversationId] = nextState
+            conversationRuntime.cachePipelineTurnStateForAssistantMessage(nextState)
         } else if shouldSkipRustStoreBootstrapForTests(
             environment: ProcessInfo.processInfo.environment
         ) {
@@ -96,6 +99,7 @@ extension ChatPanelView {
             )
             conversationRuntime.activeTurnStateByConversation[event.conversationId] = state
             conversationRuntime.renderSnapshotByConversation[event.conversationId] = state
+            conversationRuntime.cachePipelineTurnStateForAssistantMessage(state)
             ChatPipelineCommitter.commit(
                 state,
                 chatStore: chatStore,

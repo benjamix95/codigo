@@ -5,42 +5,102 @@ import SwiftUI
 extension ChatPanelView {
     /// Allinea la timeline del messaggio assistente in streaming a sorgenti **più fresche** dello
     /// snapshot/hop store quando `streamContentVersion` avanza senza mutare `messagesConversationSnapshot`
-    /// (log H11): buffer throttle `pendingStreamContent` e `PipelineConversationRuntime.chatTurnState` tra
-    /// round-trip Rust/debounce.
+    /// (log H11): buffer throttle `pendingStreamContent` e, in ordine, `PipelineConversationRuntime.chatTurnState`
+    /// oppure `conversationRuntime.activeTurnStateByConversation` (trace tool / Swift-only pipeline).
     internal func messageForStreamingTimelineDisplay(
         base: ChatMessage,
         conversationId convId: UUID
     ) -> ChatMessage {
-        guard base.role == .assistant,
-              base.isStreaming,
-              snapshotIsLoading,
-              let activeId = snapshotActiveAssistantMessageId,
-              base.id == activeId
-        else { return base }
+        guard base.role == .assistant else { return base }
+
+        /// Gate solo per il buffer `pendingStreamContent` (H11). Blocchi/toolMarker da `chatTurnState`
+        /// devono fondersi anche se il messaggio non è più la sola superficie “streaming attivo”
+        /// (history vs split stack, `snapshotIsLoading` falso, ecc.) — altrimenti H26 con molti trace.
+        let isActiveStreamingSurface =
+            base.isStreaming
+            && snapshotIsLoading
+            && snapshotActiveAssistantMessageId == base.id
 
         var merged = base
         let storePayload = streamingTimelinePayloadCharSum(merged)
 
-        if let runtime = pipelineIntegrationService.runtime(for: convId),
-           runtime.assistantMessageId == base.id
-        {
-            let turn = runtime.chatTurnState
+        /// `appendToolTraceEvent` aggiorna `conversationRuntime`; il merge leggeva **solo**
+        /// `pipelineIntegrationService.runtime`, spesso `nil` (nessun job / teardown) → H34 senza H35 e H26.
+        let chatTurnForMerge: ChatTurnState? = {
+            let integration = pipelineIntegrationService.runtime(for: convId)
+            if let r = integration, r.assistantMessageId == base.id {
+                return r.chatTurnState
+            }
+            if let s = conversationRuntime.activeTurnStateByConversation[convId],
+               s.assistantMessageId == base.id {
+                return s
+            }
+            if let cached = conversationRuntime.pipelineTurnStateByAssistantMessageId[base.id] {
+                // #region agent log
+                StreamingTimelineMergeDebug72.logMergeUsesAssistantMessagePipelineCache(
+                    conversationId: convId,
+                    messageId: base.id,
+                    pipeMarkers: cached.blocks.filter { $0.kind == .toolMarker }.count
+                )
+                // #endregion
+                return cached
+            }
+            return nil
+        }()
+
+        if let turn = chatTurnForMerge {
+            let usedConversationOnly = pipelineIntegrationService.runtime(for: convId)
+                .map { $0.assistantMessageId != base.id } ?? true
+                && conversationRuntime.activeTurnStateByConversation[convId]?.assistantMessageId == base.id
+            if usedConversationOnly {
+                // #region agent log
+                StreamingTimelineMergeDebug72.logMergeUsesConversationRuntime(
+                    conversationId: convId,
+                    messageId: base.id,
+                    pipeMarkers: turn.blocks.filter { $0.kind == .toolMarker }.count
+                )
+                // #endregion
+            }
             let pipelineBlocks = turn.blocks
             let pipelinePayload = streamingTimelinePayloadCharSum(forBlocks: pipelineBlocks)
             let pipelinePrimary = turn.primaryTextSnapshot
-            if pipelinePayload > storePayload, !pipelineBlocks.isEmpty {
-                let baseBlocks = base.blocks ?? []
-                let baseToolMarkers = baseBlocks.filter { $0.kind == .toolMarker }.count
-                let pipeToolMarkers = pipelineBlocks.filter { $0.kind == .toolMarker }.count
-                // `ChatTurnTimelineInterleaver`: senza toolMarker nel payload ma con trace,
-                // un solo primaryText(0) diventa “monolitico” e il testo finisce **sotto** tutti i tool.
-                // La pipeline spesso non ha ancora i marker dello store → non sostituiamo tutta la timeline.
+            let baseBlocks = base.blocks ?? []
+            let baseToolMarkers = baseBlocks.filter { $0.kind == .toolMarker }.count
+            let pipeToolMarkers = pipelineBlocks.filter { $0.kind == .toolMarker }.count
+            let structureAhead = streamingPipelineHasRicherBlockStructure(
+                baseBlocks: baseBlocks,
+                pipelineBlocks: pipelineBlocks
+            )
+            let payloadAhead = pipelinePayload > storePayload && !pipelineBlocks.isEmpty
+
+            if structureAhead || payloadAhead {
+                // `ChatTurnTimelineInterleaver`: senza toolMarker ma con trace, un solo primaryText(0)
+                // diventa “monolitico”. I marker non contribuiscono a `pipelinePayload` (text vuoto):
+                // senza `structureAhead` il merge non partiva mai se lo store aveva già tutto il testo (H26).
                 if pipeToolMarkers < baseToolMarkers {
                     let trimmedPrimary = pipelinePrimary.trimmingCharacters(in: .whitespacesAndNewlines)
                     if !trimmedPrimary.isEmpty {
                         applyLivePrimaryStreamText(&merged, text: pipelinePrimary)
                     }
                 } else {
+                    if structureAhead, !payloadAhead {
+                        // #region agent log
+                        StreamingTimelineMergeDebug72.logStructureWithoutPayloadDelta(
+                            baseToolMarkers: baseToolMarkers,
+                            pipeToolMarkers: pipeToolMarkers,
+                            storePayload: storePayload,
+                            pipelinePayload: pipelinePayload
+                        )
+                        // #endregion
+                    }
+                    if !isActiveStreamingSurface, pipeToolMarkers > 0 {
+                        // #region agent log
+                        StreamingTimelineMergeDebug72.logBlocksMergedOutsideActiveSurface(
+                            messageId: base.id,
+                            pipeToolMarkers: pipeToolMarkers
+                        )
+                        // #endregion
+                    }
                     merged.blocks = pipelineBlocks
                     merged.primaryTextSnapshot = pipelinePrimary
                     if merged.content.count < pipelinePrimary.count {
@@ -57,7 +117,8 @@ extension ChatPanelView {
             }
         }
 
-        if streaming.pendingStreamConversationId == convId,
+        if isActiveStreamingSurface,
+           streaming.pendingStreamConversationId == convId,
            let pending = streaming.pendingStreamContent,
            !pending.isEmpty
         {
@@ -100,6 +161,19 @@ extension ChatPanelView {
 
         return merged
     }
+}
+
+/// Più marker `.toolUse` / segmenti timeline rispetto al messaggio store, anche senza aumento caratteri.
+private func streamingPipelineHasRicherBlockStructure(
+    baseBlocks: [PersistedChatTimelineBlock],
+    pipelineBlocks: [PersistedChatTimelineBlock]
+) -> Bool {
+    guard !pipelineBlocks.isEmpty else { return false }
+    let baseMarkers = baseBlocks.filter { $0.kind == .toolMarker }.count
+    let pipeMarkers = pipelineBlocks.filter { $0.kind == .toolMarker }.count
+    if pipeMarkers > baseMarkers { return true }
+    if pipelineBlocks.count > baseBlocks.count { return true }
+    return false
 }
 
 /// Testo del primo blocco `.primaryText` se presente; altrimenti `resolvedPrimaryText` (trim).

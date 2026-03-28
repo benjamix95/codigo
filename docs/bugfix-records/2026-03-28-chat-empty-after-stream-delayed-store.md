@@ -88,3 +88,45 @@
 
 - **Evidenza post–Fix 13:** H26 ancora con `preview` tipo `0T,3G` e `traceCount` 88: il bridge Rust può **restituire stato** ma **senza** aggiornare correttamente `timelineSegments` per l’artifact, quindi il ramo Rust “vincente” lasciava i blocchi senza marker. Inoltre, se `currentAssistantPipelineTarget` era `nil`, l’evento `.toolTraceArtifact` non veniva proprio emesso.
 - **Fix:** (1) In `applyChatPipelineEvent`, per `kind == .toolTraceArtifact` applicare **solo** `ChatPipelineReducer` + `ChatPipelineCommitter.commit`, senza passare dal bridge Rust. (2) In `appendToolTraceEvent`, usare `turn.assistantMessageId` e `turnId` derivato dal messaggio nello store se il pipeline target è `nil`.
+
+### Fix 15 — RAM Swift senza `blocks` pipeline dopo `sync_assistant_pipeline_state` (mar 2026)
+
+- **Evidenza post–Fix 14:** log **H26** (`monolithic_no_markers_merged_order`) con `traceCount` alto e `preview` tipo `0T,3G`: i trace ci sono ma **`toolMarker` assenti** nel messaggio letto dalla timeline.
+- **Causa:** in `updateAssistantMessagePipelineState`, se `applyRustStoreAction` restituiva **`applied == true`**, il messaggio in `conversations` veniva sostituito con `pipelineMessage` **solo** quando il testo visibile locale era vuoto (`visible.isEmpty`). I blocchi prodotti in Swift (inclusi i marker) non aggiornavano mai la copia in RAM usata dalla UI.
+- **Fix:** dopo un apply Rust riuscito, se `ChatTurnState.blocks` ha **più** blocchi o **più** `toolMarker` del messaggio locale, sostituire il messaggio con `pipelineMessage` (`ChatStore+PipelineStateLocalSync.swift`). Log NDJSON throttled **H32** (`rust_applied_local_blocks_sync`) su `.cursor/debug-72ead1.log`. Test `testPipelineCommitPropagatesToolMarkersWhenRustApplySucceeds`.
+
+### Fix 16 — merge display streaming ignorava i marker (mar 2026)
+
+- **Evidenza post–Fix 15:** ancora **H26** (`0T,3G` / `0T,4G`, `traceCount` alto) e **nessun H32**: pipeline e store spesso con **uguali** 0 marker nel commit, mentre il vero gap era la **UI in streaming**.
+- **Causa:** `messageForStreamingTimelineDisplay` sostituiva `merged.blocks` con `turn.blocks` solo se `pipelinePayload > storePayload`. I blocchi `.toolMarker` hanno **testo vuoto** → non aumentano la somma caratteri; se lo store aveva già tutto il primary, il merge dei blocchi **non partiva mai**.
+- **Fix:** considerare anche `streamingPipelineHasRicherBlockStructure` (più marker o più blocchi) indipendentemente dal delta payload. Log throttled **H33** (`pipeline_structure_merge_without_payload_delta`) su `.cursor/debug-72ead1.log` quando si applica quel ramo.
+
+### Fix 17 — `toolTraceArtifact` senza `detail`: nessun marker, testo unito (mar 2026)
+
+- **Sintomo:** più “risposte” nello stesso turno finiscono in **un solo** blocco primary (testo attaccato al precedente); in UI i tool compaiono ma l’ordine/testo resta monolitico (coerente con H26).
+- **Causa:** in `ChatPipelineReducer`, `.toolTraceArtifact` chiamava `ensureToolSegment` **solo** se `detail` non era vuoto. Molti `appendToolTraceEvent` passano `detail: activity.detail ?? ""` vuoto → la timeline non riceveva `.toolUse`, ultimo segmento restava `.text`, e i `textDelta` seguenti continuavano sullo stesso `textSegments` index.
+- **Fix:** chiamare sempre `ensureToolSegment` per `.toolTraceArtifact`; `upsertArtifact` solo se c’è testo. Log throttled **H34** (`tool_trace_marker_despite_empty_detail`). Test `testReducerSplitsTextWhenToolTraceArtifactHasEmptyDetail`.
+
+### Fix 18 — due `chatTurnState`: trace aggiorna solo `conversationRuntime` (mar 2026)
+
+- **Evidenza:** con Fix 17 compaiono **H34** (reducer ok) ma **H26** resta (`0T,3G`): la UI non vede mai i `toolMarker` nel messaggio mostrato.
+- **Causa:** `applyChatPipelineEvent(.toolTraceArtifact)` aggiorna `conversationRuntime.activeTurnStateByConversation`, mentre `messageForStreamingTimelineDisplay` legge `pipelineIntegrationService.runtime(for:)?.chatTurnState` (stato della job pipeline). I marker non venivano mai copiati lì → merge/display ancora monolitico.
+- **Fix:** dopo commit Swift per `.toolTraceArtifact`, `mirrorToolTraceArtifactIntoActivePipelineRuntime` applica lo stesso evento a `PipelineConversationRuntime.chatTurnState` se conversation + `assistantMessageId` coincidono. Log throttled **H35** (`tool_trace_mirrored_into_pipeline_runtime`).
+
+### Fix 19 — merge streaming senza job `PipelineIntegrationService` (mar 2026)
+
+- **Evidenza:** ancora **H26** + **H34** ma **nessun H35**: `runtime(for:)` spesso `nil` (chat senza job pipeline attivo o già teardown), quindi il mirror Fix 18 non gira.
+- **Causa:** `messageForStreamingTimelineDisplay` usava solo `pipelineIntegrationService.runtime`; `applyChatPipelineEvent` aggiorna `conversationRuntime.activeTurnStateByConversation` comunque.
+- **Fix:** risolvere `ChatTurnState` per il merge come **integration runtime se valido**, altrimenti **`conversationRuntime.activeTurnStateByConversation`**. Log throttled **H36** (`merge_uses_conversation_runtime_not_integration`).
+
+### Fix 20 — merge blocchi solo su “superficie streaming attiva” (mar 2026)
+
+- **Evidenza:** **H36** con `pipeMarkers: 1` ma **H26** ancora (anche `0T,3G` / `0T,4G`): il primo passaggio merge esiste, ma molte istanze della cella arrivano al interleaver **senza** marker (store grezzo).
+- **Causa:** `messageForStreamingTimelineDisplay` faceva `return base` subito se mancava uno tra `isStreaming && snapshotIsLoading && id == active`. La riga in **history** (`ForEach` su `historyMessages`) o i frame con snapshot non allineato non applicavano mai i `blocks` con `toolMarker` pur avendo trace.
+- **Fix:** stesso guard solo per assistente; il buffer `pendingStreamContent` resta legato a `isActiveStreamingSurface`. Log throttled **H37** (`pipeline_blocks_merged_outside_active_streaming_surface`).
+
+### Fix 21 — `ChatTurnState` per `assistantMessageId` (turno successivo sovrascrive `active`) (mar 2026)
+
+- **Evidenza:** ancora **H26** con `traceCount` alto (`88`) mentre **H33/H36** mostrano `pipeToolMarkers: 1` su *un altro* passaggio: `activeTurnStateByConversation[convId]` punta al **nuovo** turno, quindi il messaggio assistente **precedente** non matcha più e il merge non applica i blocchi con `toolMarker`.
+- **Causa:** uno **solo** stato pipeline per conversazione sull’hash `activeTurnStateByConversation`; alla nuova risposta assistente si perde il puntatore allo stato del messaggio history.
+- **Fix:** `ChatConversationRuntimeState.pipelineTurnStateByAssistantMessageId`, aggiornato ad ogni commit in `PipelineLegacyChatAdapter.applyChatPipelineEvent`; il merge usa integration → active (se stesso `assistantMessageId`) → **cache per `base.id`**. Log throttled **H38** (`merge_uses_assistant_message_pipeline_cache`, `runId`: `streaming-assistant-cache21`).
