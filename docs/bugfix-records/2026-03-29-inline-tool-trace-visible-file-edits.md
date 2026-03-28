@@ -17,5 +17,6 @@
 - **Moduli confinanti da verificare:** `ChatTurnTimelineInterleaver`, `InlineToolTraceEventView`, `ChatTurnView`.
 - **Test da aggiungere o aggiornare:** regressione su grouping inline che mantenga gli edit fuori dai gruppi, e rendering del titolo standalone per file change.
 - **Strategia di fix minimo:** mantenere i gruppi collassabili solo per `exploration` e `terminal`; lasciare gli edit come `.toolEvent` standalone e usare il titolo normalizzato del file change.
+- **Refinement UI:** riga standalone dedicata con action label attenuata, filename in evidenza e badge `+/-` colorati, così il file toccato resta leggibile anche a colpo d'occhio.
 - **Verifica post-fix:** test mirati `ChatTimelineInlineToolGroupingTests` e `InlineToolTraceEventViewDisplayTests`; verifica manuale sulla timeline chat con mix read/edit.
 - **Commit previsto:** `fix(chat): keep edited files visible outside tool groups`
