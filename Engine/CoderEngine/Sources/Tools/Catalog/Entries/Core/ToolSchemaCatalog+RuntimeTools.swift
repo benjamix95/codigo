@@ -21,6 +21,27 @@ extension ToolSchemaCatalog {
             required: []
         ),
         ToolSchemaEntry(
+            name: "benchmark_indexing",
+            description: "Run the indexing hardening benchmark script and collect JSON/log artifacts",
+            properties: [
+                "phase": ["type": "string", "description": "Required benchmark phase: pre or post"],
+                "tag": ["type": "string", "description": "Optional artifact tag; defaults to UTC timestamp"],
+                "runs": ["type": "string", "description": "Optional measured run count"],
+                "warmup": ["type": "string", "description": "Optional warmup run count"],
+                "files": ["type": "string", "description": "Optional synthetic file count"]
+            ],
+            required: ["phase"]
+        ),
+        ToolSchemaEntry(
+            name: "benchmark_review_pipeline",
+            description: "Run the review-core benchmark script and collect engine/app JSON artifacts",
+            properties: [
+                "phase": ["type": "string", "description": "Required benchmark phase: pre or post"],
+                "tag": ["type": "string", "description": "Optional artifact tag; defaults to review-core-smoke"]
+            ],
+            required: ["phase"]
+        ),
+        ToolSchemaEntry(
             name: "read_lints",
             description: "Read lints and diagnostics without full build",
             properties: [

@@ -153,6 +153,23 @@ pub fn input_schema_for(name: &str) -> Value {
             &[SchemaProp::with_desc("manager", "Optional host-specific diagnostics manager id.")],
             &[],
         ),
+        "coderide_benchmark_indexing" => object_from_props(
+            &[
+                SchemaProp::with_enum("phase", "Required benchmark phase.", &["pre", "post"]),
+                SchemaProp::with_desc("tag", "Optional artifact tag; defaults to UTC timestamp."),
+                SchemaProp::with_desc("runs", "Optional measured run count."),
+                SchemaProp::with_desc("warmup", "Optional warmup run count."),
+                SchemaProp::with_desc("files", "Optional synthetic file count."),
+            ],
+            &["phase"],
+        ),
+        "coderide_benchmark_review_pipeline" => object_from_props(
+            &[
+                SchemaProp::with_enum("phase", "Required benchmark phase.", &["pre", "post"]),
+                SchemaProp::with_desc("tag", "Optional artifact tag; defaults to review-core-smoke."),
+            ],
+            &["phase"],
+        ),
         "coderide_git_diff" => object_from_props(
             &[SchemaProp::with_desc("path", "Optional path scope for the diff.")],
             &[],

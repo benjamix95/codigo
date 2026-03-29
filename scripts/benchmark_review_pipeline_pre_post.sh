@@ -50,8 +50,8 @@ else
 fi
 
 xcodebuild test \
-  -workspace 'Solo Code.xcworkspace' \
-  -scheme 'Solo Code-Debug' \
+  -project 'Solo Code.xcodeproj' \
+  -scheme 'Solo Code' \
   -destination 'platform=macOS' \
   -only-testing:CoderEngineTests/ValidationPerformanceTests/testReviewCoreBridgeSmokeBenchmark \
   -only-testing:SoloCodeAppTests/ReviewPanelFindingsHistoryTests/testReviewPanelStoreSmokeBenchmark \

@@ -59,8 +59,8 @@ echo "==> Eseguo benchmark $PHASE (tag=$TAG, runs=$RUNS, warmup=$WARMUP, files=$
 (
   RUN_INDEX_BENCHMARK_SMOKE=1 \
   xcodebuild test \
-    -workspace 'Solo Code.xcworkspace' \
-    -scheme 'Solo Code-Debug' \
+    -project 'Solo Code.xcodeproj' \
+    -scheme 'CoderEngineTests-Debug' \
     -destination 'platform=macOS' \
     -only-testing:CoderEngineTests/CodebaseIndexIndexingBenchmarkSmokeTests/testIndexingBenchmarkSmoke
 ) | tee "$LOG_FILE"

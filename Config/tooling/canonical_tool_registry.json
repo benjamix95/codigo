@@ -547,6 +547,46 @@
       }
     },
     {
+      "mcp_name": "coderide_benchmark_indexing",
+      "runtime_name": "benchmark_indexing",
+      "family": "diagnostics",
+      "description": "Run the indexing hardening benchmark script and collect JSON/log artifacts. Usage: phase (required: pre|post); optional tag, runs, warmup, files.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [
+        "bash"
+      ],
+      "runtime_aliases": [
+        "benchmarkindexing"
+      ],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_benchmark_review_pipeline",
+      "runtime_name": "benchmark_review_pipeline",
+      "family": "diagnostics",
+      "description": "Run the review-core benchmark script and collect engine/app JSON artifacts. Usage: phase (required: pre|post); optional tag.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [
+        "bash"
+      ],
+      "runtime_aliases": [
+        "benchmarkreviewpipeline"
+      ],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
       "mcp_name": "coderide_bughunter_autofix_apply",
       "runtime_name": "bughunter_autofix_apply",
       "family": "bughunter",

@@ -1,4 +1,5 @@
 use crate::audit_tools;
+use crate::benchmark_tools;
 use crate::debug_tools;
 use crate::diagnostics_tools;
 use crate::edit_tools;
@@ -18,6 +19,9 @@ use std::path::Path;
 pub fn handle_tool_call(workspace: &Path, params: ToolCallParams) -> CallToolResult {
     let arguments = params.arguments.unwrap_or_default();
     if let Some(result) = audit_tools::handle(params.name.as_str(), workspace, &arguments) {
+        return result;
+    }
+    if let Some(result) = benchmark_tools::handle(params.name.as_str(), workspace, &arguments) {
         return result;
     }
     if let Some(result) = diagnostics_tools::handle(params.name.as_str(), workspace, &arguments) {
@@ -76,6 +80,7 @@ pub fn handle_tool_call(workspace: &Path, params: ToolCallParams) -> CallToolRes
 #[cfg_attr(not(test), allow(dead_code))]
 pub fn supports_tool_name(name: &str) -> bool {
     audit_tools::handle(name, Path::new("."), &Default::default()).is_some()
+        || benchmark_tools::handle(name, Path::new("."), &Default::default()).is_some()
         || diagnostics_tools::handle(name, Path::new("."), &Default::default()).is_some()
         || support_workflow_tools::supports(name)
         || debug_tools::handle(name, Path::new("."), &Default::default()).is_some()

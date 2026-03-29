@@ -1,4 +1,5 @@
 mod audit_tools;
+mod benchmark_tools;
 mod catalog;
 mod tool_descriptions;
 mod debug_tools;

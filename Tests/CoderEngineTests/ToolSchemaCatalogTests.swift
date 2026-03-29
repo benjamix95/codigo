@@ -28,6 +28,7 @@ final class ToolSchemaCatalogTests: XCTestCase {
             "audit_perf_bottlenecks", "audit_perf_memory", "audit_perf_ui_responsiveness",
             "audit_perf_startup", "audit_perf_hot_paths", "audit_perf_correlate", "audit_perf_trending",
             "audit_run_profile", "audit_correlate_findings", "audit_verify_bundle", "audit_explain_finding",
+            "benchmark_indexing", "benchmark_review_pipeline",
             "codebase_search", "find_symbol", "list_symbols", "find_references",
             "index_status", "reindex",
             "parallel_apply", "regex_replace", "rename_symbol", "find_and_replace_all", "undo_edit",
