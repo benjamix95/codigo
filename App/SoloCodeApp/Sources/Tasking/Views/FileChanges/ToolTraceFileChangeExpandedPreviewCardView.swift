@@ -5,7 +5,8 @@ struct ToolTraceFileChangeExpandedPreviewCardView: View {
     var maxHeight: CGFloat = 240
 
     var body: some View {
-        if let previewText = change.fullPreviewText {
+        let previewLines = change.fullPreviewDiffLines()
+        if !previewLines.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
                     Image(systemName: "arrow.left.and.right.righttriangle.left.righttriangle.right")
@@ -18,11 +19,7 @@ struct ToolTraceFileChangeExpandedPreviewCardView: View {
                 }
 
                 ScrollView(.vertical, showsIndicators: true) {
-                    Text(previewText)
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundStyle(DesignSystem.Colors.textSecondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .textSelection(.enabled)
+                    ToolTraceFileChangeDiffLinesView(lines: previewLines)
                 }
                 .frame(maxHeight: maxHeight)
             }

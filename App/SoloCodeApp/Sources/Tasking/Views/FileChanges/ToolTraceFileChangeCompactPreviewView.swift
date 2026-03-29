@@ -7,12 +7,9 @@ struct ToolTraceFileChangeCompactPreviewView: View {
     var compactPadding: CGFloat = 8
 
     var body: some View {
-        if let previewText = change.compactPreviewText(limit: maxLines) {
-            Text(previewText)
-                .font(.system(size: 10, design: .monospaced))
-                .foregroundStyle(DesignSystem.Colors.textSecondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .textSelection(.enabled)
+        let previewLines = change.compactPreviewDiffLines(limit: maxLines)
+        if !previewLines.isEmpty {
+            ToolTraceFileChangeDiffLinesView(lines: previewLines, lineLimit: 1)
                 .padding(.horizontal, compactPadding)
                 .padding(.vertical, 6)
                 .background(backgroundView)
