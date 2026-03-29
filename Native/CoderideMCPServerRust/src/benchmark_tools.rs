@@ -1,4 +1,5 @@
 use app_core_protocol::mcp::{CallToolResult, ToolContent};
+use crate::benchmark_tools_semantic;
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -13,6 +14,7 @@ pub fn handle(
     match name {
         "coderide_benchmark_indexing" => Some(run_indexing_benchmark(workspace, arguments)),
         "coderide_benchmark_review_pipeline" => Some(run_review_pipeline_benchmark(workspace, arguments)),
+        "coderide_benchmark_semantic_search" => Some(benchmark_tools_semantic::run_semantic_search_benchmark(workspace, arguments)),
         _ => None,
     }
 }

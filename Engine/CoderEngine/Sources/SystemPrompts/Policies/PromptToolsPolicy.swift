@@ -140,6 +140,8 @@ enum PromptToolsPolicy {
     - Default autofix path is preview first; only apply or commit when the workflow or user explicitly requests it.
     Audit MCP tools — use these for deterministic read-only security/bug hunting, and combine them with `skill` when a matching skill exists:
     \(canonicalFamilyPromptSection(title: "Audit family", family: "audit"))
+    Diagnostics and benchmark MCP tools — use these when the user asks to validate builds/tests or run performance benchmarks with artifacts:
+    \(canonicalFamilyPromptSection(title: "Diagnostics family", family: "diagnostics"))
     """
     }
 

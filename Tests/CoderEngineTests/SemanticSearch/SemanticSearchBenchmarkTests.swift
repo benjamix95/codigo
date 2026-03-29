@@ -48,5 +48,21 @@ final class SemanticSearchBenchmarkTests: XCTestCase {
         let durationMs = Int(Date().timeIntervalSince(start) * 1000)
 
         XCTAssertGreaterThan(durationMs, 0)
+
+        if let outputPath = ProcessInfo.processInfo.environment["SOLOCODE_SEMANTIC_BENCHMARK_OUTPUT"] {
+            let summary: [String: Any] = [
+                "mode": isFull ? "full" : "smoke",
+                "file_count": fileCount,
+                "duration_ms": durationMs,
+                "query": "where is auth flow handled",
+                "limit": 20,
+            ]
+            if let data = try? JSONSerialization.data(withJSONObject: summary, options: [.sortedKeys]),
+               let text = String(data: data, encoding: .utf8) {
+                try? text.write(toFile: outputPath, atomically: true, encoding: .utf8)
+                print("SEMANTIC_BENCHMARK_RESULT=\(text)")
+                NSLog("SEMANTIC_BENCHMARK_RESULT=%@", text)
+            }
+        }
     }
 }

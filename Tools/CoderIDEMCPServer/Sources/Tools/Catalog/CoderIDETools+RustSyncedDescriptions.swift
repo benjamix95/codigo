@@ -55,6 +55,7 @@ enum RustSyncedToolDescriptions {
       "coderide_audit_perf_trending": "Read-only performance audit helper: compare current perf findings with baseline trends and surface regressions. Usage: optional path, scope_files or scopeFiles (JSON array or CSV).",
       "coderide_benchmark_indexing": "Run the indexing hardening benchmark script and collect JSON/log artifacts. Usage: phase (required: pre|post); optional tag, runs, warmup, files.",
       "coderide_benchmark_review_pipeline": "Run the review-core benchmark script and collect engine/app JSON artifacts. Usage: phase (required: pre|post); optional tag.",
+      "coderide_benchmark_semantic_search": "Run the semantic search benchmark test and collect JSON/log artifacts. Usage: optional mode (smoke|full); optional tag.",
       "coderide_bughunter_autofix_apply": "Apply autofix for top verified finding. Usage: run_id (required); optional conversation_id.",
       "coderide_bughunter_autofix_commit": "Apply+commit autofix and queue follow-up review. Usage: run_id (required); optional conversation_id.",
       "coderide_bughunter_autofix_preview": "Preview autofix for top verified BugHunter finding. Usage: run_id (required); optional conversation_id.",

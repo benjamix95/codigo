@@ -42,6 +42,15 @@ extension ToolSchemaCatalog {
             required: ["phase"]
         ),
         ToolSchemaEntry(
+            name: "benchmark_semantic_search",
+            description: "Run the semantic search benchmark test and collect JSON/log artifacts",
+            properties: [
+                "mode": ["type": "string", "description": "Optional benchmark mode: smoke or full"],
+                "tag": ["type": "string", "description": "Optional artifact tag; defaults to UTC timestamp"]
+            ],
+            required: []
+        ),
+        ToolSchemaEntry(
             name: "read_lints",
             description: "Read lints and diagnostics without full build",
             properties: [

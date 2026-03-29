@@ -57,6 +57,18 @@ extension CoderIDETools {
             annotations: .init(title: "Benchmark Review Pipeline", readOnlyHint: false, idempotentHint: true)
         ),
         Tool(
+            name: "coderide_benchmark_semantic_search",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_benchmark_semantic_search", fallback: "Run the semantic search benchmark test and collect JSON/log artifacts."),
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([
+                    "mode": .object(["type": "string", "description": "Optional benchmark mode: smoke or full"]),
+                    "tag": .object(["type": "string", "description": "Optional artifact tag"]),
+                ]),
+            ]),
+            annotations: .init(title: "Benchmark Semantic Search", readOnlyHint: false, idempotentHint: true)
+        ),
+        Tool(
             name: "coderide_read_lints",
             description: RustSyncedToolDescriptions.text(mcpName: "coderide_read_lints", fallback: "Read lint warnings/errors without full build. Faster than diagnostics."),
             inputSchema: .object([

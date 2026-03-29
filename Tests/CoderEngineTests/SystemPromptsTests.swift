@@ -51,6 +51,14 @@ final class SystemPromptsTests: XCTestCase {
         XCTAssertTrue(prompt.contains("choose the `coderide_*` tool"))
     }
 
+    func testTaskCompletionStrictMentionsDiagnosticsFamilyAndBenchmarks() {
+        let prompt = SystemPrompts.taskCompletionStrict
+        XCTAssertTrue(prompt.contains("Diagnostics family"))
+        XCTAssertTrue(prompt.contains("coderide_benchmark_indexing"))
+        XCTAssertTrue(prompt.contains("coderide_benchmark_review_pipeline"))
+        XCTAssertTrue(prompt.contains("coderide_benchmark_semantic_search"))
+    }
+
     func testTaskCompletionStrictContainsSelectiveStagingWorkflow() {
         let prompt = SystemPrompts.taskCompletionStrict
         XCTAssertTrue(prompt.contains("Mandatory selective staging and commit workflow"))

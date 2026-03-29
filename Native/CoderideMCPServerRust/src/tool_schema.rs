@@ -170,6 +170,13 @@ pub fn input_schema_for(name: &str) -> Value {
             ],
             &["phase"],
         ),
+        "coderide_benchmark_semantic_search" => object_from_props(
+            &[
+                SchemaProp::with_enum("mode", "Optional benchmark mode.", &["smoke", "full"]),
+                SchemaProp::with_desc("tag", "Optional artifact tag; defaults to UTC timestamp."),
+            ],
+            &[],
+        ),
         "coderide_git_diff" => object_from_props(
             &[SchemaProp::with_desc("path", "Optional path scope for the diff.")],
             &[],

@@ -594,6 +594,26 @@ enum CoderIDECanonicalToolRegistryGenerated {
           }
         },
         {
+          "mcp_name": "coderide_benchmark_semantic_search",
+          "runtime_name": "benchmark_semantic_search",
+          "family": "diagnostics",
+          "description": "Run the semantic search benchmark test and collect JSON/log artifacts. Usage: optional mode (smoke|full); optional tag.",
+          "read_only": false,
+          "mutating_runtime": false,
+          "first_round_exempt": false,
+          "plugin_capabilities": [
+            "bash"
+          ],
+          "runtime_aliases": [
+            "benchmarksemanticsearch"
+          ],
+          "availability": {
+            "app": "available",
+            "subagents": "available",
+            "providers": "available"
+          }
+        },
+        {
           "mcp_name": "coderide_bughunter_autofix_apply",
           "runtime_name": "bughunter_autofix_apply",
           "family": "bughunter",
