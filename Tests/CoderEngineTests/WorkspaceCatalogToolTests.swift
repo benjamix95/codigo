@@ -17,6 +17,7 @@ final class WorkspaceCatalogToolTests: XCTestCase {
         XCTAssertTrue(ProviderToolEventMapper.isWorkspaceCatalogTool("review_start"))
         XCTAssertTrue(ProviderToolEventMapper.isWorkspaceCatalogTool("bughunter_start"))
         XCTAssertTrue(ProviderToolEventMapper.isWorkspaceCatalogTool("audit_security_secrets"))
+        XCTAssertTrue(ProviderToolEventMapper.isWorkspaceCatalogTool("audit_perf_bottlenecks"))
         XCTAssertTrue(ProviderToolEventMapper.isWorkspaceCatalogTool("security_start"))
         XCTAssertTrue(ProviderToolEventMapper.isWorkspaceCatalogTool("coderide_plan_create"))
     }
@@ -30,6 +31,7 @@ final class WorkspaceCatalogToolTests: XCTestCase {
         XCTAssertTrue(IDEStateSyntheticEventFactory.knowsTool("coderide_review_status"))
         XCTAssertTrue(IDEStateSyntheticEventFactory.knowsTool("security_findings"))
         XCTAssertTrue(IDEStateSyntheticEventFactory.knowsTool("bughunter_run_history"))
+        XCTAssertTrue(IDEStateSyntheticEventFactory.knowsTool("coderide_audit_perf_memory"))
         XCTAssertTrue(IDEStateSyntheticEventFactory.knowsTool("plan_create"))
     }
 }

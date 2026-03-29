@@ -3,7 +3,7 @@ use crate::tool_schema::input_schema_for;
 
 const TOOL_NAMES: &str = include_str!("tool_names.txt");
 pub const CATALOG_VERSION: &str = "2026-03-26";
-pub const CATALOG_TOOL_COUNT: usize = 133;
+pub const CATALOG_TOOL_COUNT: usize = 138;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ToolFamily {
@@ -115,6 +115,9 @@ fn family_for(name: &str) -> ToolFamily {
 }
 
 fn is_read_only(name: &str) -> bool {
+    if name.starts_with("coderide_audit_") {
+        return true;
+    }
     matches!(
         name,
         "coderide_read"

@@ -97,6 +97,10 @@ extension ToolEnabledLLMProvider {
             return !role.canEditFiles
         }
 
+        if CoderIDECanonicalToolRegistry.shared.record(forRuntimeName: normalized)?.family == "audit" {
+            return true
+        }
+
         if MCPNativeToolRegistry.shared.routing[normalized] != nil {
             return isLikelyReadOnlyNativeMCPTool(normalized)
         }

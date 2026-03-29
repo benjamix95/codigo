@@ -19,7 +19,7 @@ enum IDEStateSyntheticEventFactory {
             "activate_plan_mode", "activate_debug_mode",
             "show_task_panel", "show_swarm_panel",
         ]
-        for family in ["todo", "plan", "review", "security", "bughunter"] {
+        for family in ["todo", "plan", "review", "security", "bughunter", "audit"] {
             tools.formUnion(registry.records(forFamily: family, availableOn: .app).map(\.runtimeName))
         }
         return tools

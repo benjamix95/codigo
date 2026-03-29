@@ -432,11 +432,13 @@ enum CoderIDECanonicalToolRegistryGenerated {
           "runtime_name": "audit_perf_bottlenecks",
           "family": "audit",
           "description": "Read-only performance audit: detect bottlenecks such as blocking calls, synchronous main-thread work, and expensive loops. Usage: optional path, scope_files or scopeFiles (JSON array or CSV).",
-          "read_only": false,
+          "read_only": true,
           "mutating_runtime": false,
           "first_round_exempt": false,
           "plugin_capabilities": [],
-          "runtime_aliases": [],
+          "runtime_aliases": [
+            "auditperfbottlenecks"
+          ],
           "availability": {
             "app": "available",
             "subagents": "available",
@@ -448,11 +450,13 @@ enum CoderIDECanonicalToolRegistryGenerated {
           "runtime_name": "audit_perf_memory",
           "family": "audit",
           "description": "Read-only performance audit: detect memory issues such as retain cycles, strong self captures, and cache misuse. Usage: optional path, scope_files or scopeFiles (JSON array or CSV).",
-          "read_only": false,
+          "read_only": true,
           "mutating_runtime": false,
           "first_round_exempt": false,
           "plugin_capabilities": [],
-          "runtime_aliases": [],
+          "runtime_aliases": [
+            "auditperfmemory"
+          ],
           "availability": {
             "app": "available",
             "subagents": "available",
@@ -464,11 +468,13 @@ enum CoderIDECanonicalToolRegistryGenerated {
           "runtime_name": "audit_perf_ui_responsiveness",
           "family": "audit",
           "description": "Read-only performance audit: detect UI responsiveness issues such as main-thread blocking, heavy onAppear, and synchronous I/O in UI code. Usage: optional path, scope_files or scopeFiles (JSON array or CSV).",
-          "read_only": false,
+          "read_only": true,
           "mutating_runtime": false,
           "first_round_exempt": false,
           "plugin_capabilities": [],
-          "runtime_aliases": [],
+          "runtime_aliases": [
+            "auditperfuiresponsiveness"
+          ],
           "availability": {
             "app": "available",
             "subagents": "available",
@@ -480,11 +486,13 @@ enum CoderIDECanonicalToolRegistryGenerated {
           "runtime_name": "audit_perf_startup",
           "family": "audit",
           "description": "Read-only performance audit: detect startup-time issues such as +load methods, constructors, and eager initialization. Usage: optional path, scope_files or scopeFiles (JSON array or CSV).",
-          "read_only": false,
+          "read_only": true,
           "mutating_runtime": false,
           "first_round_exempt": false,
           "plugin_capabilities": [],
-          "runtime_aliases": [],
+          "runtime_aliases": [
+            "auditperfstartup"
+          ],
           "availability": {
             "app": "available",
             "subagents": "available",
@@ -496,11 +504,13 @@ enum CoderIDECanonicalToolRegistryGenerated {
           "runtime_name": "audit_perf_hot_paths",
           "family": "audit",
           "description": "Read-only performance audit: detect hot paths via git churn analysis, nested loops, and file complexity indicators. Usage: optional path, scope_files or scopeFiles (JSON array or CSV).",
-          "read_only": false,
+          "read_only": true,
           "mutating_runtime": false,
           "first_round_exempt": false,
           "plugin_capabilities": [],
-          "runtime_aliases": [],
+          "runtime_aliases": [
+            "auditperfhotpaths"
+          ],
           "availability": {
             "app": "available",
             "subagents": "available",

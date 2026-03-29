@@ -198,6 +198,21 @@ extension IDEStateSyntheticEventFactory {
             }
             return [wrapped(normalizedTool, payload)]
 
+        case _ where normalizedTool.hasPrefix("audit_"):
+            var payload: [String: String] = [:]
+            for key in [
+                "path", "scope_files", "scopeFiles", "profile",
+                "file", "line", "message", "evidence",
+            ] {
+                if let value = firstNonEmptyString(in: arguments, keys: [key]) {
+                    payload[key] = value
+                }
+            }
+            if payload["title"] == nil {
+                payload["title"] = normalizedTool
+            }
+            return [wrapped(normalizedTool, payload)]
+
         case "review_apply_fix":
             var payload: [String: String] = [:]
             if let findingId = firstNonEmptyString(in: arguments, keys: ["finding_id"]) {
