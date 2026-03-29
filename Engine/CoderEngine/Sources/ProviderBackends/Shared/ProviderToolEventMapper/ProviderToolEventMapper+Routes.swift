@@ -140,58 +140,54 @@ extension ProviderToolEventMapper {
             )
         }
 
+        let mapped: (type: String, payload: [String: String])?
         if let declared = declaredRoutes[tool] {
-            return mapViaDeclaredRoute(
+            mapped = mapViaDeclaredRoute(
                 route: declared,
                 tool: mappedToolName,
                 payload: normalizedPayload,
                 typeHint: normalizedHint
             )
+        } else if isCommandTool(tool: tool, payload: normalizedPayload, typeHint: normalizedHint) {
+            mapped = mapCommand(tool: mappedToolName, payload: normalizedPayload)
+        } else if isReadTool(tool) {
+            mapped = mapRead(tool: mappedToolName, payload: normalizedPayload)
+        } else if isFileChangeTool(tool, typeHint: normalizedHint) {
+            mapped = mapFileChange(tool: mappedToolName, payload: normalizedPayload, typeHint: normalizedHint)
+        } else if isSemanticTool(tool) {
+            mapped = mapSemantic(tool: mappedToolName, payload: normalizedPayload)
+        } else if isSearchTool(tool) {
+            mapped = mapSearch(tool: mappedToolName, payload: normalizedPayload)
+        } else if isMCPTool(tool, payload: normalizedPayload) {
+            if let ideRemap = remapMCPIDEStateTool(tool: mappedToolName, payload: normalizedPayload) {
+                mapped = ideRemap
+            } else {
+                mapped = mapMCP(tool: mappedToolName, payload: normalizedPayload)
+            }
+        } else if isWebSearchTool(tool, payload: normalizedPayload) {
+            mapped = mapWebSearch(tool: mappedToolName, payload: normalizedPayload)
+        } else if isWebFetchTool(tool, payload: normalizedPayload) {
+            mapped = mapWebFetch(tool: mappedToolName, payload: normalizedPayload)
+        } else if isSkillTool(tool) {
+            mapped = mapSkill(tool: mappedToolName, payload: normalizedPayload)
+        } else if isAgentTool(tool) {
+            mapped = mapAgent(tool: mappedToolName, payload: normalizedPayload)
+        } else if isTodoTool(tool) {
+            mapped = mapTodo(tool: mappedToolName, payload: normalizedPayload)
+        } else if isIDEStateTool(tool) {
+            mapped = mapIDEState(tool: tool, payload: normalizedPayload)
+        } else if !tool.isEmpty {
+            mapped = mapFallback(tool: mappedToolName, payload: normalizedPayload)
+        } else {
+            mapped = nil
         }
 
-        if isCommandTool(tool: tool, payload: normalizedPayload, typeHint: normalizedHint) {
-            return mapCommand(tool: mappedToolName, payload: normalizedPayload)
-        }
-        if isReadTool(tool) {
-            return mapRead(tool: mappedToolName, payload: normalizedPayload)
-        }
-        if isFileChangeTool(tool, typeHint: normalizedHint) {
-            return mapFileChange(tool: mappedToolName, payload: normalizedPayload, typeHint: normalizedHint)
-        }
-        if isSemanticTool(tool) {
-            return mapSemantic(tool: mappedToolName, payload: normalizedPayload)
-        }
-        if isSearchTool(tool) {
-            return mapSearch(tool: mappedToolName, payload: normalizedPayload)
-        }
-        if isMCPTool(tool, payload: normalizedPayload) {
-            if let ideRemap = remapMCPIDEStateTool(tool: mappedToolName, payload: normalizedPayload) {
-                return ideRemap
-            }
-            return mapMCP(tool: mappedToolName, payload: normalizedPayload)
-        }
-        if isWebSearchTool(tool, payload: normalizedPayload) {
-            return mapWebSearch(tool: mappedToolName, payload: normalizedPayload)
-        }
-        if isWebFetchTool(tool, payload: normalizedPayload) {
-            return mapWebFetch(tool: mappedToolName, payload: normalizedPayload)
-        }
-        if isSkillTool(tool) {
-            return mapSkill(tool: mappedToolName, payload: normalizedPayload)
-        }
-        if isAgentTool(tool) {
-            return mapAgent(tool: mappedToolName, payload: normalizedPayload)
-        }
-        if isTodoTool(tool) {
-            return mapTodo(tool: mappedToolName, payload: normalizedPayload)
-        }
-        if isIDEStateTool(tool) {
-            return mapIDEState(tool: tool, payload: normalizedPayload)
-        }
-        if !tool.isEmpty {
-            return mapFallback(tool: mappedToolName, payload: normalizedPayload)
-        }
-        return nil
+        guard let mapped else { return nil }
+        return annotateNativeMCPMetadataIfNeeded(
+            mapped: mapped,
+            rawToolName: rawToolName,
+            payload: normalizedPayload
+        )
     }
 
     private static func mapViaDeclaredRoute(

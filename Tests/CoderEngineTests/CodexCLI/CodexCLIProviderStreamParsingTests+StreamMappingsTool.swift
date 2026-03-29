@@ -26,6 +26,32 @@ extension CodexCLIProviderStreamParsingTests {
         XCTAssertEqual(parsed.payload["tool"], "semantic_search")
     }
 
+    func testFunctionCallNamespacedCoderideSemanticSearchPreservesMCPMetadata() {
+        let json: [String: Any] = [
+            "type": "item.completed",
+            "item": [
+                "id": "sem-mcp-1",
+                "type": "function_call",
+                "name": "functions.coderide_semantic_search",
+                "arguments": #"{"query":"policy acknowledgment flow"}"#,
+            ],
+        ]
+
+        guard let parsed = CodexCLIProvider.parseRawEvent(from: json) else {
+            XCTFail("Expected mapped coderide semantic_search event")
+            return
+        }
+
+        XCTAssertEqual(parsed.type, "semantic_search")
+        XCTAssertEqual(parsed.payload["query"], "policy acknowledgment flow")
+        XCTAssertEqual(parsed.payload["status"], "completed")
+        XCTAssertEqual(parsed.payload["tool_call_id"], "sem-mcp-1")
+        XCTAssertEqual(parsed.payload["tool"], "semantic_search")
+        XCTAssertEqual(parsed.payload["is_mcp"], "true")
+        XCTAssertEqual(parsed.payload["mcp_tool"], "coderide_semantic_search")
+        XCTAssertEqual(parsed.payload["mcp_server"], "coderide")
+    }
+
     func testAgentMessageItemIsNotMappedAsToolEvent() {
         let json: [String: Any] = [
             "type": "item.completed",

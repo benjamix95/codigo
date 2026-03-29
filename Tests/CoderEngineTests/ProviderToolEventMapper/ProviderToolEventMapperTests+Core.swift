@@ -207,6 +207,39 @@ extension ProviderToolEventMapperTests {
         XCTAssertEqual(mapped?.payload["tool"], "semantic_search")
     }
 
+    func testNamespacedCoderideSemanticSearchPreservesMCPMetadata() {
+        let mapped = ProviderToolEventMapper.map(
+            toolName: "functions.coderide_semantic_search",
+            payload: [
+                "arguments": #"{"query":"trace activity","num_results":8}"#
+            ]
+        )
+
+        XCTAssertEqual(mapped?.type, "semantic_search")
+        XCTAssertEqual(mapped?.payload["query"], "trace activity")
+        XCTAssertEqual(mapped?.payload["tool"], "semantic_search")
+        XCTAssertEqual(mapped?.payload["is_mcp"], "true")
+        XCTAssertEqual(mapped?.payload["mcp_tool"], "coderide_semantic_search")
+        XCTAssertEqual(mapped?.payload["mcp_server"], "coderide")
+    }
+
+    func testNamespacedCoderideReadPreservesMCPMetadata() {
+        let mapped = ProviderToolEventMapper.map(
+            toolName: "functions.coderide_read",
+            payload: [
+                "path": "README.md",
+                "content": "hello"
+            ]
+        )
+
+        XCTAssertEqual(mapped?.type, "read_batch_completed")
+        XCTAssertEqual(mapped?.payload["tool"], "read")
+        XCTAssertEqual(mapped?.payload["path"], "README.md")
+        XCTAssertEqual(mapped?.payload["is_mcp"], "true")
+        XCTAssertEqual(mapped?.payload["mcp_tool"], "coderide_read")
+        XCTAssertEqual(mapped?.payload["mcp_server"], "coderide")
+    }
+
     func testNamespacedMCPListServersMapsToMCPToolCall() {
         let mapped = ProviderToolEventMapper.map(
             toolName: "functions.mcp_list_servers",

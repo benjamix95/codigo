@@ -426,7 +426,7 @@ final class UnifiedToolRuntimeMCPConsistencyTests: XCTestCase {
         let tmp = try makeTmpWorkspace()
         defer { try? FileManager.default.removeItem(at: tmp) }
 
-        for alias in ["write", "grep", "todo_write", "plan_create", "debug_session"] {
+        for alias in ["write", "grep", "semantic_search", "todo_write", "plan_create", "debug_session"] {
             registerCoderideAlias(alias)
         }
 
@@ -440,6 +440,12 @@ final class UnifiedToolRuntimeMCPConsistencyTests: XCTestCase {
             canonicalName: "grep",
             args: ["pattern": "needle"],
             expectedMCPTool: "coderide_grep",
+            workspace: tmp
+        )
+        await assertCanonicalToolPrefersCoderideAlias(
+            canonicalName: "semantic_search",
+            args: ["query": "policy ack flow"],
+            expectedMCPTool: "coderide_semantic_search",
             workspace: tmp
         )
         let todoRuntime = UnifiedToolRuntime()
