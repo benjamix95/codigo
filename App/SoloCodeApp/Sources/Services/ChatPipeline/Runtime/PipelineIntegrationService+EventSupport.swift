@@ -17,11 +17,23 @@ extension PipelineIntegrationService {
     func handleRawEvent(_ p: RawEventPayload, for conversationId: UUID) {
         applyCodexAppServerStreamingMeta(p)
         let rawType = p.rawType
-        let normalizedEnvelope = normalizeRawEventEnvelope(p)
-
         let currentRuntime = runtime(for: conversationId)
         let providerId = currentRuntime?.providerId ?? "pipeline"
         let hasExternalRawHandler = currentRuntime?.rawEventHandler != nil
+        let routesTodoWriteLocally = !hasExternalRawHandler && (
+            rawType == RawEventType.todoWrite
+                || p.payload.keys.contains(where: { $0.hasPrefix("todo_") })
+        )
+        let routesPlanStepLocally = !hasExternalRawHandler && rawType == RawEventType.planStep
+        var normalizedEnvelopeCache: NormalizedEventEnvelope?
+        func normalizedEnvelope() -> NormalizedEventEnvelope {
+            if let normalizedEnvelopeCache {
+                return normalizedEnvelopeCache
+            }
+            let envelope = normalizeRawEventEnvelope(p)
+            normalizedEnvelopeCache = envelope
+            return envelope
+        }
         if let callback = currentRuntime?.rawEventHandler {
             callback(rawType, p.payload, providerId, conversationId)
         }
@@ -38,23 +50,24 @@ extension PipelineIntegrationService {
                 for: conversationId
             )
         } else if !hasExternalRawHandler {
-            if rawType == RawEventType.todoWrite || p.payload.keys.contains(where: {
-                $0.hasPrefix("todo_")
-            }) {
+            if routesTodoWriteLocally {
                 handleRawTodoWrite(p, for: conversationId)
-            } else if envelopeContainsDebugEvent(normalizedEnvelope) {
-                handleRawDebugEvent(
-                    p,
-                    normalizedEnvelope: normalizedEnvelope,
-                    for: conversationId
-                )
-            } else if rawType == RawEventType.planStep {
+            } else if routesPlanStepLocally {
                 handleRawPlanStep(p, for: conversationId)
             } else {
-                forwardRawEnvelopeToTaskActivity(
-                    normalizedEnvelope,
-                    for: conversationId
-                )
+                let envelope = normalizedEnvelope()
+                if envelopeContainsDebugEvent(envelope) {
+                    handleRawDebugEvent(
+                        p,
+                        normalizedEnvelope: envelope,
+                        for: conversationId
+                    )
+                } else {
+                    forwardRawEnvelopeToTaskActivity(
+                        envelope,
+                        for: conversationId
+                    )
+                }
             }
         } else if mainChatTraceLoggingEnabled() {
             NSLog(
@@ -94,11 +107,11 @@ extension PipelineIntegrationService {
 
         let rawText = rawEvent.payload["output"] ?? rawEvent.payload["text"]
             ?? rawEvent.payload["content"] ?? rawEvent.payload["detail"] ?? ""
-        let currentVisibleText = runtime.chatTurnState.textByStreamId[
-            rawEvent.taskId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                ? (runtime.chatTurnState.orderedTextStreamIds.first ?? "main")
-                : rawEvent.taskId
-        ] ?? runtime.chatTurnState.primaryTextSnapshot
+        let streamId = rawEvent.taskId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? (runtime.chatTurnState.orderedTextStreamIds.first ?? "main")
+            : rawEvent.taskId
+        let currentVisibleText = runtime.chatTurnState.textByStreamId[streamId]
+            ?? runtime.chatTurnState.primaryTextSnapshot
         guard let promoted = promotedAssistantUpdateContent(
             currentVisibleText: currentVisibleText,
             incomingRawOutput: rawText
@@ -115,9 +128,6 @@ extension PipelineIntegrationService {
             )
         }
 
-        let streamId = rawEvent.taskId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            ? (runtime.chatTurnState.orderedTextStreamIds.first ?? "main")
-            : rawEvent.taskId
         consumePipelineEvents([ChatPipelineEvent(
             conversationId: conversationId,
             assistantMessageId: runtime.assistantMessageId,

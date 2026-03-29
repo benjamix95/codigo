@@ -694,6 +694,76 @@ final class PipelineIntegrationServiceTests: XCTestCase {
         XCTAssertTrue(service.cancelCurrentJob(for: conversationId))
     }
 
+    func testShowTaskPanelKeepsChatStatusWhenRawEventHandlerOwnsTaskActivityProjection() {
+        let suiteName = "PipelineIntegrationServiceTests.raw-show-task-panel.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let chatStore = ChatStore(userDefaults: defaults)
+        let todoStore = TodoStore(
+            storageKey: "CoderIDE.todos.tests.\(UUID().uuidString)",
+            userDefaults: defaults
+        )
+        let taskActivityStore = TaskActivityStore()
+        let swarmProgressStore = SwarmProgressStore()
+        let executionController = ExecutionController()
+        let service = PipelineIntegrationService()
+        service.configure(
+            chatStore: chatStore,
+            taskActivityStore: taskActivityStore,
+            swarmProgressStore: swarmProgressStore,
+            todoStore: todoStore,
+            executionController: executionController
+        )
+
+        let conversationId = chatStore.conversations[0].id
+        chatStore.addMessage(
+            ChatMessage(role: .assistant, content: "", isStreaming: true),
+            to: conversationId
+        )
+        let context = WorkspaceContext(workspacePaths: [URL(fileURLWithPath: "/tmp")])
+        var callbackTypes: [String] = []
+        service.executeJob(
+            makeJob(id: "job-show-task-panel"),
+            tasks: [TaskNode(taskId: "task-show-task-panel", title: "Show task panel")],
+            workerAdapter: AgentWorkerAdapter(
+                provider: DelayedMockPipelineProvider(
+                    id: "provider-show-task-panel",
+                    text: "done",
+                    delayNanoseconds: 500_000_000
+                ),
+                context: context,
+                jobId: "job-show-task-panel"
+            ),
+            providerId: "provider-show-task-panel",
+            conversationId: conversationId,
+            assistantMessageId: UUID(),
+            rawEventHandler: { type, _, _, _ in
+                callbackTypes.append(type)
+            }
+        )
+
+        service.handleRawEvent(
+            RawEventPayload(
+                jobId: "job-show-task-panel",
+                taskId: "task-show-task-panel",
+                rawType: "show_task_panel",
+                payload: ["status": "Background sync"]
+            ),
+            for: conversationId
+        )
+
+        taskActivityStore.flushPending()
+
+        XCTAssertEqual(callbackTypes, ["show_task_panel"])
+        XCTAssertEqual(chatStore.taskStatusTexts[conversationId], "Background sync")
+        XCTAssertTrue(taskActivityStore.activities.isEmpty)
+        XCTAssertTrue(taskActivityStore.envelopes.isEmpty)
+
+        XCTAssertTrue(service.cancelCurrentJob(for: conversationId))
+    }
+
     func testAssistantUpdateSkipsRedundantPipelineReplaceWhenVisibleTextAlreadyContainsPayload() {
         let suiteName = "PipelineIntegrationServiceTests.assistant-update-dedup.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

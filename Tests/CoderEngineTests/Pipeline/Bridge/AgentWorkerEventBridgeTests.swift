@@ -1,5 +1,6 @@
 import XCTest
 @testable import CoderEngine
+import os
 
 final class AgentWorkerEventBridgeTests: XCTestCase {
     func testConcurrentWorkerEventsProduceUniqueMonotonicBridgeSequences() async throws {
@@ -9,12 +10,12 @@ final class AgentWorkerEventBridgeTests: XCTestCase {
         let expectation = XCTestExpectation(description: "all worker events delivered")
         expectation.expectedFulfillmentCount = expectedEventCount
 
-        var eventIds: [String] = []
+        let eventIds = OSAllocatedUnfairLock(initialState: [String]())
         await bus.subscribe(EventSubscription(
             id: "sub-all",
             filter: EventSubscriptionFilter()
         ) { event in
-            eventIds.append(event.eventId)
+            eventIds.withLock { $0.append(event.eventId) }
             expectation.fulfill()
         })
 
@@ -47,7 +48,7 @@ final class AgentWorkerEventBridgeTests: XCTestCase {
 
         await fulfillment(of: [expectation], timeout: 5.0)
 
-        let sequenceNumbers = eventIds.compactMap(Self.bridgeSequence(from:))
+        let sequenceNumbers = eventIds.withLock { $0 }.compactMap(Self.bridgeSequence(from:))
         XCTAssertEqual(sequenceNumbers.count, expectedEventCount)
         XCTAssertEqual(Set(sequenceNumbers).count, expectedEventCount)
         XCTAssertEqual(sequenceNumbers.sorted(), Array(1...UInt64(expectedEventCount)))
@@ -64,12 +65,12 @@ final class AgentWorkerEventBridgeTests: XCTestCase {
         let expectation = XCTestExpectation(description: "3 events delivered")
         expectation.expectedFulfillmentCount = 3
 
-        var capturedEvents: [EventBusEvent] = []
+        let capturedEvents = OSAllocatedUnfairLock(initialState: [EventBusEvent]())
         await bus.subscribe(EventSubscription(
             id: "sub-fmt",
             filter: EventSubscriptionFilter()
         ) { event in
-            capturedEvents.append(event)
+            capturedEvents.withLock { $0.append(event) }
             expectation.fulfill()
         })
 
@@ -79,7 +80,7 @@ final class AgentWorkerEventBridgeTests: XCTestCase {
 
         await fulfillment(of: [expectation], timeout: 5.0)
 
-        let sorted = capturedEvents.sorted { $0.sequenceNumber < $1.sequenceNumber }
+        let sorted = capturedEvents.withLock { $0 }.sorted { $0.sequenceNumber < $1.sequenceNumber }
         XCTAssertEqual(sorted.count, 3)
 
         // Delta
@@ -106,4 +107,3 @@ final class AgentWorkerEventBridgeTests: XCTestCase {
         return sequenceString.flatMap { UInt64($0) }
     }
 }
-

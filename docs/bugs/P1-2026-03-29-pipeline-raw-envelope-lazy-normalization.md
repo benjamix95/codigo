@@ -1,0 +1,17 @@
+# Bug Fix Record
+- **Categoria:** B — Importante ma non bloccante
+- **Bug:** `PipelineIntegrationService.handleRawEvent` normalizzava sempre i raw event in `NormalizedEventEnvelope`, anche quando il flusso era già gestito da `rawEventHandler` esterno oppure da side-effect locali semplici (`show_task_panel`, `todo_write`, `plan_step`)
+- **Sintomo:** CPU e allocazioni inutili nel path caldo dei raw event durante stream/commentary, soprattutto con callback esterne che consumano il raw path
+- **Impatto:** degrado incrementale di reattività nel layer chat/task activity; lavoro ripetuto senza beneficio UI
+- **Gravità:** P1
+- **Steps to reproduce:** eseguire una pipeline con `rawEventHandler` esterno e inviare molti raw event non-debug; osservare che ogni evento passa comunque da `EventNormalizer.normalizeEnvelope`
+- **Risultato attuale:** envelope costruita sempre, anche se poi non viene usata
+- **Risultato atteso:** envelope costruita solo quando serve davvero per `TaskActivity`/debug projection
+- **Causa probabile:** normalizzazione eager eseguita all’inizio di `handleRawEvent`, prima di conoscere il ramo di dispatch effettivo
+- **Scope consentito:** `PipelineIntegrationService+EventSupport.swift`, test correlati
+- **Non-scope:** reducer chat, store Rust, UI SwiftUI, `TaskActivityStore`
+- **Moduli confinanti da verificare:** raw artifact projection, task status `show_task_panel`, deduplica `assistant_update`, debounce Rust bridge
+- **Test da aggiungere o aggiornare:** regressione per `show_task_panel` con `rawEventHandler` esterno; rerun test su `assistant_update` e `AgentWorkerEventBridge`
+- **Strategia di fix minimo:** lazy cache locale dell’envelope + riuso del `streamId` già calcolato
+- **Verifica post-fix:** test mirati `PipelineIntegrationServiceTests` e `AgentWorkerEventBridgeTests`
+- **Commit previsto:** `fix(pipeline): lazily normalize raw envelopes in hot path`

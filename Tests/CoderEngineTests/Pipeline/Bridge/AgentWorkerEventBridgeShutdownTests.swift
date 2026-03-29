@@ -1,5 +1,6 @@
 import XCTest
 @testable import CoderEngine
+import os
 
 final class AgentWorkerEventBridgeShutdownTests: XCTestCase {
 
@@ -10,19 +11,19 @@ final class AgentWorkerEventBridgeShutdownTests: XCTestCase {
         let bridge = AgentWorkerEventBridge(eventBus: bus, jobId: "job-shutdown")
 
         let preShutdownExpectation = XCTestExpectation(description: "pre-shutdown event")
-        var receivedCount = 0
+        let receivedCount = OSAllocatedUnfairLock(initialState: 0)
         await bus.subscribe(EventSubscription(
             id: "sub-shutdown",
             filter: EventSubscriptionFilter()
         ) { _ in
-            receivedCount += 1
+            receivedCount.withLock { $0 += 1 }
             preShutdownExpectation.fulfill()
         })
 
         // Emit one event before shutdown — should be delivered.
         await bridge.worker(jobId: "ignored", taskId: "t1", didEmitTextDelta: "before")
         await fulfillment(of: [preShutdownExpectation], timeout: 5.0)
-        XCTAssertEqual(receivedCount, 1)
+        XCTAssertEqual(receivedCount.withLock { $0 }, 1)
 
         // Shutdown the bridge.
         bridge.shutdown()
@@ -34,7 +35,7 @@ final class AgentWorkerEventBridgeShutdownTests: XCTestCase {
 
         // Small delay to ensure any straggler events would have been delivered.
         try await Task.sleep(nanoseconds: 100_000_000)
-        XCTAssertEqual(receivedCount, 1, "No events should be published after shutdown")
+        XCTAssertEqual(receivedCount.withLock { $0 }, 1, "No events should be published after shutdown")
     }
 
     func testConcurrentShutdownAndPublishDoesNotCrash() async throws {
@@ -72,7 +73,7 @@ final class AgentWorkerEventBridgeShutdownTests: XCTestCase {
         let bus = EventBus(maxDeliveryAttempts: 1)
         let bridge = AgentWorkerEventBridge(eventBus: bus, jobId: "job-fmt")
 
-        var capturedEvents: [EventBusEvent] = []
+        let capturedEvents = OSAllocatedUnfairLock(initialState: [EventBusEvent]())
         let expectation = XCTestExpectation(description: "3 events")
         expectation.expectedFulfillmentCount = 3
 
@@ -80,7 +81,7 @@ final class AgentWorkerEventBridgeShutdownTests: XCTestCase {
             id: "sub-fmt",
             filter: EventSubscriptionFilter()
         ) { event in
-            capturedEvents.append(event)
+            capturedEvents.withLock { $0.append(event) }
             expectation.fulfill()
         })
 
@@ -90,15 +91,17 @@ final class AgentWorkerEventBridgeShutdownTests: XCTestCase {
 
         await fulfillment(of: [expectation], timeout: 5.0)
 
-        let delta = capturedEvents.first { $0.type == .textDelta }!
+        let recorded = capturedEvents.withLock { $0 }
+
+        let delta = recorded.first { $0.type == .textDelta }!
         XCTAssertEqual(delta.eventId, "evt_stream_1_delta_abc")
         XCTAssertEqual(delta.idempotencyKey, "job-fmt_delta_1_abc")
 
-        let replace = capturedEvents.first { $0.type == .textReplace }!
+        let replace = recorded.first { $0.type == .textReplace }!
         XCTAssertEqual(replace.eventId, "evt_stream_2_replace_def")
         XCTAssertEqual(replace.idempotencyKey, "job-fmt_replace_2_def")
 
-        let raw = capturedEvents.first { $0.type == .rawAgentEvent }!
+        let raw = recorded.first { $0.type == .rawAgentEvent }!
         XCTAssertEqual(raw.eventId, "evt_stream_3_raw_ghi")
         XCTAssertEqual(raw.idempotencyKey, "job-fmt_raw_3_ghi")
     }

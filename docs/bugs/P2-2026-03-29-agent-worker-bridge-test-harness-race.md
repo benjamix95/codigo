@@ -1,0 +1,17 @@
+# Bug Fix Record
+- **Categoria:** B — Importante ma non bloccante
+- **Bug:** i test concorrenti di `AgentWorkerEventBridge` mutavano array e contatori condivisi senza sincronizzazione
+- **Sintomo:** flake intermittente nella suite `CoderEngineTests` (`59` eventi registrati su `60` attesi)
+- **Impatto:** validazione CI/locale non deterministica; falso negativo durante la verifica dei fix pipeline
+- **Gravità:** P2
+- **Steps to reproduce:** eseguire ripetutamente `AgentWorkerEventBridgeTests` o lanciare la suite insieme ad altri test concorrenti
+- **Risultato attuale:** il test harness perde occasionalmente append/count per data race locale nel test
+- **Risultato atteso:** raccolta eventi deterministica e thread-safe nel test harness
+- **Causa probabile:** callback `EventBus.subscribe` eseguite in parallelo, ma `eventIds.append`, `capturedEvents.append` e `receivedCount += 1` non erano protetti
+- **Scope consentito:** test del bridge eventi in `Tests/CoderEngineTests/Pipeline/Bridge`
+- **Non-scope:** implementazione di `AgentWorkerEventBridge`, `EventBus`, pipeline app
+- **Moduli confinanti da verificare:** suite `AgentWorkerEventBridgeTests`, suite `AgentWorkerEventBridgeShutdownTests`
+- **Test da aggiungere o aggiornare:** sincronizzazione del test harness con `OSAllocatedUnfairLock`
+- **Strategia di fix minimo:** proteggere le collezioni condivise solo nei test, senza alterare il runtime production
+- **Verifica post-fix:** rerun di `CoderEngineTests/AgentWorkerEventBridgeTests` e `CoderEngineTests/AgentWorkerEventBridgeShutdownTests`
+- **Commit previsto:** `test(coderengine): make bridge concurrency assertions deterministic`
