@@ -42,11 +42,6 @@ struct ComposerTodoOverlayView: View {
     }
 
     @State var isFileListExpanded = false
-    @State var expandedFileIds: Set<UUID> = []
-
-    var latestPreviewableFileChange: ToolTraceFileChange? {
-        fileChanges.latestPreviewableChange()
-    }
 
     /// Sfondo opaco allineato al grigio del composer: evita che la lista todo in chat trapeli dal gradient semi-trasparente.
     private var opaqueComposerChromeFill: Color {
@@ -99,11 +94,6 @@ struct ComposerTodoOverlayView: View {
                 if metrics.fileCount > 0 {
                     Divider().overlay(Color.primary.opacity(0.08))
                     footer
-
-                    if let latestPreviewableFileChange {
-                        Divider().overlay(Color.primary.opacity(0.06))
-                        liveDiffPreviewSection(change: latestPreviewableFileChange)
-                    }
 
                     if isFileListExpanded {
                         fileListSection

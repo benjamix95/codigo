@@ -43,98 +43,34 @@ extension ComposerTodoOverlayView {
         .padding(.vertical, 12)
     }
 
-    func liveDiffPreviewSection(change: ToolTraceFileChange) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                Image(systemName: "waveform.path.ecg")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(DesignSystem.Colors.planColor.opacity(0.9))
-                Text("Diff live \(change.basename)")
-                    .font(.system(size: 11.5, weight: .semibold))
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
-                Spacer(minLength: 0)
-                if let lineSummary = change.lineSummary {
-                    Text(lineSummary)
-                        .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(DesignSystem.Colors.textQuaternary)
-                }
-            }
-            .padding(.horizontal, 14)
-            .padding(.top, 10)
-
-            ToolTraceFileChangeCompactPreviewView(
-                change: change,
-                maxLines: isStreaming ? 4 : 3,
-                showsBackground: true,
-                compactPadding: 14
-            )
-            .padding(.bottom, 10)
-        }
-    }
-
     var fileListSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 2) {
             ForEach(fileChanges) { file in
                 let displayPath = file.path ?? file.basename
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 8) {
-                        HStack(spacing: 6) {
-                            Image(systemName: fileIcon(for: displayPath))
-                                .font(.system(size: 10))
-                                .foregroundStyle(.tertiary)
-                                .frame(width: 14)
-                            Text(displayPath)
-                                .font(.system(size: 11.5, weight: .medium))
-                                .lineLimit(1)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                        if file.hasFullPreview {
-                            Button {
-                                toggleExpandedFile(file)
-                            } label: {
-                                Image(systemName: expandedFileIds.contains(file.id) ? "chevron.down" : "chevron.right")
-                                    .font(.system(size: 9, weight: .bold))
-                                    .foregroundStyle(.tertiary)
-                                    .frame(width: 12)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                        Text("+\(max(0, file.added))")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(DesignSystem.Colors.success)
-                        Text("-\(max(0, file.removed))")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(DesignSystem.Colors.error)
+                HStack(spacing: 8) {
+                    HStack(spacing: 6) {
+                        Image(systemName: fileIcon(for: displayPath))
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                            .frame(width: 14)
+                        Text(displayPath)
+                            .font(.system(size: 11.5, weight: .medium))
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
-
-                    if expandedFileIds.contains(file.id) {
-                        ToolTraceFileChangeExpandedPreviewCardView(
-                            change: file,
-                            maxHeight: 220
-                        )
-                    } else {
-                        ToolTraceFileChangeCompactPreviewView(
-                            change: file,
-                            maxLines: 3,
-                            showsBackground: true,
-                            compactPadding: 10
-                        )
-                    }
+                    Text("+\(max(0, file.added))")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(DesignSystem.Colors.success)
+                    Text("-\(max(0, file.removed))")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(DesignSystem.Colors.error)
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 4)
             }
         }
         .padding(.vertical, 6)
-        .frame(maxHeight: 260)
-    }
-
-    func toggleExpandedFile(_ change: ToolTraceFileChange) {
-        if expandedFileIds.contains(change.id) {
-            expandedFileIds.remove(change.id)
-        } else {
-            expandedFileIds.insert(change.id)
-        }
+        .frame(maxHeight: 200)
     }
 
     func fileIcon(for path: String) -> String {
