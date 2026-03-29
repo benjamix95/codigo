@@ -164,7 +164,7 @@ extension TodoStore {
             return { !$0.isPlanCanonical }
         }
         let scopeSnapshot = cachedTodoChatDisplayScopeSnapshot()
-        return { [self] item in
+        return { item in
             guard !item.isPlanCanonical, !item.isOperationalPlaceholder else { return false }
             if item.planConversationId == conversationId { return true }
             if item.planConversationId == nil, item.source == .agent {

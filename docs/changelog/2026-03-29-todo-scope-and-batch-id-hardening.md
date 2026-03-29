@@ -3,6 +3,7 @@
 ## Modifiche
 - Limitato il fallback ID nel bridge raw TODO in [`PipelineIntegrationService+TodoRawEventSupport.swift`](/Users/benjaminstoica/SoloCode/App/SoloCodeApp/Sources/Services/ChatPipeline/Runtime/PipelineIntegrationService+TodoRawEventSupport.swift): `payload.taskId` viene riusato solo per eventi con un singolo todo, evitando collisioni nei batch `todos_json`.
 - Reso piu' stretto lo scope dei canonical in [`TodoStore+Queries.swift`](/Users/benjaminstoica/SoloCode/App/SoloCodeApp/Sources/Tasking/Stores/TodoStore+Queries.swift): il fallback ai legacy unscoped ora vale solo se non esistono canonical scoped da nessuna parte.
+- Rimossa anche una capture inutile di `self` nello stesso modulo `TodoStore+Queries.swift`, cosi' la build mirata non emette piu' il warning su quel file toccato.
 - Aggiunto il regression test batch in [`PipelineIntegrationTodoBatchTests.swift`](/Users/benjaminstoica/SoloCode/Tests/SoloCodeAppTests/PipelineIntegrationTodoBatchTests.swift) per bloccare la sovrascrittura di piu' todo sullo stesso ID.
 - Aggiunto il regression test scope in [`TodoStoreCanonicalScopeTests.swift`](/Users/benjaminstoica/SoloCode/Tests/SoloCodeAppTests/TodoStoreCanonicalScopeTests.swift) per impedire il bleed cross-conversation e preservare il fallback legacy puro.
 - Documentati entrambi i bug in `docs/bugs/` e raccolto il perimetro del fix nel bugfix record dedicato.
