@@ -292,6 +292,47 @@ final class ChatTimelineInterleavingTests: XCTestCase {
         }
     }
 
+    func testInterleaverMovesTrailingSubagentSnapshotsBeforeFinalText() {
+        let blocks = [
+            PersistedChatTimelineBlock(id: "text-0", kind: .primaryText, text: "Analisi", sequence: 0),
+            PersistedChatTimelineBlock(id: "text-1", kind: .primaryText, text: "Risposta finale", sequence: 2),
+        ]
+        let snapshots = [
+            SubagentCardSnapshot(
+                swarmId: "sa-review",
+                status: .completed,
+                title: "Reviewer",
+                detail: "done",
+                summary: "ok",
+                errorCount: 0,
+                warningCount: 0,
+                resultPreview: "done",
+                transcript: nil
+            ),
+        ]
+
+        let segments = ChatTurnTimelineInterleaver.segments(
+            blocks: blocks,
+            traceEvents: [],
+            subagentSnapshots: snapshots
+        )
+
+        let finalTextIndex = try! XCTUnwrap(segments.lastIndex(where: { segment in
+            if case .text(_, let content, _) = segment {
+                return content == "Risposta finale"
+            }
+            return false
+        }))
+        let snapshotIndex = try! XCTUnwrap(segments.firstIndex(where: { segment in
+            if case .subagentSnapshot(_, let snapshot, _) = segment {
+                return snapshot.swarmId == "sa-review"
+            }
+            return false
+        }))
+
+        XCTAssertLessThan(snapshotIndex, finalTextIndex)
+    }
+
     func testSyntheticFallbackPreservesMultiplePrimaryBlocksWithoutToolMarkers() {
         let conversationId = UUID()
         let assistantMessageId = UUID()

@@ -65,10 +65,6 @@ struct ChatRuntimeChromeSectionView<FinalActions: View, LegacyTaskBar: View>: Vi
             onSelectSwarm: onSelectSwarm
         )
 
-        if shouldShowFinalActions() {
-            finalActionsContent()
-        }
-
         if showLegacyTaskBar {
             legacyTaskBarContent()
         }
@@ -130,8 +126,16 @@ extension ChatPanelView {
                     swarmDashboardArea
                 } else {
                     ChatMessagesSectionView {
-                        messagesArea
-                            .layoutPriority(1)
+                        VStack(spacing: 0) {
+                            messagesArea
+                                .layoutPriority(1)
+                            if ChatFinalActionsPlacementPolicy.shouldRenderBelowMessages(
+                                shouldShowFinalChatActions: shouldShowFinalChatActions,
+                                showsSwarmViewOnly: showsSwarmViewOnly
+                            ) {
+                                finalChatActionsBar
+                            }
+                        }
                     }
                 }
 
