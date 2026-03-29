@@ -142,13 +142,25 @@ final class WorkspaceStore: ObservableObject {
         let gitignore = isRespectGitignoreEnabled
         let index = codebaseIndex
 
-        // Subito sul main (siamo già @MainActor): evita un frame vuoto prima che parta il task in background.
-        indexBadgeState = WorkspaceIndexBadgeState(
-            progress: nil,
-            status: .indexing,
-            hasWorkspacePaths: true,
-            indexingEnabled: true
-        )
+        // Warm start: se l'indice è già persistito su disco, mostriamo 100% (ready)
+        // come stato iniziale. Il task in background validerà e aggiornerà solo se necessario.
+        // Questo evita il flash 0% → 100% ad ogni avvio con progetto già indicizzato.
+        let hasCachedIndex = CodebaseIndex.hasCachedIndex(for: paths)
+        if hasCachedIndex {
+            indexBadgeState = WorkspaceIndexBadgeState(
+                progress: nil,
+                status: .ready,
+                hasWorkspacePaths: true,
+                indexingEnabled: true
+            )
+        } else {
+            indexBadgeState = WorkspaceIndexBadgeState(
+                progress: nil,
+                status: .indexing,
+                hasWorkspacePaths: true,
+                indexingEnabled: true
+            )
+        }
 
         startProgressPolling(
             activeToken: activeToken,
@@ -245,9 +257,12 @@ final class WorkspaceStore: ObservableObject {
         progressPollingTask?.cancel()
         progressPollingTask = nil
         indexProgress = nil
+        // Se l'indice è già persistito, manteniamo .ready come stato transitorio
+        // per evitare un flash 0% prima che performIndexActiveWorkspace imposti lo stato warm.
+        let cachedStatus: IndexStatus = CodebaseIndex.hasCachedIndex(for: activeWorkspacePaths) ? .ready : .idle
         indexBadgeState = WorkspaceIndexBadgeState(
             progress: nil,
-            status: .idle,
+            status: cachedStatus,
             hasWorkspacePaths: !activeWorkspacePaths.isEmpty,
             indexingEnabled: isAutomaticIndexingEnabled
         )

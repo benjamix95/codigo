@@ -65,8 +65,6 @@ extension CodebaseIndex {
         )
         let pathsKey = Self.indexCachePathsKey(for: paths)
 
-        setUnifiedIndexingProgress(0)
-
         var contentCacheByAbsolutePath: [String: String] = [:]
         var reindexedForSemantic: [IndexedFile] = []
         var semanticPathsRemoved: [String] = []
@@ -79,6 +77,22 @@ extension CodebaseIndex {
         )
         let usedPrimaryHydration = hydration != nil
         let captureFileContentsDuringIndexing = usedPrimaryHydration || filesToIndex.count <= 64
+
+        // Warm start: se la cache primaria è valida, partiamo da un valore alto
+        // invece di 0, così la UI non mostra mai 0% quando il progetto è già indicizzato.
+        if let hydration, hydration.filesToReindex.isEmpty {
+            // Cache 100% valida — nessun file da re-indicizzare.
+            // Partiamo direttamente da wFile (≈62%) perché la fase file è già completata.
+            setUnifiedIndexingProgress(wFile)
+        } else if usedPrimaryHydration {
+            // Cache parziale — alcuni file da re-indicizzare.
+            // Partiamo da una stima proporzionale ai file riutilizzabili.
+            let reusableCount = hydration?.reusableFiles.count ?? 0
+            let totalCount = max(1, filesToIndex.count)
+            setUnifiedIndexingProgress(wFile * Double(reusableCount) / Double(totalCount))
+        } else {
+            setUnifiedIndexingProgress(0)
+        }
 
         if let hydration {
             semanticPathsRemoved = hydration.semanticRemovals

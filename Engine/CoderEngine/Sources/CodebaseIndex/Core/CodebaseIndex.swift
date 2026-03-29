@@ -171,6 +171,22 @@ public actor CodebaseIndex {
         return String(hash, radix: 16, uppercase: false)
     }
 
+    /// Quick pre-check: verifica se esiste un indice persistito per i path dati,
+    /// SENZA caricarlo in memoria. Usato dalla UI per decidere se mostrare 100% o 0% all'avvio.
+    public nonisolated static func hasCachedIndex(for workspacePaths: [URL]) -> Bool {
+        guard !workspacePaths.isEmpty else { return false }
+        let hashHex = indexCacheDirectoryHashHex(for: workspacePaths)
+        let cacheDir = (FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory)
+            .appendingPathComponent("Solo Code", isDirectory: true)
+            .appendingPathComponent("index", isDirectory: true)
+            .appendingPathComponent(hashHex, isDirectory: true)
+        let primaryCacheURL = cacheDir.appendingPathComponent(primarySymbolCacheFileName)
+        let semanticCacheURL = cacheDir.appendingPathComponent("semantic.jsonl")
+        let fm = FileManager.default
+        return fm.fileExists(atPath: primaryCacheURL.path) && fm.fileExists(atPath: semanticCacheURL.path)
+    }
+
     /// Compute a stable cache directory for the given workspace paths.
     static func cacheDirectory(for workspacePaths: [URL]) -> URL {
         let hashHex = indexCacheDirectoryHashHex(for: workspacePaths)
