@@ -87,20 +87,18 @@ enum ChatTurnTimelineInterleaver {
         let merged = segments
             .sorted { compareSegmentsForTimeline($0, $1) }
             .collapsedConsecutiveToolEvents()
-        let reordered = ChatTurnTimelineSubagentOrdering
-            .moveTrailingSubagentSegmentsBeforeFinalText(merged)
 
         // #region agent log
         ChatTurnTimelineInterleaverDebug72.logIfMonolithicNoMarkersCase(
             blocks: blocks,
             collapsedTraceCount: collapsedTraceEvents.count,
-            merged: reordered,
+            merged: merged,
             assistantMessageId: debugAssistantMessageId,
             conversationId: debugConversationId
         )
         // #endregion
 
-        return reordered
+        return merged
     }
 
     /// Ordine con `sequence` identica: non dipendere dal solo `id` (UUID), altrimenti

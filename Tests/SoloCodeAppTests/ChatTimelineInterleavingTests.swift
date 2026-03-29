@@ -292,7 +292,7 @@ final class ChatTimelineInterleavingTests: XCTestCase {
         }
     }
 
-    func testInterleaverMovesTrailingSubagentSnapshotsBeforeFinalText() {
+    func testInterleaverKeepsTrailingSubagentSnapshotAtChronologicalEndWithoutTraceAnchor() {
         let blocks = [
             PersistedChatTimelineBlock(id: "text-0", kind: .primaryText, text: "Analisi", sequence: 0),
             PersistedChatTimelineBlock(id: "text-1", kind: .primaryText, text: "Risposta finale", sequence: 2),
@@ -317,20 +317,88 @@ final class ChatTimelineInterleavingTests: XCTestCase {
             subagentSnapshots: snapshots
         )
 
-        let finalTextIndex = try! XCTUnwrap(segments.lastIndex(where: { segment in
-            if case .text(_, let content, _) = segment {
-                return content == "Risposta finale"
-            }
-            return false
-        }))
-        let snapshotIndex = try! XCTUnwrap(segments.firstIndex(where: { segment in
+        XCTAssertEqual(
+            segments.map(\.sequence),
+            [0, 2, 3],
+            "Senza un anchor dalle operazioni, la snapshot resta in coda cronologica."
+        )
+    }
+
+    func testInterleaverAnchorsSnapshotUsingMatchingSwarmSequenceBetweenTextBlocks() {
+        let blocks = [
+            PersistedChatTimelineBlock(id: "text-0", kind: .primaryText, text: "Analisi", sequence: 0),
+            PersistedChatTimelineBlock(id: "text-1", kind: .primaryText, text: "Risposta finale", sequence: 4),
+        ]
+        let events = [
+            makeEvent(sequence: 2, title: "Spawn reviewer", swarmId: "sa-review"),
+            makeEvent(sequence: 3, title: "Reviewer update", swarmId: "sa-review"),
+        ]
+        let snapshots = [
+            SubagentCardSnapshot(
+                swarmId: "sa-review",
+                status: .completed,
+                title: "Reviewer",
+                detail: "done",
+                summary: "ok",
+                errorCount: 0,
+                warningCount: 0,
+                resultPreview: "done",
+                transcript: nil
+            ),
+        ]
+
+        let segments = ChatTurnTimelineInterleaver.segments(
+            blocks: blocks,
+            traceEvents: events,
+            subagentSnapshots: snapshots
+        )
+
+        let snapshotSegment = try! XCTUnwrap(segments.first(where: { segment in
             if case .subagentSnapshot(_, let snapshot, _) = segment {
                 return snapshot.swarmId == "sa-review"
             }
             return false
         }))
+        if case .subagentSnapshot(_, _, let snapshotSequence) = snapshotSegment {
+            XCTAssertEqual(snapshotSequence, 2)
+        } else {
+            XCTFail("Atteso segmento snapshot")
+        }
+        XCTAssertEqual(segments.map(\.sequence), [0, 2, 2, 3, 4])
+    }
 
-        XCTAssertLessThan(snapshotIndex, finalTextIndex)
+    func testInterleaverDoesNotCollapsePrimaryTextIntoSingleMonolithWhenSubagentAnchorsExist() {
+        let blocks = [
+            PersistedChatTimelineBlock(id: "text-0", kind: .primaryText, text: "Prima parte", sequence: 0),
+            PersistedChatTimelineBlock(id: "text-1", kind: .primaryText, text: "Risposta finale", sequence: 4),
+        ]
+        let events = [
+            makeEvent(sequence: 1, title: "Read file", tool: "read", path: "/tmp/A.swift"),
+            makeEvent(sequence: 2, title: "Spawn reviewer", swarmId: "sa-review"),
+            makeEvent(sequence: 3, title: "Write patch", tool: "write", path: "/tmp/B.swift"),
+        ]
+        let liveCards = [
+            SwarmLiveCardState(
+                swarmId: "sa-review",
+                displayName: "Reviewer",
+                roleType: "reviewer"
+            ),
+        ]
+
+        let segments = ChatTurnTimelineInterleaver.segments(
+            blocks: blocks,
+            traceEvents: events,
+            liveSubagentCards: liveCards
+        )
+
+        XCTAssertEqual(segments.map(\.sequence), [0, 1, 2, 3, 4])
+        XCTAssertEqual(
+            segments.compactMap { segment -> String? in
+                if case .text(_, let content, _) = segment { return content }
+                return nil
+            },
+            ["Prima parte", "Risposta finale"]
+        )
     }
 
     func testSyntheticFallbackPreservesMultiplePrimaryBlocksWithoutToolMarkers() {
