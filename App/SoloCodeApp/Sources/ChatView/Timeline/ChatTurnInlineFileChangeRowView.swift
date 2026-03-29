@@ -8,6 +8,8 @@ struct ChatTurnInlineFileChangeRowView: View {
     let isWarning: Bool
     let onOpenFile: (String) -> Void
 
+    @State private var isDiffExpanded = false
+
     private var actionLabel: String {
         switch change.kind {
         case .created:
@@ -65,6 +67,20 @@ struct ChatTurnInlineFileChangeRowView: View {
                     .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
                 }
 
+                if change.hasFullPreview {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.16)) {
+                            isDiffExpanded.toggle()
+                        }
+                    } label: {
+                        Image(systemName: isDiffExpanded ? "chevron.down" : "chevron.right")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(DesignSystem.Colors.textTertiary)
+                            .frame(width: 12)
+                    }
+                    .buttonStyle(.plain)
+                }
+
                 if showsRunningChrome {
                     ProgressView()
                         .controlSize(.mini)
@@ -85,12 +101,19 @@ struct ChatTurnInlineFileChangeRowView: View {
                 }
             }
 
-            ToolTraceFileChangeCompactPreviewView(
-                change: change,
-                maxLines: showsRunningChrome ? 4 : 3,
-                showsBackground: true,
-                compactPadding: 8
-            )
+            if isDiffExpanded {
+                ToolTraceFileChangeExpandedPreviewCardView(
+                    change: change,
+                    maxHeight: 240
+                )
+            } else {
+                ToolTraceFileChangeCompactPreviewView(
+                    change: change,
+                    maxLines: showsRunningChrome ? 4 : 3,
+                    showsBackground: true,
+                    compactPadding: 8
+                )
+            }
         }
         .padding(.vertical, 4)
         .padding(.horizontal, 8)

@@ -19,6 +19,25 @@ final class ToolTraceFileChangeCompactPreviewTests: XCTestCase {
         XCTAssertEqual(change.compactPreviewText(limit: 2), "-let old = 1\n+let new = 2")
     }
 
+    func testFullPreviewTextKeepsUnifiedDiffContentForExpandedCard() {
+        let preview = """
+        diff --git a/File.swift b/File.swift
+        --- a/File.swift
+        +++ b/File.swift
+        @@ -1 +1 @@
+        -let old = 1
+        +let new = 2
+        """
+        let change = makeChange(
+            sequence: 1,
+            diffPreview: preview,
+            timestamp: Date(timeIntervalSince1970: 1)
+        )
+
+        XCTAssertEqual(change.fullPreviewText, preview)
+        XCTAssertTrue(change.hasFullPreview)
+    }
+
     func testLatestPreviewableChangePrefersNewestSequence() {
         let older = makeChange(
             sequence: 1,

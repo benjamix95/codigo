@@ -1,16 +1,18 @@
 import Foundation
 
 extension ToolTraceFileChange {
-    func compactPreviewLines(limit: Int = 4) -> [String] {
-        guard limit > 0 else { return [] }
-        let previewSource = [
+    var fullPreviewText: String? {
+        [
             diffPreview,
             rawOutput,
         ]
         .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
         .first { !$0.isEmpty }
+    }
 
-        guard let previewSource else { return [] }
+    func compactPreviewLines(limit: Int = 4) -> [String] {
+        guard limit > 0 else { return [] }
+        guard let previewSource = fullPreviewText else { return [] }
 
         let ignoredPrefixes = [
             "diff --git",
@@ -39,6 +41,10 @@ extension ToolTraceFileChange {
 
     var hasCompactPreview: Bool {
         compactPreviewText() != nil
+    }
+
+    var hasFullPreview: Bool {
+        fullPreviewText != nil
     }
 }
 

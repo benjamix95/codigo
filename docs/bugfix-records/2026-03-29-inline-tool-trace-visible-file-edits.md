@@ -22,5 +22,6 @@
 - **Regressione coperta:** aggiunto controllo esplicito sul fatto che una sezione `terminal` completata torni collassata appena il gruppo non e' piu' running.
 - **Refinement UI 3:** il `diffPreview` live dei file change viene preservato anche nel passaggio running -> completed e mostrato anche nelle superfici secondarie (`TODO`, `composer overlay`, `sidebar`) senza aspettare la fine del task.
 - **Regressione coperta 2:** i file change dello stesso path non devono piu' apparire due volte nella timeline lineare solo perche' il primo evento era preliminare e il secondo era completato.
+- **Refinement UI 4:** le righe edit inline possono essere espanse e mostrano una card con il delta completo delle modifiche, scrollabile quando il diff e' lungo.
 - **Verifica post-fix:** test mirati `ChatTimelineInlineToolGroupingTests` e `InlineToolTraceEventViewDisplayTests`; verifica manuale sulla timeline chat con mix read/edit.
 - **Commit previsto:** `fix(chat): keep edited files visible outside tool groups`
