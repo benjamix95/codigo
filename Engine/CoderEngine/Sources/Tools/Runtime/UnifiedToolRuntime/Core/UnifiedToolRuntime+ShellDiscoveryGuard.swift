@@ -27,10 +27,17 @@ extension UnifiedToolRuntime {
         let tokens = command.split(whereSeparator: \.isWhitespace).map(String.init)
         guard !tokens.isEmpty else { return nil }
 
+        let wrapperTokens: Set<String> = [
+            "env", "command", "builtin", "noglob", "time", "exec",
+        ]
         for token in tokens {
-            let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
+            var trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { continue }
-            if trimmed == "env" { continue }
+            while trimmed.hasPrefix("\\") {
+                trimmed.removeFirst()
+            }
+            guard !trimmed.isEmpty else { continue }
+            if wrapperTokens.contains(trimmed.lowercased()) { continue }
             if trimmed.contains("="), !trimmed.hasPrefix("/"), !trimmed.hasPrefix("./") {
                 continue
             }

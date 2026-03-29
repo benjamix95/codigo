@@ -31,6 +31,7 @@ extension ToolEnabledLLMProvider {
         11. If AGENTS.md / SKILL.md / repository runbooks or **Detected local skills** are present, USE the `skill` tool when the task matches. Skills (doc, imagegen, transcribe, playwright, etc.) provide optimized workflows — invoke them instead of reinventing.
         12. If the context contains a mandatory policy acknowledgment, use the `policy_ack` tool with the hash before any operational tool action.
         13. MCP tools from connected servers are registered as native function tools — call them directly by name. If a `coderide_*` alias exists for a workspace tool, do NOT fall back to the generic builtin name. Use `mcp_call` only for tools not registered natively. Use `mcp_list_tools` if you need to discover additional tools at runtime.
+        13b. If the MCP registry is still warming and the native MCP section below is sparse, keep using structured workspace tools and do NOT switch to shell discovery as a workaround.
         14. Use `web_search` and `web_fetch` when you need current information, documentation, API references, or anything beyond your training data.
         15. When done, provide a clear summary: what changed, which files, outcome.
         16. Do NOT stop until the task is fully resolved or you've clearly stated a blocker with next steps.

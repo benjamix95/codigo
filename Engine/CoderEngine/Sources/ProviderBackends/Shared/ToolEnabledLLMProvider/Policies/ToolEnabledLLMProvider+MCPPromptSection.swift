@@ -6,7 +6,13 @@ extension ToolEnabledLLMProvider {
         let registry = MCPNativeToolRegistry.shared
         let entries = registry.entries
         guard !entries.isEmpty else {
-            return "No MCP tools currently available. Use `mcp_list_servers` and `mcp_list_tools` to discover tools at runtime."
+            return """
+            **MCP registry warm-up:** native MCP tools are not hydrated in this round yet.
+            - This is NOT permission to fall back to shell workspace discovery.
+            - Keep using structured workspace tools (`read`, `read_range`, `grep`, `semantic_search`, `codebase_search`, `find_symbol`, `find_references`, `file_outline`, `list_dir`, `find_files`, `glob`).
+            - If the live schema later exposes `coderide_*` aliases, switch to those exact aliases immediately.
+            - For SoloCode/CoderIDE workspace sessions, the expected canonical aliases are typically `coderide_read`, `coderide_grep`, `coderide_semantic_search`, `coderide_list_dir`, `coderide_find_files`, and `coderide_glob`.
+            """
         }
 
         let routing = registry.routing

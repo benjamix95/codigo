@@ -3,6 +3,24 @@ import XCTest
 @testable import CoderEngine
 
 final class ToolEnabledLLMProviderMCPWarmupTests: XCTestCase {
+    func testFallbackPromptSectionDoesNotAdvertiseMCPAsUnavailableWhenRegistryIsCold() {
+        let registry = MCPNativeToolRegistry.shared
+        registry.clear()
+        defer { registry.clear() }
+
+        let provider = ToolEnabledLLMProvider(
+            base: PromptCaptureProvider(responseText: "Warmup OK"),
+            maxToolRounds: 1
+        )
+
+        let section = provider.mcpNativeToolsPromptSection
+        XCTAssertFalse(section.contains("No MCP tools currently available"))
+        XCTAssertTrue(section.contains("MCP registry warm-up"))
+        XCTAssertTrue(section.contains("NOT permission to fall back to shell workspace discovery"))
+        XCTAssertTrue(section.contains("coderide_read"))
+        XCTAssertTrue(section.contains("coderide_semantic_search"))
+    }
+
     func testSendPrewarmsCoderideToolsBeforeBuildingPrompt() async throws {
         guard let binaryPath = locateCoderideMCPServerBinary() else {
             throw XCTSkip("coderide-mcp-server-rust binary not found in .build")

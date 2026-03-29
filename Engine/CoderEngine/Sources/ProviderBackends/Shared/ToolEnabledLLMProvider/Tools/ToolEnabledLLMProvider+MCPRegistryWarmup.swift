@@ -39,7 +39,7 @@ private actor MCPNativeToolRegistryWarmupCoordinator {
 
 extension ToolEnabledLLMProvider {
     private static let mcpWarmupCoordinator = MCPNativeToolRegistryWarmupCoordinator()
-    private static let primaryMCPWarmupTimeoutMs = 750
+    private static let primaryMCPWarmupTimeoutMs = 1200
     private static let backgroundMCPWarmupTimeoutMs = 2_500
     private static let preferredMCPServerName = "coderide"
 

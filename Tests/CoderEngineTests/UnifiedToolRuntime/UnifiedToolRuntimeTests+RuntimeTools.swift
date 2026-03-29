@@ -117,6 +117,26 @@ extension UnifiedToolRuntimeTests {
         XCTAssertTrue((completed?["detail"] ?? "").contains("coderide_grep"))
     }
 
+    func testBashRejectsWorkspaceDiscoveryViaCommandWrapper() async {
+        let runtime = UnifiedToolRuntime()
+        let workspace = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let ctx = ToolExecutionContext(workspaceContext: WorkspaceContext(workspacePath: workspace))
+        let call = ToolCall(
+            id: UUID().uuidString,
+            name: "bash",
+            args: ["command": "command rg --line-number policy App"],
+            sourceProvider: "test",
+            swarmId: nil,
+            scope: .agent
+        )
+
+        let events = await runtime.execute(call, context: ctx)
+        let completed = extractLastPayload(events)
+        XCTAssertEqual(completed?["status"], "failed")
+        XCTAssertEqual(completed?["error_code"], "validation")
+        XCTAssertTrue((completed?["detail"] ?? "").contains("Workspace discovery via shell is disabled"))
+    }
+
     // MARK: - MCP
 
     func testMCPUnavailableReturnsDeterministicError() async {
