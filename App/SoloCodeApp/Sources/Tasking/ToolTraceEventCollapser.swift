@@ -48,6 +48,14 @@ enum ToolTraceEventCollapser {
             return "group_id:\(groupId)"
         }
 
+        if ToolTraceFileChangeMapper.isFileChangeEvent(event) {
+            let stable = ToolTraceFileChangeMapper.stableKey(for: event, fallbackPath: event.payload["path"])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if !stable.isEmpty {
+                return "file_change:\(stable)"
+            }
+        }
+
         return nil
     }
 

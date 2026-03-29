@@ -226,6 +226,58 @@ final class ToolTraceEventCollapserTests: XCTestCase {
         XCTAssertEqual(collapsed.filter(\.isRunning).count, 1)
     }
 
+    func testCollapsesFileChangeEventsByStablePathWhenIdsAreMissing() {
+        let started = makeEvent(
+            sequence: 30,
+            type: "file_change",
+            isRunning: true,
+            payload: [
+                "path": "App/SoloCodeApp/Sources/Trace.swift",
+                "linesAdded": "1",
+            ]
+        )
+        let completed = makeEvent(
+            sequence: 31,
+            type: "file_change",
+            isRunning: false,
+            payload: [
+                "path": "App/SoloCodeApp/Sources/Trace.swift",
+                "linesAdded": "9",
+                "linesRemoved": "3",
+            ]
+        )
+
+        let collapsed = ToolTraceEventCollapser.collapseSupersededToolStates([started, completed])
+
+        XCTAssertEqual(collapsed.count, 1)
+        XCTAssertEqual(collapsed.first?.payload["linesAdded"], "9")
+        XCTAssertEqual(collapsed.first?.payload["linesRemoved"], "3")
+        XCTAssertEqual(collapsed.first?.isRunning, false)
+    }
+
+    func testDoesNotCollapseDifferentFileChangePaths() {
+        let first = makeEvent(
+            sequence: 40,
+            type: "file_change",
+            isRunning: false,
+            payload: [
+                "path": "App/SoloCodeApp/Sources/A.swift",
+            ]
+        )
+        let second = makeEvent(
+            sequence: 41,
+            type: "file_change",
+            isRunning: false,
+            payload: [
+                "path": "App/SoloCodeApp/Sources/B.swift",
+            ]
+        )
+
+        let collapsed = ToolTraceEventCollapser.collapseSupersededToolStates([first, second])
+
+        XCTAssertEqual(collapsed.count, 2)
+    }
+
     private func makeEvent(
         sequence: Int,
         type: String,
