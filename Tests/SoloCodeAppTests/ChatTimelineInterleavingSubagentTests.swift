@@ -15,7 +15,8 @@ final class ChatTimelineInterleavingSubagentTests: ChatTimelineInterleavingTestC
             SwarmLiveCardState(
                 swarmId: "sa-review",
                 displayName: "Reviewer",
-                roleType: "reviewer"
+                roleType: "reviewer",
+                status: .running
             ),
         ]
 
@@ -35,24 +36,12 @@ final class ChatTimelineInterleavingSubagentTests: ChatTimelineInterleavingTestC
         XCTAssertEqual(liveCardSequences, [2])
     }
 
-    func testInterleaverKeepsTrailingSubagentSnapshotAtChronologicalEndWithoutTraceAnchor() {
+    func testInterleaverKeepsTrailingCompletedSubagentGroupAtChronologicalEndWithoutTraceAnchor() {
         let blocks = [
             makeBlock(id: "text-0", kind: .primaryText, text: "Analisi", sequence: 0),
             makeBlock(id: "text-1", kind: .primaryText, text: "Risposta finale", sequence: 2),
         ]
-        let snapshots = [
-            SubagentCardSnapshot(
-                swarmId: "sa-review",
-                status: .completed,
-                title: "Reviewer",
-                detail: "done",
-                summary: "ok",
-                errorCount: 0,
-                warningCount: 0,
-                resultPreview: "done",
-                transcript: nil
-            ),
-        ]
+        let snapshots = [makeSnapshot(swarmId: "sa-review", title: "Reviewer")]
 
         let segments = ChatTurnTimelineInterleaver.segments(
             blocks: blocks,
@@ -63,7 +52,7 @@ final class ChatTimelineInterleavingSubagentTests: ChatTimelineInterleavingTestC
         XCTAssertEqual(segments.map(\.sequence), [0, 2, 3])
     }
 
-    func testInterleaverAnchorsSnapshotUsingMatchingSwarmSequenceBetweenTextBlocks() {
+    func testInterleaverAnchorsCompletedSubagentGroupUsingMatchingSwarmSequenceBetweenTextBlocks() {
         let blocks = [
             makeBlock(id: "text-0", kind: .primaryText, text: "Analisi", sequence: 0),
             makeBlock(id: "text-1", kind: .primaryText, text: "Risposta finale", sequence: 4),
@@ -72,19 +61,7 @@ final class ChatTimelineInterleavingSubagentTests: ChatTimelineInterleavingTestC
             makeEvent(sequence: 2, title: "Spawn reviewer", swarmId: "sa-review"),
             makeEvent(sequence: 3, title: "Reviewer update", swarmId: "sa-review"),
         ]
-        let snapshots = [
-            SubagentCardSnapshot(
-                swarmId: "sa-review",
-                status: .completed,
-                title: "Reviewer",
-                detail: "done",
-                summary: "ok",
-                errorCount: 0,
-                warningCount: 0,
-                resultPreview: "done",
-                transcript: nil
-            ),
-        ]
+        let snapshots = [makeSnapshot(swarmId: "sa-review", title: "Reviewer")]
 
         let segments = ChatTurnTimelineInterleaver.segments(
             blocks: blocks,
@@ -92,17 +69,18 @@ final class ChatTimelineInterleavingSubagentTests: ChatTimelineInterleavingTestC
             subagentSnapshots: snapshots
         )
 
-        let snapshotSegment = try! XCTUnwrap(segments.first(where: { segment in
-            if case .subagentSnapshot(_, let snapshot, _) = segment {
-                return snapshot.swarmId == "sa-review"
+        let groupedSegment = try! XCTUnwrap(segments.first(where: { segment in
+            if case .completedSubagentsGroup(_, let group, _) = segment {
+                return group.cards.map(\.swarmId) == ["sa-review"]
             }
             return false
         }))
 
-        if case .subagentSnapshot(_, _, let snapshotSequence) = snapshotSegment {
-            XCTAssertEqual(snapshotSequence, 2)
+        if case .completedSubagentsGroup(_, let group, let sequence) = groupedSegment {
+            XCTAssertEqual(sequence, 2)
+            XCTAssertEqual(group.cards.map(\.swarmId), ["sa-review"])
         } else {
-            XCTFail("Expected snapshot segment")
+            XCTFail("Expected completedSubagentsGroup segment")
         }
         XCTAssertEqual(segments.map(\.sequence), [0, 2, 2, 3, 4])
     }
@@ -121,7 +99,8 @@ final class ChatTimelineInterleavingSubagentTests: ChatTimelineInterleavingTestC
             SwarmLiveCardState(
                 swarmId: "sa-review",
                 displayName: "Reviewer",
-                roleType: "reviewer"
+                roleType: "reviewer",
+                status: .running
             ),
         ]
 
@@ -141,7 +120,7 @@ final class ChatTimelineInterleavingSubagentTests: ChatTimelineInterleavingTestC
         )
     }
 
-    func testInterleaverAnchorsMultipleSubagentsIndependently() {
+    func testInterleaverGroupsMultipleCompletedSubagentsInSequenceOrder() {
         let blocks = [
             makeBlock(id: "text-0", kind: .primaryText, text: "Start", sequence: 0),
             makeBlock(id: "text-1", kind: .primaryText, text: "End", sequence: 6),
@@ -153,28 +132,8 @@ final class ChatTimelineInterleavingSubagentTests: ChatTimelineInterleavingTestC
             makeEvent(sequence: 5, title: "Reviewer update", swarmId: "sa-review"),
         ]
         let snapshots = [
-            SubagentCardSnapshot(
-                swarmId: "sa-review",
-                status: .completed,
-                title: "Reviewer",
-                detail: "done",
-                summary: nil,
-                errorCount: 0,
-                warningCount: 0,
-                resultPreview: nil,
-                transcript: nil
-            ),
-            SubagentCardSnapshot(
-                swarmId: "sa-explorer",
-                status: .completed,
-                title: "Explorer",
-                detail: "done",
-                summary: nil,
-                errorCount: 0,
-                warningCount: 0,
-                resultPreview: nil,
-                transcript: nil
-            ),
+            makeSnapshot(swarmId: "sa-review", title: "Reviewer"),
+            makeSnapshot(swarmId: "sa-explorer", title: "Explorer"),
         ]
 
         let segments = ChatTurnTimelineInterleaver.segments(
@@ -183,16 +142,124 @@ final class ChatTimelineInterleavingSubagentTests: ChatTimelineInterleavingTestC
             subagentSnapshots: snapshots
         )
 
-        let anchoredSequences = segments.compactMap { segment -> String? in
-            if case .subagentSnapshot(_, let snapshot, let sequence) = segment {
-                return "\(snapshot.swarmId):\(sequence)"
+        let group = try! XCTUnwrap(segments.compactMap { segment -> ChatTurnCompletedSubagentsGroup? in
+            if case .completedSubagentsGroup(_, let group, _) = segment {
+                return group
+            }
+            return nil
+        }.first)
+
+        XCTAssertEqual(
+            group.cards.map(\.swarmId),
+            ["sa-explorer", "sa-review"]
+        )
+        XCTAssertEqual(group.sequence, 1)
+    }
+
+    func testInterleaverKeepsRunningCardsInlineAndMovesCompletedCardsIntoGroup() {
+        let blocks = [
+            makeBlock(id: "text-0", kind: .primaryText, text: "Start", sequence: 0),
+            makeBlock(id: "text-1", kind: .primaryText, text: "End", sequence: 5),
+        ]
+        let events = [
+            makeEvent(sequence: 1, title: "Spawn explorer", swarmId: "sa-explorer"),
+            makeEvent(sequence: 3, title: "Spawn reviewer", swarmId: "sa-review"),
+        ]
+        let liveCards = [
+            SwarmLiveCardState(
+                swarmId: "sa-explorer",
+                displayName: "Explorer",
+                roleType: "explorer",
+                status: .completed
+            ),
+            SwarmLiveCardState(
+                swarmId: "sa-review",
+                displayName: "Reviewer",
+                roleType: "reviewer",
+                status: .running
+            ),
+        ]
+        let snapshots = [
+            makeSnapshot(swarmId: "sa-review", title: "Reviewer", summary: "stale"),
+        ]
+
+        let segments = ChatTurnTimelineInterleaver.segments(
+            blocks: blocks,
+            traceEvents: events,
+            liveSubagentCards: liveCards,
+            subagentSnapshots: snapshots
+        )
+
+        let runningIds = segments.compactMap { segment -> String? in
+            if case .subagentLiveCard(_, let card, _) = segment {
+                return card.swarmId
             }
             return nil
         }
+        let group = try! XCTUnwrap(segments.compactMap { segment -> ChatTurnCompletedSubagentsGroup? in
+            if case .completedSubagentsGroup(_, let group, _) = segment {
+                return group
+            }
+            return nil
+        }.first)
 
-        XCTAssertEqual(
-            anchoredSequences.sorted(),
-            ["sa-explorer:1", "sa-review:4"]
+        XCTAssertEqual(runningIds, ["sa-review"])
+        XCTAssertEqual(group.cards.map(\.swarmId), ["sa-explorer"])
+        XCTAssertEqual(segments.map(\.sequence), [0, 1, 1, 3, 3, 5])
+    }
+
+    func testInterleaverPrefersLiveTerminalCardOverPersistedSnapshotForSameSwarm() {
+        let snapshots = [
+            makeSnapshot(
+                swarmId: "sa-review",
+                title: "Reviewer",
+                summary: "snapshot"
+            ),
+        ]
+        let liveCards = [
+            SwarmLiveCardState(
+                swarmId: "sa-review",
+                displayName: "Reviewer",
+                roleType: "reviewer",
+                status: .completed,
+                summary: "live"
+            ),
+        ]
+
+        let segments = ChatTurnTimelineInterleaver.segments(
+            blocks: [makeBlock(id: "text-0", kind: .primaryText, text: "Done", sequence: 0)],
+            traceEvents: [],
+            liveSubagentCards: liveCards,
+            subagentSnapshots: snapshots
+        )
+
+        let group = try! XCTUnwrap(segments.compactMap { segment -> ChatTurnCompletedSubagentsGroup? in
+            if case .completedSubagentsGroup(_, let group, _) = segment {
+                return group
+            }
+            return nil
+        }.first)
+
+        XCTAssertEqual(group.cards.count, 1)
+        XCTAssertEqual(group.cards.first?.summary, "live")
+    }
+
+    private func makeSnapshot(
+        swarmId: String,
+        title: String,
+        status: SwarmCardStatus = .completed,
+        summary: String? = nil
+    ) -> SubagentCardSnapshot {
+        SubagentCardSnapshot(
+            swarmId: swarmId,
+            status: status,
+            title: title,
+            detail: "done",
+            summary: summary,
+            errorCount: status == .failed ? 1 : 0,
+            warningCount: 0,
+            resultPreview: "done",
+            transcript: nil
         )
     }
 }

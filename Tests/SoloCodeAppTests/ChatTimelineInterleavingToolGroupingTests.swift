@@ -114,6 +114,7 @@ final class ChatTimelineInterleavingToolGroupingTests: ChatTimelineInterleavingT
             case .reasoning: return "reasoning"
             case .artifact: return "artifact"
             case .subagentLiveCard: return "subagent-live"
+            case .completedSubagentsGroup: return "subagent-completed-group"
             case .subagentSnapshot: return "subagent-snapshot"
             }
         }

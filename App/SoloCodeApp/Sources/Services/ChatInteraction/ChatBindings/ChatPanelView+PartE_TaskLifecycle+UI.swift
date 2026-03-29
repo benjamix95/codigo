@@ -173,25 +173,35 @@ extension ChatPanelView {
         // Show persisted snapshot cards when live cards aren't available.
         // This avoids a gap where neither live nor snapshot cards are visible.
         if !hasLiveCards, let snapshots = message.subagentCards, !snapshots.isEmpty {
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(snapshots) { snapshot in
-                    SubagentSnapshotCardView(snapshot: snapshot)
-                }
+            let visibleSnapshots = snapshots.filter {
+                ChatTurnTimelineInterleaver.isVisibleSubagentId(
+                    ChatTurnTimelineInterleaver.normalizedSubagentId($0.swarmId)
+                ) && ChatTurnTimelineInterleaver.isTerminal($0.status)
             }
-            .padding(.horizontal, 2)
+            if !visibleSnapshots.isEmpty {
+                let group = ChatTurnCompletedSubagentsGroup(
+                    id: "legacy-completed-subagents-\(message.id.uuidString.lowercased())",
+                    cards: visibleSnapshots,
+                    sequence: 0
+                )
+                ChatTurnCompletedSubagentsGroupView(group: group)
+                    .padding(.horizontal, 2)
+            }
         }
     }
 
     @ViewBuilder
     internal func messageTraceView(
         traceEvents: [ToolTraceEvent],
-        effectiveContext: EffectiveContext
+        effectiveContext: EffectiveContext,
+        messageIsStreaming: Bool = true
     ) -> some View {
         MessageToolTraceView(
             events: traceEvents,
             workspaceHints: traceWorkspaceHints(for: effectiveContext),
             onOpenFile: { openFilesStore.openFile($0) },
-            onInteractionStart: {}
+            onInteractionStart: {},
+            messageIsStreaming: messageIsStreaming
         )
     }
 

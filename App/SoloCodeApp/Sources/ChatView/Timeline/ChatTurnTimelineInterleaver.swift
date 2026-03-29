@@ -15,6 +15,10 @@ enum ChatTurnTimelineInterleaver {
         var segments: [ChatTurnInterleavedSegment] = []
 
         let collapsedTraceEvents = ToolTraceEventCollapser.collapseSupersededToolStates(traceEvents)
+        let visibleLiveCards = liveSubagentCards.filter {
+            isVisibleSubagentId(normalizedSubagentId($0.swarmId))
+        }
+        let runningLiveCards = visibleLiveCards.filter { $0.status == .running }
 
         for block in blocks {
             switch block.kind {
@@ -54,7 +58,7 @@ enum ChatTurnTimelineInterleaver {
             traceEvents.map(\.sequence).max() ?? 0
         )
 
-        for (index, card) in liveSubagentCards.enumerated() {
+        for (index, card) in runningLiveCards.enumerated() {
             segments.append(
                 .subagentLiveCard(
                     id: card.swarmId.lowercased(),
@@ -69,17 +73,17 @@ enum ChatTurnTimelineInterleaver {
             )
         }
 
-        for (index, snapshot) in subagentSnapshots.enumerated() {
+        if let completedGroup = completedSubagentGroup(
+            traceEvents: traceEvents,
+            liveSubagentCards: visibleLiveCards,
+            subagentSnapshots: subagentSnapshots,
+            fallbackBase: baseSequence + runningLiveCards.count
+        ) {
             segments.append(
-                .subagentSnapshot(
-                    id: snapshot.swarmId.lowercased(),
-                    snapshot: snapshot,
-                    sequence: sequenceForSubagentCard(
-                        swarmId: snapshot.swarmId,
-                        traceEvents: traceEvents,
-                        fallbackBase: baseSequence + liveSubagentCards.count,
-                        offset: index
-                    )
+                .completedSubagentsGroup(
+                    id: completedGroup.id,
+                    group: completedGroup,
+                    sequence: completedGroup.sequence
                 )
             )
         }
@@ -121,12 +125,13 @@ enum ChatTurnTimelineInterleaver {
         case .text: return 1
         case .toolEvent, .toolGroup: return 2
         case .subagentLiveCard: return 3
-        case .subagentSnapshot: return 4
-        case .artifact: return 5
+        case .completedSubagentsGroup: return 4
+        case .subagentSnapshot: return 5
+        case .artifact: return 6
         }
     }
 
-    private static func sequenceForSubagentCard(
+    static func sequenceForSubagentCard(
         swarmId: String,
         traceEvents: [ToolTraceEvent],
         fallbackBase: Int,
@@ -227,6 +232,7 @@ private enum ChatTurnTimelineInterleaverDebug72 {
         case .toolEvent: tag = "E"
         case .toolGroup: tag = "G"
         case .subagentLiveCard: tag = "L"
+        case .completedSubagentsGroup: tag = "C"
         case .subagentSnapshot: tag = "S"
         case .artifact: tag = "A"
         }

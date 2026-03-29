@@ -14,78 +14,6 @@ enum ChatTurnAction: Equatable {
     case delete
 }
 
-private struct ChatTurnSegmentView: View {
-    let segment: ChatTurnInterleavedSegment
-    let context: ProjectContext?
-    let modeColor: Color
-    let isLiveStreaming: Bool
-    let workspaceHints: [String]
-    let onAction: (ChatTurnAction) -> Void
-
-    var body: some View {
-        switch segment {
-        case .text(_, let content, _):
-            MarkdownContentView(
-                content: content,
-                context: context,
-                onFileClicked: { onAction(.fileClicked($0)) },
-                textAlignment: .leading,
-                isStreaming: isLiveStreaming
-            )
-            .frame(maxWidth: 800, alignment: .leading)
-            .padding(.vertical, 4)
-
-        case .reasoning(let id, let text, _):
-            Group {
-                ThinkingBlocksView(
-                    blocks: [ReasoningBlock(id: id, text: text)],
-                    isLiveStreaming: isLiveStreaming
-                )
-                Rectangle()
-                    .fill(Color.primary.opacity(0.06))
-                    .frame(height: 0.5)
-                    .padding(.vertical, 4)
-            }
-
-        case .toolEvent(_, let event, _):
-            InlineToolTraceEventView(
-                event: event,
-                workspaceHints: workspaceHints,
-                onOpenFile: { onAction(.fileClicked($0)) }
-            )
-            .frame(maxWidth: 800, alignment: .leading)
-
-        case .toolGroup(_, let group, _):
-            InlineToolTraceGroupView(
-                group: group,
-                workspaceHints: workspaceHints,
-                onOpenFile: { onAction(.fileClicked($0)) }
-            )
-            .frame(maxWidth: 800, alignment: .leading)
-
-        case .subagentLiveCard(_, let card, _):
-            SubagentChatCardView(
-                card: card,
-                onOpenInPanel: { onAction(.openSubagentPanel(card.swarmId)) },
-                onStop: { onAction(.stopSubagent) }
-            )
-            .padding(.horizontal, 2)
-
-        case .subagentSnapshot(_, let snapshot, _):
-            SubagentSnapshotCardView(snapshot: snapshot)
-                .padding(.horizontal, 2)
-
-        case .artifact(_, let block, _):
-            ArtifactCardView(
-                block: block,
-                accentColor: modeColor,
-                context: context,
-                onFileClicked: { onAction(.fileClicked($0)) }
-            )
-        }
-    }
-}
-
 // MARK: - ChatTurnView
 
 struct ChatTurnView: View {
@@ -219,6 +147,7 @@ struct ChatTurnView: View {
                     context: context,
                     modeColor: modeColor,
                     isLiveStreaming: message.isStreaming && isActuallyLoading,
+                    messageIsStreaming: message.isStreaming,
                     workspaceHints: traceWorkspaceHints,
                     onAction: onAction
                 )
@@ -359,30 +288,5 @@ struct ChatTurnView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    // MARK: - Tool Group Categorization
-
-    nonisolated static func toolGroupCategory(for event: ToolTraceEvent) -> ChatTurnToolEventGroupCategory? {
-        let type = event.type
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        let tool = MessageToolTraceToolIdentity.normalizedToolName(for: event)
-
-        if type == "bash" || type == "command_execution" || tool == "bash" {
-            return .terminal
-        }
-        if ToolTraceFileChangeMapper.isFileChangeEvent(event)
-            || ["edit", "write", "str_replace", "regex_replace", "create_file", "delete_file"].contains(tool) {
-            return .edit
-        }
-        if type.contains("read")
-            || type.contains("search")
-            || type.contains("grep")
-            || type == "instant_grep"
-            || ["read", "read_range", "batch_read", "glob", "list_dir", "find_files", "grep", "search", "semantic_search", "codebase_search", "find_symbol", "find_references", "file_outline"].contains(tool) {
-            return .exploration
-        }
-        return nil
     }
 }
