@@ -13,9 +13,19 @@ extension SwarmPanelView {
                     if !scopedSteps.isEmpty {
                         progressSection
                     }
-                    ForEach(sortedCards) { card in
-                        overviewCard(card)
-                            .id("ov-\(card.swarmId)")
+                    if !activeCards.isEmpty {
+                        overviewSectionHeader("ACTIVE SUB-AGENTS")
+                        ForEach(activeCards) { card in
+                            overviewCard(card)
+                                .id("ov-\(card.swarmId)")
+                        }
+                    }
+                    if !finishedCards.isEmpty {
+                        overviewSectionHeader("FINISHED SUB-AGENTS")
+                        ForEach(finishedCards) { card in
+                            overviewCard(card)
+                                .id("ov-\(card.swarmId)")
+                        }
                     }
                 }
                 .padding(12)
@@ -30,6 +40,20 @@ extension SwarmPanelView {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func overviewSectionHeader(_ title: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "cpu.fill")
+                .font(.system(size: 8.5, weight: .semibold))
+                .foregroundStyle(accent)
+            Text(title)
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(.tertiary)
+                .tracking(0.8)
+        }
+        .padding(.top, 2)
+        .padding(.bottom, 2)
     }
 
     // MARK: - Progress
@@ -88,11 +112,22 @@ extension SwarmPanelView {
         }()
 
         VStack(alignment: .leading, spacing: 4) {
-            Text(roleName)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(.primary.opacity(0.7))
-                .lineLimit(1)
-                .truncationMode(.tail)
+            HStack(spacing: 8) {
+                if card.status == .running {
+                    SpinningDottedCircle()
+                } else {
+                    Image(systemName: detailStatusIcon(for: card))
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(panelStatusAccent(for: card.status))
+                        .frame(width: 14, alignment: .center)
+                }
+
+                Text(roleName)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.primary.opacity(0.7))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
 
             Text(subtitle)
                 .font(.system(size: 12, weight: .regular))

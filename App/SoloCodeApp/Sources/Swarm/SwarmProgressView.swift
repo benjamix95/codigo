@@ -28,10 +28,17 @@ struct SwarmProgressView: View {
             }
     }
 
+    var presentedCards: SwarmCardPresentationPartition {
+        partitionSubagentCardsForPresentation(liveSwarmCards)
+    }
+
+    var activeSwarmCards: [SwarmLiveCardState] { presentedCards.active }
+    var finishedSwarmCards: [SwarmLiveCardState] { presentedCards.finished }
+
     var body: some View {
         // Cache computed costosi una sola volta per render.
         let cards = liveSwarmCards
-        let activeCount = cards.filter { $0.status == .running }.count
+        let activeCount = activeSwarmCards.count
         let metrics = progressMetrics
         let pipelineRunning = isPipelineRunning
         let live = isTaskRunning || pipelineRunning

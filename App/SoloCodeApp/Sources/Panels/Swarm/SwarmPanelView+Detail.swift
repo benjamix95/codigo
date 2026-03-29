@@ -370,7 +370,7 @@ extension SwarmPanelView {
 
     // MARK: - Icons
 
-    private func detailStatusIcon(for card: SwarmLiveCardState) -> String {
+    func detailStatusIcon(for card: SwarmLiveCardState) -> String {
         switch card.status {
         case .running: return "circle.dotted"
         case .completed: return card.warningCount > 0 ? "exclamationmark.circle.fill" : "checkmark.circle.fill"

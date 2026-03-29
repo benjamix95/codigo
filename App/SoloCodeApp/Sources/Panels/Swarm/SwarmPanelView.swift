@@ -32,6 +32,11 @@ struct SwarmPanelView: View {
 
     @State var cachedCards: [SwarmLiveCardState] = []
     var sortedCards: [SwarmLiveCardState] { cachedCards }
+    var presentedCards: SwarmCardPresentationPartition {
+        partitionSubagentCardsForPresentation(cachedCards)
+    }
+    var activeCards: [SwarmLiveCardState] { presentedCards.active }
+    var finishedCards: [SwarmLiveCardState] { presentedCards.finished }
     var runningCount: Int { cachedCards.filter { $0.status == .running }.count }
     var failedCount: Int { cachedCards.filter { $0.status == .failed }.count }
     var warningCount: Int { cachedCards.reduce(0) { $0 + max(0, $1.warningCount) } }

@@ -35,7 +35,7 @@ struct ChatTurnCompletedSubagentsGroupView: View {
                 }
             } label: {
                 HStack(spacing: 8) {
-                    Image(systemName: "person.2.crop.square.stack.fill")
+                    Image(systemName: "cpu.fill")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(DesignSystem.Colors.info)
 

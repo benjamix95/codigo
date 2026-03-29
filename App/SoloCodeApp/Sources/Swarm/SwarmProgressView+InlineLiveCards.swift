@@ -11,9 +11,9 @@ extension SwarmProgressView {
                 Spacer(minLength: 0)
                 if let onSelectSwarm {
                     Button("Open panel") {
-                        if let running = liveSwarmCards.first(where: { $0.status == .running }) {
+                        if let running = activeSwarmCards.first {
                             onSelectSwarm(running.swarmId)
-                        } else if let first = liveSwarmCards.first {
+                        } else if let first = finishedSwarmCards.first {
                             onSelectSwarm(first.swarmId)
                         }
                     }
@@ -23,8 +23,24 @@ extension SwarmProgressView {
                 }
             }
 
-            ForEach(liveSwarmCards) { card in
+            ForEach(activeSwarmCards) { card in
                 inlineLiveCard(card)
+            }
+
+            if !finishedSwarmCards.isEmpty {
+                Divider().opacity(0.12).padding(.vertical, 2)
+
+                HStack(spacing: 6) {
+                    Text("FINISHED SUBAGENTS")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.tertiary)
+                        .tracking(0.8)
+                    Spacer(minLength: 0)
+                }
+
+                ForEach(finishedSwarmCards) { card in
+                    inlineLiveCard(card)
+                }
             }
         }
     }
@@ -34,10 +50,21 @@ extension SwarmProgressView {
         let subtitle = inlineCardSubtitle(for: card)
 
         return VStack(alignment: .leading, spacing: 4) {
-            Text(roleName)
-                .font(.system(size: 12.5, weight: .medium))
-                .foregroundStyle(.primary.opacity(0.74))
-                .lineLimit(1)
+            HStack(spacing: 8) {
+                if card.status == .running {
+                    SpinningDottedCircle()
+                } else {
+                    Image(systemName: inlineCardStatusIcon(for: card))
+                        .font(.system(size: 12.5, weight: .semibold))
+                        .foregroundStyle(card.status == .completed ? DesignSystem.Colors.success : DesignSystem.Colors.error)
+                        .frame(width: 14, alignment: .center)
+                }
+
+                Text(roleName)
+                    .font(.system(size: 12.5, weight: .medium))
+                    .foregroundStyle(.primary.opacity(0.74))
+                    .lineLimit(1)
+            }
             Text(subtitle)
                 .font(.system(size: 11.5, weight: .regular))
                 .foregroundStyle(.secondary.opacity(0.68))
@@ -71,5 +98,16 @@ extension SwarmProgressView {
             return "Failed"
         }
         return "Idle"
+    }
+
+    private func inlineCardStatusIcon(for card: SwarmLiveCardState) -> String {
+        switch card.status {
+        case .completed:
+            return card.warningCount > 0 ? "exclamationmark.circle.fill" : "checkmark.circle.fill"
+        case .failed:
+            return "xmark.circle.fill"
+        case .running, .idle:
+            return "circle"
+        }
     }
 }

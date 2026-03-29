@@ -6,12 +6,12 @@ extension SwarmPanelView {
     var bottomBar: some View {
         VStack(spacing: 4) {
             HStack(spacing: 8) {
-                Text("\(sortedCards.count) agents")
+                Text("\(activeCards.count) active · \(finishedCards.count) finished")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.tertiary)
 
                 if isTaskRunning {
-                    let totalOps = sortedCards.reduce(0) { $0 + $1.activeOpsCount }
+                    let totalOps = activeCards.reduce(0) { $0 + $1.activeOpsCount }
                     if totalOps > 0 {
                         Text("·").foregroundStyle(.quaternary)
                         Text("\(totalOps) active ops")
@@ -204,4 +204,3 @@ extension SwarmPanelView {
         .padding(10)
     }
 }
-

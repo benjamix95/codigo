@@ -5,10 +5,10 @@ extension SwarmPanelView {
 
     var topBar: some View {
         HStack(spacing: 8) {
-            Image(systemName: "ant.fill")
+            Image(systemName: "cpu.fill")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(accent)
-            Text("Subagents")
+            Text("sub-agents")
                 .font(.system(size: 13, weight: .semibold))
 
             if runningCount > 0 { badge("\(runningCount) running", accent) }
@@ -56,7 +56,7 @@ extension SwarmPanelView {
                     }
                     .id("sel-overview")
 
-                    ForEach(sortedCards) { card in
+                    ForEach(activeCards + finishedCards) { card in
                         selectorPill(
                             panelRoleDisplayName(from: card.swarmId),
                             isSelected: selectedSwarmId == card.swarmId
@@ -122,7 +122,7 @@ extension SwarmPanelView {
     var emptyState: some View {
         VStack(spacing: 12) {
             Spacer()
-            Image(systemName: "ant.fill")
+            Image(systemName: "cpu.fill")
                 .font(.system(size: 28))
                 .foregroundStyle(.quaternary)
             Text("No subagent activity")
@@ -138,4 +138,3 @@ extension SwarmPanelView {
         .padding(20)
     }
 }
-
