@@ -22,8 +22,13 @@ extension ToolSchemaCatalog {
         auditEntry(ReviewAuditToolName.bugTestImpact, "Map changed symbols to tests and flag regression impact gaps"),
         auditEntry(ReviewAuditToolName.bugDependencyDrift, "Flag dependency drift and lockfile changes with regression risk"),
         auditEntry(ReviewAuditToolName.bugDiffSemantics, "Compare textual diff with semantic change signals to reduce cosmetic noise"),
+        auditEntry(ReviewAuditToolName.perfBottlenecks, "Detect blocking calls, sleeps, and main-thread bottlenecks in scoped files"),
+        auditEntry(ReviewAuditToolName.perfMemory, "Detect memory-retention risks, cache misuse, and heavy resource patterns"),
+        auditEntry(ReviewAuditToolName.perfUIResponsiveness, "Detect UI-thread blocking work and responsiveness regressions"),
+        auditEntry(ReviewAuditToolName.perfStartup, "Detect eager startup work, constructors, and launch-time regressions"),
+        auditEntry(ReviewAuditToolName.perfHotPaths, "Detect hot paths using churn, complexity, and nested-loop signals"),
         auditEntry(ReviewAuditToolName.runProfile, "Run a predefined audit profile and aggregate its findings", properties: [
-            "profile": ["type": "string", "description": "quick, security_deep, bug_hunt_deep, release_gate, ios_preflight, backend_regression"],
+            "profile": ["type": "string", "description": "quick, security_deep, bug_hunt_deep, performance_deep, performance_extended, performance_full, release_gate, ios_preflight, backend_regression"],
             "scope_files": ["type": "string", "description": "Optional JSON array or comma-separated list of scoped files"],
             "path": ["type": "string", "description": "Optional file or directory scope"]
         ], required: ["profile"]),

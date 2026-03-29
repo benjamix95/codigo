@@ -9,6 +9,9 @@ extension SidebarView {
         let selected = selectedConversationId == conv.id
         let renderState = threadRenderStates[conv.id] ?? .empty
         let showsWorkIndicator = renderState.isActive || renderState.isStreaming
+        let latestPreviewableFileChange = toolTraceStore.conversationLatestPreviewableFileChange(
+            conversationId: conv.id
+        )
 
         return VStack(alignment: .leading, spacing: 4) {
             // Row 1: stato opzionale (pin / task / bozza) + titolo + badge modalità
@@ -78,6 +81,10 @@ extension SidebarView {
                         linesRemoved: renderState.metrics.linesRemoved
                     )
                 }
+            }
+
+            if let latestPreviewableFileChange {
+                SidebarThreadLiveDiffPreview(change: latestPreviewableFileChange)
             }
         }
         .padding(.horizontal, selected ? 8 : 10)

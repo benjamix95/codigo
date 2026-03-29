@@ -20,5 +20,6 @@
 - **Refinement UI:** riga standalone dedicata con action label attenuata, filename in evidenza e badge `+/-` colorati, così il file toccato resta leggibile anche a colpo d'occhio.
 - **Refinement UI 2:** uniformata anche la resa delle righe `exploration` e `terminal` nei gruppi inline, con header del gruppo più leggibile e row compatte nello stesso linguaggio visivo.
 - **Regressione coperta:** aggiunto controllo esplicito sul fatto che una sezione `terminal` completata torni collassata appena il gruppo non e' piu' running.
+- **Refinement UI 3:** il `diffPreview` live dei file change viene preservato anche nel passaggio running -> completed e mostrato anche nelle superfici secondarie (`TODO`, `composer overlay`, `sidebar`) senza aspettare la fine del task.
 - **Verifica post-fix:** test mirati `ChatTimelineInlineToolGroupingTests` e `InlineToolTraceEventViewDisplayTests`; verifica manuale sulla timeline chat con mix read/edit.
 - **Commit previsto:** `fix(chat): keep edited files visible outside tool groups`

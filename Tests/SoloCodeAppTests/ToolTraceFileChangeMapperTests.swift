@@ -74,6 +74,38 @@ final class ToolTraceFileChangeMapperTests: XCTestCase {
         XCTAssertEqual(changes.first?.isRunning, false)
     }
 
+    func testCollectPreservesRunningDiffPreviewWhenCompletedPayloadOmitsIt() {
+        let basePath = "App/SoloCodeApp/Sources/MessageToolTraceView.swift"
+        let running = makeEvent(
+            title: "Edited MessageToolTraceView.swift",
+            payload: [
+                "path": basePath,
+                "linesAdded": "1",
+                "diffPreview": "@@ -1 +1 @@\n-old\n+new",
+            ],
+            sequence: 1,
+            isRunning: true
+        )
+        let completed = makeEvent(
+            title: "Edited MessageToolTraceView.swift",
+            payload: [
+                "path": basePath,
+                "linesAdded": "8",
+                "linesRemoved": "2",
+            ],
+            sequence: 2,
+            isRunning: false
+        )
+
+        let changes = ToolTraceFileChangeMapper.collect(from: [running, completed])
+
+        XCTAssertEqual(changes.count, 1)
+        XCTAssertEqual(changes.first?.added, 8)
+        XCTAssertEqual(changes.first?.removed, 2)
+        XCTAssertEqual(changes.first?.diffPreview, "@@ -1 +1 @@\n-old\n+new")
+        XCTAssertEqual(changes.first?.isRunning, false)
+    }
+
     func testMapperAcceptsStrReplaceEventType() {
         let event = makeEvent(
             type: "str_replace",
@@ -229,6 +261,24 @@ final class ToolTraceFileChangeMapperTests: XCTestCase {
         XCTAssertEqual(mapped?.basename, "Unknown.swift")
         XCTAssertEqual(mapped?.added, 1)
         XCTAssertEqual(mapped?.removed, 1)
+    }
+
+    func testPresentationSummaryUsesFilenamePathAndCounters() {
+        let event = makeEvent(
+            title: "Edited File.swift",
+            payload: [
+                "path": "Sources/File.swift",
+                "linesAdded": "3",
+                "linesRemoved": "1",
+            ]
+        )
+
+        let mapped = ToolTraceFileChangeMapper.from(event: event)
+
+        XCTAssertNotNil(mapped)
+        XCTAssertEqual(mapped?.displayTitle, "Edited File.swift")
+        XCTAssertEqual(mapped?.lineSummary, "+3 -1")
+        XCTAssertEqual(mapped?.inlineSummary, "Sources/File.swift • +3 -1")
     }
 
     private func makeEvent(

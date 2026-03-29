@@ -74,10 +74,44 @@ extension ToolTraceFileChangeMapper {
     static func prefer(existing: ToolTraceFileChange, incoming: ToolTraceFileChange)
         -> ToolTraceFileChange
     {
-        if existing.isRunning && !incoming.isRunning { return incoming }
-        if !existing.isRunning && incoming.isRunning { return existing }
-        if incoming.sequence >= existing.sequence { return incoming }
-        return existing
+        let preferred: ToolTraceFileChange
+        let fallback: ToolTraceFileChange
+
+        if existing.isRunning && !incoming.isRunning {
+            preferred = incoming
+            fallback = existing
+        } else if !existing.isRunning && incoming.isRunning {
+            preferred = existing
+            fallback = incoming
+        } else if incoming.sequence >= existing.sequence {
+            preferred = incoming
+            fallback = existing
+        } else {
+            preferred = existing
+            fallback = incoming
+        }
+
+        return merge(preferred: preferred, fallback: fallback)
+    }
+
+    private static func merge(
+        preferred: ToolTraceFileChange,
+        fallback: ToolTraceFileChange
+    ) -> ToolTraceFileChange {
+        ToolTraceFileChange(
+            eventId: preferred.eventId,
+            path: preferred.path ?? fallback.path,
+            basename: preferred.basename == "file" ? fallback.basename : preferred.basename,
+            kind: preferred.kind == .unknown ? fallback.kind : preferred.kind,
+            added: preferred.added == 0 ? fallback.added : preferred.added,
+            removed: preferred.removed == 0 ? fallback.removed : preferred.removed,
+            diffPreview: preferred.diffPreview ?? fallback.diffPreview,
+            rawOutput: preferred.rawOutput ?? fallback.rawOutput,
+            diffSource: preferred.diffSource == .unknown ? fallback.diffSource : preferred.diffSource,
+            sequence: preferred.sequence,
+            timestamp: preferred.timestamp,
+            isRunning: preferred.isRunning
+        )
     }
 
     static func detectKind(payload: [String: String], title: String) -> ToolTraceFileChangeKind {

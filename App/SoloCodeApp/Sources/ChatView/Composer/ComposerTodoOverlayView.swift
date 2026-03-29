@@ -37,11 +37,15 @@ struct ComposerTodoOverlayView: View {
         hasVisibleComposerTodoOverlay(items: items)
     }
 
-    private var metrics: ChatTodoExecutionCardMetrics {
+    var metrics: ChatTodoExecutionCardMetrics {
         ChatTodoExecutionCardMetrics.build(items: items, fileChanges: fileChanges)
     }
 
-    @State private var isFileListExpanded = false
+    @State var isFileListExpanded = false
+
+    var latestPreviewableFileChange: ToolTraceFileChange? {
+        fileChanges.latestPreviewableChange()
+    }
 
     /// Sfondo opaco allineato al grigio del composer: evita che la lista todo in chat trapeli dal gradient semi-trasparente.
     private var opaqueComposerChromeFill: Color {
@@ -95,6 +99,11 @@ struct ComposerTodoOverlayView: View {
                     Divider().overlay(Color.primary.opacity(0.08))
                     footer
 
+                    if let latestPreviewableFileChange {
+                        Divider().overlay(Color.primary.opacity(0.06))
+                        liveDiffPreviewSection(change: latestPreviewableFileChange)
+                    }
+
                     if isFileListExpanded {
                         fileListSection
                     }
@@ -146,6 +155,8 @@ struct ComposerTodoOverlayView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        // Sopra ScrollView/checklist: evita che hit-testing resti “bloccato” dopo expand.
+        .zIndex(2)
     }
 
     // MARK: - Micro Status
@@ -169,97 +180,6 @@ struct ComposerTodoOverlayView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
-    }
-
-    // MARK: - Footer (file changes)
-
-    private var footer: some View {
-        HStack(spacing: 8) {
-            HStack(spacing: 8) {
-                Image(systemName: isFileListExpanded ? "chevron.down" : "chevron.right")
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(.tertiary)
-                    .frame(width: 12)
-                Text("\(metrics.fileCount) file modificati")
-                    .font(.system(size: 12.5, weight: .medium))
-                    .foregroundStyle(.secondary)
-                Text("+\(metrics.linesAdded)")
-                    .font(.system(size: 12.5, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(DesignSystem.Colors.success)
-                Text("-\(metrics.linesRemoved)")
-                    .font(.system(size: 12.5, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(DesignSystem.Colors.error)
-            }
-            .contentShape(Rectangle())
-            .onTapGesture {
-                withAnimation(.easeInOut(duration: 0.18)) {
-                    isFileListExpanded.toggle()
-                }
-            }
-
-            Spacer(minLength: 0)
-
-            HStack(spacing: 6) {
-                Text("Rivedi modifiche")
-                    .font(.system(size: 12.5, weight: .semibold))
-                Image(systemName: "arrow.up.right")
-                    .font(.system(size: 11, weight: .semibold))
-            }
-            .foregroundStyle(.primary)
-            .contentShape(Rectangle())
-            .onTapGesture {
-                onReviewChanges()
-            }
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-    }
-
-    // MARK: - File List (expandable)
-
-    private var fileListSection: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            ForEach(fileChanges) { file in
-                let displayPath = file.path ?? file.basename
-                HStack(spacing: 8) {
-                    HStack(spacing: 6) {
-                        Image(systemName: fileIcon(for: displayPath))
-                            .font(.system(size: 10))
-                            .foregroundStyle(.tertiary)
-                            .frame(width: 14)
-                        Text(displayPath)
-                            .font(.system(size: 11.5, weight: .medium))
-                            .lineLimit(1)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    Text("+\(max(0, file.added))")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(DesignSystem.Colors.success)
-                    Text("-\(max(0, file.removed))")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(DesignSystem.Colors.error)
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 4)
-            }
-        }
-        .padding(.vertical, 6)
-        .frame(maxHeight: 200)
-    }
-
-    private func fileIcon(for path: String) -> String {
-        let ext = (path as NSString).pathExtension.lowercased()
-        switch ext {
-        case "swift": return "swift"
-        case "js", "ts", "jsx", "tsx": return "chevron.left.forwardslash.chevron.right"
-        case "py": return "chevron.left.forwardslash.chevron.right"
-        case "json", "yaml", "yml", "toml": return "doc.badge.gearshape"
-        case "md", "txt": return "doc.text"
-        case "css", "scss": return "paintbrush"
-        case "html": return "globe"
-        case "rs": return "chevron.left.forwardslash.chevron.right"
-        default: return "doc"
-        }
     }
 
     // MARK: - Checklist

@@ -26,6 +26,11 @@ struct ChatTodoExecutionCardView: View {
                     Divider()
                         .overlay(Color.primary.opacity(0.08))
                     footer
+                    if let latestPreviewableChange = fileChanges.latestPreviewableChange() {
+                        Divider()
+                            .overlay(Color.primary.opacity(0.06))
+                        todoFileChangePreviewSection(change: latestPreviewableChange)
+                    }
                 }
 
                 if isExpanded {
@@ -139,6 +144,35 @@ struct ChatTodoExecutionCardView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
+    }
+
+    private func todoFileChangePreviewSection(change: ToolTraceFileChange) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Image(systemName: "waveform.path.ecg")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(DesignSystem.Colors.planColor.opacity(0.9))
+                Text("Diff live \(change.basename)")
+                    .font(.system(size: 11.5, weight: .semibold))
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                Spacer(minLength: 0)
+                if let lineSummary = change.lineSummary {
+                    Text(lineSummary)
+                        .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(DesignSystem.Colors.textQuaternary)
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.top, 10)
+
+            ToolTraceFileChangeCompactPreviewView(
+                change: change,
+                maxLines: isStreaming ? 4 : 3,
+                showsBackground: true,
+                compactPadding: 14
+            )
+            .padding(.bottom, 10)
+        }
     }
 
     @ViewBuilder
