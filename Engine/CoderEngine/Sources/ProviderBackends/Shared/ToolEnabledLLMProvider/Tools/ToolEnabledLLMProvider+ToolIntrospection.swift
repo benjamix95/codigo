@@ -46,8 +46,7 @@ extension ToolEnabledLLMProvider {
             return "bash"
         }
         if let query = payload["query"], !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            let scope = (payload["pathScope"] ?? payload["path_scope"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            return scope.isEmpty ? "web_search" : "grep"
+            return inferredQueryToolName(from: payload)
         }
         if let pattern = payload["pattern"], !pattern.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return "glob"

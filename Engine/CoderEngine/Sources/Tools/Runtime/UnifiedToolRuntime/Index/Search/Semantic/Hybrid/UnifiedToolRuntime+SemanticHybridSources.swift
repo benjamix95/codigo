@@ -17,6 +17,9 @@ extension UnifiedToolRuntime {
             hits.append(contentsOf: await vectorHits)
             hits.append(contentsOf: await symbolHits)
         }
+        if let skipReason = grepFallbackSkipReason(indexedHits: hits, request: request) {
+            return (hits, skipReason)
+        }
         let (grepHits, grepSkipReason) = await collectGrepFallbackHits(request: request)
         hits.append(contentsOf: grepHits)
         return (hits, grepSkipReason)

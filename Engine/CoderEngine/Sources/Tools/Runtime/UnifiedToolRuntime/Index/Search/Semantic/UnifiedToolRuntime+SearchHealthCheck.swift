@@ -8,12 +8,18 @@ extension UnifiedToolRuntime {
     ) async -> ToolResult {
         let workspaces = preferredWorkspacePaths(for: context).map(\.path)
         let rgAvailable = await isCommandAvailable("rg")
+        let vectorEnabled = IndexFeatureFlags.vectorSearchEnabled
+        let trigramEnabled = IndexFeatureFlags.trigramIndexEnabled
+        let vectorDBAvailable = (try? PostgresPersistenceStore.shared.isVectorSearchAvailable()) ?? false
 
         var payload: [String: String] = [
             "title": "search_health_check",
             "workspace_count": "\(workspaces.count)",
             "rg_available": rgAvailable ? "true" : "false",
             "grep_cache_entries": "\(grepFallbackCacheOrder.count)",
+            "vector_enabled": vectorEnabled ? "true" : "false",
+            "vector_db_available": vectorDBAvailable ? "true" : "false",
+            "trigram_enabled": trigramEnabled ? "true" : "false",
         ]
 
         if let codebaseIndex {
@@ -23,8 +29,19 @@ extension UnifiedToolRuntime {
             payload["indexed_files"] = "\(status.totalSourceFiles)"
             payload["semantic_chunks"] = "\(semanticStatus.totalChunks)"
             payload["semantic_tokens"] = "\(semanticStatus.totalTokens)"
+            if let embeddingService = await codebaseIndex.embeddingServiceIfAvailable {
+                let embeddingAvailable = await embeddingService.isAvailable()
+                payload["embedding_service_available"] = embeddingAvailable ? "true" : "false"
+                payload["embedding_backend"] = await embeddingService.currentBackend()?.rawValue
+                    ?? (embeddingAvailable ? "ready" : "unavailable")
+            } else {
+                payload["embedding_service_available"] = "false"
+                payload["embedding_backend"] = vectorEnabled ? "unavailable" : "disabled"
+            }
         } else {
             payload["index_status"] = "unavailable"
+            payload["embedding_service_available"] = "false"
+            payload["embedding_backend"] = vectorEnabled ? "unknown" : "disabled"
         }
 
         let totalSourceUsage = semanticSourceUsageCounters.values.reduce(0, +)
@@ -46,6 +63,10 @@ extension UnifiedToolRuntime {
         - workspaces: \(workspaces.count)
         - index_status: \(payload["index_status"] ?? "unknown")
         - rg_available: \(rgAvailable ? "yes" : "no")
+        - vector_enabled: \(vectorEnabled ? "yes" : "no")
+        - vector_db_available: \(vectorDBAvailable ? "yes" : "no")
+        - trigram_enabled: \(trigramEnabled ? "yes" : "no")
+        - embedding_backend: \(payload["embedding_backend"] ?? "unknown")
         - grep_cache_entries: \(grepFallbackCacheOrder.count)
         - source_usage_ratio: \(payload["source_usage_ratio"] ?? "n/a")
         """
