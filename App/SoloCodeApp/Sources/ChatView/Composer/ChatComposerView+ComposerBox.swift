@@ -213,6 +213,8 @@ extension ChatComposerView {
             }
             .buttonStyle(.plain)
             .help("Stop")
+
+            sendButton
         }
     }
 

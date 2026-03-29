@@ -146,13 +146,12 @@ extension ChatComposerView {
     }
 
     internal var sendButton: some View {
-        let awaitingChoice = if case .awaitingChoice = planningState { true } else { false }
         let hasText = !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        let canSend =
-            isProjectContextAvailable
-            && (hasText || !attachedAttachments.isEmpty)
-            && !isLoading
-            && !awaitingChoice
+        let canSend = canComposerDispatchMessage(
+            isProjectContextAvailable: isProjectContextAvailable,
+            hasDraftContent: hasText || !attachedAttachments.isEmpty,
+            planningState: planningState
+        )
 
         return Button(action: onSend) {
             Image(systemName: "arrow.up")
@@ -168,6 +167,7 @@ extension ChatComposerView {
         .buttonStyle(.plain)
         .disabled(!canSend)
         .animation(.easeOut(duration: 0.15), value: canSend)
+        .help(isLoading ? "Invia follow-up durante il task attivo" : "Invia")
     }
 
     internal func formatElapsed(_ seconds: Int) -> String {

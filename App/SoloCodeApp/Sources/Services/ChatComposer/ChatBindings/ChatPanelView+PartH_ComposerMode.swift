@@ -6,15 +6,34 @@ import UniformTypeIdentifiers
 extension ChatPanelView {
     internal func handleComposerSend() {
         let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.contains("\n"),
-              trimmed.lowercased() == "/fast",
-              providerRegistry.selectedProviderId == "codex-cli"
-        else {
-            sendMessage()
+        let hasDraftContent = !trimmed.isEmpty || !attachedComposerAttachments.isEmpty
+        let route = resolveComposerSendDispatchRoute(
+            trimmedInput: trimmed,
+            selectedProviderId: providerRegistry.selectedProviderId,
+            isLoadingCurrentConversation: isLoadingForCurrentConversation
+        )
+
+        if route != .fastModeToggle,
+           !shouldSubmitComposerDraft(
+               hasDraftContent: hasDraftContent,
+               planningState: planningState
+           )
+        {
             return
         }
 
-        handleComposerQuickCommand("/fast", runImmediately: false)
+        switch route {
+        case .fastModeToggle:
+            guard !trimmed.contains("\n") else {
+                sendMessage()
+                return
+            }
+            handleComposerQuickCommand("/fast", runImmediately: false)
+        case .standardSend:
+            sendMessage()
+        case .interruptAndSendFollowUp:
+            sendFollowUpDuringActiveTask()
+        }
     }
 
     internal func handleComposerQuickCommand(_ text: String, runImmediately: Bool) {
