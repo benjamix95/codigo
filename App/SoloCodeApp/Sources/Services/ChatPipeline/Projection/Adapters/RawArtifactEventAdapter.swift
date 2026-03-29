@@ -80,6 +80,44 @@ enum RawArtifactEventAdapter {
                     providerId: providerId
                 )
             }
+        case "mcp_tool_call", "function_call",
+             "read", "read_file", "fetch_file", "read_range", "file_read",
+             "read_batch_completed", "read_batch_started",
+             "grep", "search", "instant_grep", "glob", "list_dir", "find_files",
+             "semantic_search", "codebase_search", "find_symbol", "find_references",
+             "file_outline", "list_symbols",
+             "mcp", "mcp_call",
+             "web_search", "web_fetch",
+             "skill", "agent", "run_agent", "sub_agent", "subagent":
+            let toolName = payload["mcp_tool"]
+                ?? payload["tool"]
+                ?? payload["name"]
+                ?? payload["title"]
+                ?? rawType
+            let cleanName = toolName
+                .replacingOccurrences(of: "functions.", with: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !cleanName.isEmpty else { return [] }
+            let detail = payload["detail"]
+                ?? payload["arguments"]
+                ?? ""
+            let artifactId = payload["id"]
+                ?? "tool-trace-\(stableIDSeed(cleanName + detail))"
+            return [
+                make(
+                    .toolTraceArtifact,
+                    payload: [
+                        "artifact_id": artifactId,
+                        "title": cleanName,
+                        "detail": detail,
+                        "provider_id": providerId,
+                    ],
+                    conversationId: conversationId,
+                    assistantMessageId: assistantMessageId,
+                    turnId: turnId,
+                    providerId: providerId
+                ),
+            ]
         default:
             return []
         }
