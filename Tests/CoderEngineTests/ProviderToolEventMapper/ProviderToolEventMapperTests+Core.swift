@@ -252,6 +252,27 @@ extension ProviderToolEventMapperTests {
         XCTAssertTrue((mapped?.payload["title"] ?? "").contains("MCP discovery"))
     }
 
+    func testBenchmarkMCPCallMapsArtifactFieldsAndFriendlyTitle() {
+        let mapped = ProviderToolEventMapper.map(
+            toolName: "functions.mcp_call",
+            payload: [
+                "mcp_tool": "coderide_benchmark_indexing",
+                "mcp_server": "coderide",
+                "status": "completed",
+                "output": #"{"tool":"benchmark_indexing","phase":"pre","tag":"bench-1","output_json":"/tmp/bench-1.json","log_file":"/tmp/bench-1.log","summary_md":"/tmp/bench-1.md"}"#,
+            ]
+        )
+
+        XCTAssertEqual(mapped?.type, "mcp_tool_call")
+        XCTAssertEqual(mapped?.payload["title"], "Benchmark • Indexing")
+        XCTAssertEqual(mapped?.payload["phase"], "pre")
+        XCTAssertEqual(mapped?.payload["tag"], "bench-1")
+        XCTAssertEqual(mapped?.payload["output_json"], "/tmp/bench-1.json")
+        XCTAssertEqual(mapped?.payload["log_file"], "/tmp/bench-1.log")
+        XCTAssertEqual(mapped?.payload["summary_md"], "/tmp/bench-1.md")
+        XCTAssertEqual(mapped?.payload["detail"], "pre • bench-1")
+    }
+
     func testApplyPatchMapsToFileChange() {
         let mapped = ProviderToolEventMapper.map(
             toolName: "functions.apply_patch",

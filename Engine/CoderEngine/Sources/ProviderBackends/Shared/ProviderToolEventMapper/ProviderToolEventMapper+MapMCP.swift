@@ -59,6 +59,14 @@ extension ProviderToolEventMapper {
             case "mcp_reconnect":
                 return "MCP reconnect • \(mcpServer.isEmpty ? "server" : mcpServer)"
             default:
+                switch normalizedMCPTool {
+                case "benchmark_indexing":
+                    return "Benchmark • Indexing"
+                case "benchmark_review_pipeline":
+                    return "Benchmark • Review Pipeline"
+                default:
+                    break
+                }
                 var target = mcpTool.isEmpty ? rawTool : mcpTool
                 if target.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines).isEmpty {
                     target = "tool"
@@ -102,6 +110,14 @@ extension ProviderToolEventMapper {
         }
 
         if let structuredOutput {
+            for key in [
+                "phase", "tag", "output_json", "log_file", "summary_md",
+                "engine_json", "app_json", "stdout", "stderr",
+            ] {
+                if let value = firstString(in: structuredOutput, keys: [key]), !value.isEmpty {
+                    mapped[key] = value
+                }
+            }
             if let path = firstString(in: structuredOutput, keys: ["path", "file", "file_path", "relative_path", "target_path"]), !path.isEmpty {
                 mapped["path"] = mapped["path"] ?? path
                 mapped["file"] = mapped["file"] ?? path
@@ -132,6 +148,11 @@ extension ProviderToolEventMapper {
                 keys: ["diffPreview", "diff", "patch", "unified_diff", "changes_preview"]
             ), !diff.isEmpty {
                 mapped["diffPreview"] = String(diff.prefix(12_000))
+            }
+            if let phase = mapped["phase"], !phase.isEmpty {
+                let tag = mapped["tag"] ?? ""
+                let benchmarkDetail = tag.isEmpty ? phase : "\(phase) • \(tag)"
+                mapped["detail"] = benchmarkDetail
             }
         }
 

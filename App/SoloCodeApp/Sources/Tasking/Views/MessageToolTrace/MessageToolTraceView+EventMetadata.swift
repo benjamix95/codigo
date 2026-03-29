@@ -179,6 +179,10 @@ struct MessageToolTraceToolIdentity {
             return .init(symbolName: "globe", tint: DesignSystem.Colors.info)
         case "web_fetch":
             return .init(symbolName: "arrow.down.doc", tint: DesignSystem.Colors.info)
+        case "benchmark_indexing":
+            return .init(symbolName: "speedometer", tint: DesignSystem.Colors.warning)
+        case "benchmark_review_pipeline":
+            return .init(symbolName: "chart.line.uptrend.xyaxis", tint: DesignSystem.Colors.warning)
         case "macos_focus_app":
             return .init(symbolName: "app.badge", tint: DesignSystem.Colors.info)
         case "macos_capture_screenshot":

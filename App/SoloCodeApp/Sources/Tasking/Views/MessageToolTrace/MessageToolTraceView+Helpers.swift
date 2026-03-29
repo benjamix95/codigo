@@ -56,7 +56,23 @@ extension MessageToolTraceView {
         return nil
     }
 
+    func fileChangeInlineSummary(for change: ToolTraceFileChange) -> String? {
+        var parts: [String] = []
+        if let path = nonEmpty(change.path) {
+            parts.append(shortenedPath(path))
+        }
+        if let summary = change.lineSummary {
+            parts.append(summary)
+        }
+        guard !parts.isEmpty else { return nil }
+        return parts.joined(separator: " • ")
+    }
+
     func editLineSummary(for event: ToolTraceEvent) -> String? {
+        if let change = ToolTraceFileChangeMapper.from(event: event),
+           let summary = change.lineSummary {
+            return summary
+        }
         guard let counters = editLineCounters(for: event) else { return nil }
         return "+\(counters.added) -\(counters.removed)"
     }
@@ -203,8 +219,23 @@ extension MessageToolTraceView {
     }
 
     func compactDetail(for event: ToolTraceEvent) -> String? {
+        if let change = ToolTraceFileChangeMapper.from(event: event) {
+            return fileChangeInlineSummary(for: change) ?? change.displayTitle
+        }
+
         if let lineSummary = editLineSummary(for: event) {
             return lineSummary
+        }
+        let normalizedTool = MessageToolTraceToolIdentity.normalizedToolName(for: event)
+        if normalizedTool == "benchmark_indexing" || normalizedTool == "benchmark_review_pipeline" {
+            let phase = nonEmpty(event.payload["phase"]) ?? ""
+            let tag = nonEmpty(event.payload["tag"]) ?? ""
+            let status = nonEmpty(event.payload["status"]) ?? ""
+            let pieces = [phase, tag, status == "completed" ? "artifacts ready" : status]
+                .filter { !$0.isEmpty }
+            if !pieces.isEmpty {
+                return pieces.joined(separator: " • ")
+            }
         }
         let type = event.type.lowercased()
         let isSearchLike = type.contains("grep") || type.contains("search") || type == "instant_grep"

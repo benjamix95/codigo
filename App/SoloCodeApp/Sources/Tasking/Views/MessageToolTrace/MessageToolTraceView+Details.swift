@@ -7,6 +7,10 @@ extension MessageToolTraceView {
     func expandedDetails(for event: ToolTraceEvent) -> some View {
         let isBashLike = Self.isBashLikeEvent(event)
         VStack(alignment: .leading, spacing: 4) {
+            if let benchmarkArtifacts = benchmarkArtifacts(for: event),
+               !benchmarkArtifacts.items.isEmpty {
+                benchmarkArtifactsBlock(benchmarkArtifacts)
+            }
             // Bash/terminal events → inline terminal view
             if isBashLike, let command = event.payload["command"], !command.isEmpty {
                 InlineTerminalView(
@@ -15,7 +19,7 @@ extension MessageToolTraceView {
                     stderr: event.payload["stderr"],
                     exitCode: event.payload["exit_code"],
                     cwd: event.payload["cwd"],
-                    isRunning: event.isRunning
+                    isRunning: event.isRunning && messageIsStreaming
                 )
             } else {
                 // Non-bash: show command as code block
@@ -183,6 +187,76 @@ extension MessageToolTraceView {
                         .fill(DesignSystem.Colors.backgroundSecondary.opacity(0.5))
                 )
         }
+    }
+
+    struct BenchmarkArtifacts {
+        let toolName: String
+        let phase: String?
+        let tag: String?
+        let items: [(label: String, path: String)]
+    }
+
+    func benchmarkArtifacts(for event: ToolTraceEvent) -> BenchmarkArtifacts? {
+        let toolName = MessageToolTraceToolIdentity.normalizedToolName(for: event)
+        guard toolName == "benchmark_indexing" || toolName == "benchmark_review_pipeline" else {
+            return nil
+        }
+
+        var items: [(label: String, path: String)] = []
+        for (key, label) in [
+            ("output_json", "JSON Output"),
+            ("log_file", "Log"),
+            ("summary_md", "Summary"),
+            ("engine_json", "Engine JSON"),
+            ("app_json", "App JSON"),
+        ] {
+            if let value = nonEmpty(event.payload[key]) {
+                items.append((label, value))
+            }
+        }
+        return BenchmarkArtifacts(
+            toolName: toolName,
+            phase: nonEmpty(event.payload["phase"]),
+            tag: nonEmpty(event.payload["tag"]),
+            items: items
+        )
+    }
+
+    @ViewBuilder
+    func benchmarkArtifactsBlock(_ artifacts: BenchmarkArtifacts) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: artifacts.toolName == "benchmark_indexing" ? "speedometer" : "chart.line.uptrend.xyaxis")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(DesignSystem.Colors.warning)
+                Text("Benchmark Artifacts")
+                    .font(.system(size: 9.5, weight: .semibold))
+                    .foregroundStyle(DesignSystem.Colors.textTertiary)
+                if let phase = artifacts.phase {
+                    detailPill(label: "Phase", value: phase)
+                }
+                if let tag = artifacts.tag {
+                    detailPill(label: "Tag", value: tag)
+                }
+            }
+            ForEach(Array(artifacts.items.enumerated()), id: \.offset) { _, item in
+                HStack(spacing: 6) {
+                    Text(item.label)
+                        .font(.system(size: 9.5, weight: .semibold))
+                        .foregroundStyle(DesignSystem.Colors.textTertiary)
+                    Button {
+                        onOpenFile(item.path)
+                    } label: {
+                        Text(item.path)
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(DesignSystem.Colors.info)
+                            .lineLimit(1)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .padding(.bottom, 4)
     }
 
     @ViewBuilder
