@@ -19,19 +19,10 @@ extension ChatPanelView {
             guard markerCount > 0 else { continue }
             if conversationRuntime.pipelineTurnStateByAssistantMessageId[msg.id] != nil { continue }
 
-            let turnId = msg.turnMetadata?.turnId ?? msg.id.uuidString
-            let seq = msg.turnMetadata?.sequence ?? 0
-            let synthetic = ChatPipelineEvent(
+            let state = restoredChatTurnStateFromPersistedAssistantMessage(
                 conversationId: conv.id,
-                assistantMessageId: msg.id,
-                turnId: turnId,
-                sequence: seq,
-                source: "cache_hydrate",
-                kind: .turnStarted,
-                payload: [:],
-                timestamp: msg.turnMetadata?.updatedAt ?? Date()
+                message: msg
             )
-            let state = restoreChatTurnState(for: synthetic)
             conversationRuntime.cachePipelineTurnStateForAssistantMessage(state)
             hydratedIds.append(msg.id)
             hydratedMarkers += markerCount

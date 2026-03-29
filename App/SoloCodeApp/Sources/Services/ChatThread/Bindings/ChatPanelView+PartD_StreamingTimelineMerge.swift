@@ -9,7 +9,8 @@ extension ChatPanelView {
     /// oppure `conversationRuntime.activeTurnStateByConversation` (trace tool / Swift-only pipeline).
     internal func messageForStreamingTimelineDisplay(
         base: ChatMessage,
-        conversationId convId: UUID
+        conversationId convId: UUID,
+        inlineTraceEvents: [ToolTraceEvent] = []
     ) -> ChatMessage {
         guard base.role == .assistant else { return base }
 
@@ -24,34 +25,32 @@ extension ChatPanelView {
         var merged = base
         let storePayload = streamingTimelinePayloadCharSum(merged)
 
-        /// `appendToolTraceEvent` aggiorna `conversationRuntime`; il merge leggeva **solo**
-        /// `pipelineIntegrationService.runtime`, spesso `nil` (nessun job / teardown) → H34 senza H35 e H26.
-        let chatTurnForMerge: ChatTurnState? = {
-            let integration = pipelineIntegrationService.runtime(for: convId)
-            if let r = integration, r.assistantMessageId == base.id {
-                return r.chatTurnState
-            }
-            if let s = conversationRuntime.activeTurnStateByConversation[convId],
-               s.assistantMessageId == base.id {
-                return s
-            }
-            if let cached = conversationRuntime.pipelineTurnStateByAssistantMessageId[base.id] {
-                // #region agent log
+        let integrationTurn = pipelineIntegrationService.runtime(for: convId)?.chatTurnState
+        let resolution = ChatStreamingTimelineTurnResolver.resolve(
+            base: base,
+            conversationId: convId,
+            integrationTurn: integrationTurn,
+            conversationTurn: conversationRuntime.activeTurnStateByConversation[convId],
+            cachedAssistantTurn: conversationRuntime.pipelineTurnStateByAssistantMessageId[base.id],
+            persistedMessage: chatStore.conversation(for: convId)?
+                .messages
+                .first(where: { $0.id == base.id }),
+            traceEvents: inlineTraceEvents
+        )
+        let chatTurnForMerge = resolution.turn
+        let mergeUsedSyntheticTurn = resolution.usedSynthetic
+
+        if let turn = chatTurnForMerge {
+            if resolution.source == .assistantMessageCache {
                 StreamingTimelineMergeDebug72.logMergeUsesAssistantMessagePipelineCache(
                     conversationId: convId,
                     messageId: base.id,
-                    pipeMarkers: cached.blocks.filter { $0.kind == .toolMarker }.count
+                    pipeMarkers: turn.blocks.filter { $0.kind == .toolMarker }.count
                 )
-                // #endregion
-                return cached
             }
-            return nil
-        }()
-
-        if let turn = chatTurnForMerge {
-            let usedConversationOnly = pipelineIntegrationService.runtime(for: convId)
-                .map { $0.assistantMessageId != base.id } ?? true
-                && conversationRuntime.activeTurnStateByConversation[convId]?.assistantMessageId == base.id
+            let usedConversationOnly =
+                resolution.source == .conversationRuntime
+                && (integrationTurn?.assistantMessageId != base.id)
             if usedConversationOnly {
                 // #region agent log
                 StreamingTimelineMergeDebug72.logMergeUsesConversationRuntime(
@@ -60,6 +59,20 @@ extension ChatPanelView {
                     pipeMarkers: turn.blocks.filter { $0.kind == .toolMarker }.count
                 )
                 // #endregion
+            }
+            if resolution.source == .persistedMessage {
+                conversationRuntime.cachePipelineTurnStateForAssistantMessage(turn)
+            }
+            if mergeUsedSyntheticTurn,
+               let syntheticReason = resolution.syntheticReason
+            {
+                StreamingTimelineMergeDebug72.logSyntheticTurnFromTraceEvents(
+                    conversationId: convId,
+                    messageId: base.id,
+                    syntheticToolMarkers: turn.blocks.filter { $0.kind == .toolMarker }.count,
+                    traceInCount: inlineTraceEvents.count,
+                    reason: syntheticReason
+                )
             }
             let pipelineBlocks = turn.blocks
             let pipelinePayload = streamingTimelinePayloadCharSum(forBlocks: pipelineBlocks)
@@ -155,6 +168,19 @@ extension ChatPanelView {
                     "streamContentVersion": "\(streaming.streamContentVersion)",
                     "hadPending": "\(streaming.pendingStreamConversationId == convId && streaming.pendingStreamContent != nil)",
                 ]
+            )
+            // #endregion
+        }
+
+        if mergeUsedSyntheticTurn {
+            let mergedMarkers = (merged.blocks ?? []).filter { $0.kind == .toolMarker }.count
+            let baseMarkers = (base.blocks ?? []).filter { $0.kind == .toolMarker }.count
+            // #region agent log
+            StreamingTimelineMergeDebug72.logSyntheticToolMarkersInDisplayMessage(
+                conversationId: convId,
+                messageId: base.id,
+                baseToolMarkers: baseMarkers,
+                mergedToolMarkers: mergedMarkers
             )
             // #endregion
         }
