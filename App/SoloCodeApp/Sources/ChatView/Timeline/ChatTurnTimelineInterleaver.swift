@@ -73,8 +73,9 @@ enum ChatTurnTimelineInterleaver {
             )
         }
 
-        if let completedGroup = completedSubagentGroup(
+        for completedGroup in completedSubagentGroups(
             traceEvents: traceEvents,
+            blocks: blocks,
             liveSubagentCards: visibleLiveCards,
             subagentSnapshots: subagentSnapshots,
             fallbackBase: baseSequence + runningLiveCards.count
