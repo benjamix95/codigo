@@ -27,7 +27,8 @@ pub fn handle_tool_call(workspace: &Path, params: ToolCallParams) -> CallToolRes
     if let Some(result) = diagnostics_tools::handle(params.name.as_str(), workspace, &arguments) {
         return result;
     }
-    if let Some(result) = support_workflow_tools::handle(params.name.as_str(), workspace, &arguments)
+    if let Some(result) =
+        support_workflow_tools::handle(params.name.as_str(), workspace, &arguments)
     {
         return result;
     }
@@ -79,20 +80,20 @@ pub fn handle_tool_call(workspace: &Path, params: ToolCallParams) -> CallToolRes
 
 #[cfg_attr(not(test), allow(dead_code))]
 pub fn supports_tool_name(name: &str) -> bool {
-    audit_tools::handle(name, Path::new("."), &Default::default()).is_some()
-        || benchmark_tools::handle(name, Path::new("."), &Default::default()).is_some()
-        || diagnostics_tools::handle(name, Path::new("."), &Default::default()).is_some()
+    audit_tools::supports(name)
+        || benchmark_tools::supports(name)
+        || diagnostics_tools::supports(name)
         || support_workflow_tools::supports(name)
-        || debug_tools::handle(name, Path::new("."), &Default::default()).is_some()
-        || edit_tools::handle(name, Path::new("."), &Default::default()).is_some()
+        || debug_tools::supports(name)
+        || edit_tools::supports(name)
         || file_tools::supports(name)
         || ide_tools::supports(name)
         || search_tools::supports(name)
         || subagent_tools::supports(name)
         || todo_tools::supports(name)
-        || web_tools::handle(name, Path::new("."), &Default::default()).is_some()
-        || skill_tools::handle(name, Path::new("."), &Default::default()).is_some()
-        || review_tools::handle(name, Path::new("."), &Default::default()).is_some()
+        || web_tools::supports(name)
+        || skill_tools::supports(name)
+        || review_tools::supports(name)
         || matches!(
             name,
             "coderide_activate_debug_mode"

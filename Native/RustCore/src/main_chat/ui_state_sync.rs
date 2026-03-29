@@ -54,6 +54,10 @@ pub fn sync_runtime_text_from_replace_intent(state: &mut MainChatUiState, text: 
         return;
     };
     let turn_state = &mut runtime_snapshot.turn_state;
+    let current_primary_text = turn_primary_text(turn_state);
+    if !current_primary_text.is_empty() && !text.starts_with(&current_primary_text) {
+        return;
+    }
 
     if turn_state.ordered_text_stream_ids.is_empty() {
         turn_state.ordered_text_stream_ids.push("main".to_string());

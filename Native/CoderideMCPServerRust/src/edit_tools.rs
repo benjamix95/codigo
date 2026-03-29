@@ -26,6 +26,16 @@ pub fn handle(
     }
 }
 
+pub fn supports(name: &str) -> bool {
+    matches!(
+        name,
+        "coderide_create_file"
+            | "coderide_write"
+            | "coderide_str_replace"
+            | "coderide_regex_replace"
+    )
+}
+
 fn create_file(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult {
     let path = match crate::workspace_paths::resolve_within_workspace(
         workspace,

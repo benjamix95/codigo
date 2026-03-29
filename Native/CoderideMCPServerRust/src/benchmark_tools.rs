@@ -1,5 +1,5 @@
-use app_core_protocol::mcp::{CallToolResult, ToolContent};
 use crate::benchmark_tools_semantic;
+use app_core_protocol::mcp::{CallToolResult, ToolContent};
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -13,10 +13,23 @@ pub fn handle(
 ) -> Option<CallToolResult> {
     match name {
         "coderide_benchmark_indexing" => Some(run_indexing_benchmark(workspace, arguments)),
-        "coderide_benchmark_review_pipeline" => Some(run_review_pipeline_benchmark(workspace, arguments)),
-        "coderide_benchmark_semantic_search" => Some(benchmark_tools_semantic::run_semantic_search_benchmark(workspace, arguments)),
+        "coderide_benchmark_review_pipeline" => {
+            Some(run_review_pipeline_benchmark(workspace, arguments))
+        }
+        "coderide_benchmark_semantic_search" => Some(
+            benchmark_tools_semantic::run_semantic_search_benchmark(workspace, arguments),
+        ),
         _ => None,
     }
+}
+
+pub fn supports(name: &str) -> bool {
+    matches!(
+        name,
+        "coderide_benchmark_indexing"
+            | "coderide_benchmark_review_pipeline"
+            | "coderide_benchmark_semantic_search"
+    )
 }
 
 fn run_indexing_benchmark(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult {
@@ -163,10 +176,16 @@ fn required_phase(arguments: &BTreeMap<String, Value>) -> Result<String, CallToo
 }
 
 fn repo_root(workspace: &Path) -> Result<PathBuf, String> {
-    let mut current = workspace.canonicalize().unwrap_or_else(|_| workspace.to_path_buf());
+    let mut current = workspace
+        .canonicalize()
+        .unwrap_or_else(|_| workspace.to_path_buf());
     loop {
-        if current.join("scripts/benchmark_indexing_pre_post.sh").exists()
-            && current.join("scripts/benchmark_review_pipeline_pre_post.sh").exists()
+        if current
+            .join("scripts/benchmark_indexing_pre_post.sh")
+            .exists()
+            && current
+                .join("scripts/benchmark_review_pipeline_pre_post.sh")
+                .exists()
         {
             return Ok(current);
         }
@@ -242,6 +261,8 @@ mod tests {
     fn repo_root_resolves_from_workspace() {
         let root = repo_root(Path::new("/Users/benjaminstoica/SoloCode")).expect("repo root");
         assert!(root.join("scripts/benchmark_indexing_pre_post.sh").exists());
-        assert!(root.join("scripts/benchmark_review_pipeline_pre_post.sh").exists());
+        assert!(root
+            .join("scripts/benchmark_review_pipeline_pre_post.sh")
+            .exists());
     }
 }

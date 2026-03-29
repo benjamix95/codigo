@@ -29,6 +29,12 @@ pub fn handle(
     None
 }
 
+pub fn supports(name: &str) -> bool {
+    name.starts_with("coderide_review_")
+        || name.starts_with("coderide_security_")
+        || name.starts_with("coderide_bughunter_")
+}
+
 fn handle_review(name: &str, arguments: &BTreeMap<String, Value>) -> CallToolResult {
     let raw_args = as_string_args(arguments);
     if name == "coderide_review_preview_patch" {
@@ -607,7 +613,8 @@ fn preview_patch(args: &HashMap<String, String>) -> CallToolResult {
                 .get("diffPreview")
                 .and_then(Value::as_str)
                 .unwrap_or("");
-            let (prefix, truncated) = clamp_utf8_prefix(raw, REVIEW_MCP_PREVIEW_PATCH_MAX_DIFF_BYTES);
+            let (prefix, truncated) =
+                clamp_utf8_prefix(raw, REVIEW_MCP_PREVIEW_PATCH_MAX_DIFF_BYTES);
             let mut out = prefix.to_string();
             if truncated {
                 out.push_str(&format!(

@@ -41,6 +41,10 @@ pub fn handle(
     })
 }
 
+pub fn supports(name: &str) -> bool {
+    name.starts_with("coderide_audit_")
+}
+
 fn string_arg(arguments: &BTreeMap<String, Value>, key: &str) -> String {
     arguments
         .get(key)
@@ -81,9 +85,8 @@ fn parse_scope_files(arguments: &BTreeMap<String, Value>) -> Result<Vec<String>,
             .filter(|text| !text.is_empty())
             .collect()),
         Value::String(text) if text.trim().starts_with('[') => {
-            let parsed: Value = serde_json::from_str(&text).map_err(|e| {
-                format!("scope_files / scopeFiles: invalid JSON array string: {e}")
-            })?;
+            let parsed: Value = serde_json::from_str(&text)
+                .map_err(|e| format!("scope_files / scopeFiles: invalid JSON array string: {e}"))?;
             let Some(arr) = parsed.as_array() else {
                 return Err("scope_files string must be a JSON array".to_string());
             };

@@ -51,16 +51,16 @@ pub fn handle(
     Some(CallToolResult::text(detail))
 }
 
+pub fn supports(name: &str) -> bool {
+    name == "coderide_skill"
+}
+
 fn sanitize_skill_slug(skill: &str) -> Result<String, String> {
     let t = skill.trim();
     if t.is_empty() {
         return Err("Error: skill name is empty".to_string());
     }
-    if t.contains('/')
-        || t.contains('\\')
-        || t.contains("..")
-        || t.starts_with('.')
-    {
+    if t.contains('/') || t.contains('\\') || t.contains("..") || t.starts_with('.') {
         return Err(
             "Error: skill name must be a single path segment (no /, \\, .., or leading .)"
                 .to_string(),

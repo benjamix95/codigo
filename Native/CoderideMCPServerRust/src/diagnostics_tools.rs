@@ -3,12 +3,12 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
 use std::fs;
+#[cfg(unix)]
+use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::{Instant, SystemTime};
-#[cfg(unix)]
-use std::os::unix::process::ExitStatusExt;
 
 pub fn handle(
     name: &str,
@@ -22,6 +22,16 @@ pub fn handle(
         "coderide_semantic_search" => Some(semantic_search(workspace, arguments)),
         _ => None,
     }
+}
+
+pub fn supports(name: &str) -> bool {
+    matches!(
+        name,
+        "coderide_git_diff"
+            | "coderide_diagnostics"
+            | "coderide_read_lints"
+            | "coderide_semantic_search"
+    )
 }
 
 #[derive(Clone, Deserialize)]
@@ -191,15 +201,15 @@ fn semantic_search(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Cal
         .clamp(0.0, 1.0);
     let show_scoring = crate::search_tools::bool_arg(arguments, "show_scoring").unwrap_or(false);
     let strict_scope = crate::search_tools::bool_arg(arguments, "strict_scope").unwrap_or(false);
-    let target_directories = match target_directories_for_search(workspace, arguments, &path_scope_raw)
-    {
-        Ok(v) => v,
-        Err(msg) => return CallToolResult::error(msg),
-    };
+    let target_directories =
+        match target_directories_for_search(workspace, arguments, &path_scope_raw) {
+            Ok(v) => v,
+            Err(msg) => return CallToolResult::error(msg),
+        };
 
     if strict_scope && target_directories.is_empty() {
         return CallToolResult::error(
-            "semantic_search strict_scope=true requires pathScope/path/target_directories"
+            "semantic_search strict_scope=true requires pathScope/path/target_directories",
         );
     }
 
@@ -234,7 +244,7 @@ fn semantic_search(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Cal
             .take(limit)
             .map(|hit| hit.rendered)
             .collect::<Vec<_>>()
-            .join("\n")
+            .join("\n"),
     )
 }
 
@@ -245,11 +255,7 @@ fn run_single_term_search(
     file_type: &str,
     limit: usize,
 ) -> Vec<SemanticHitLine> {
-    let mut rg_args: Vec<String> = vec![
-        "-n".into(),
-        "--no-heading".into(),
-        "--smart-case".into(),
-    ];
+    let mut rg_args: Vec<String> = vec!["-n".into(), "--no-heading".into(), "--smart-case".into()];
     if !file_type.is_empty() {
         rg_args.push("--type".into());
         rg_args.push(file_type.to_string());
@@ -296,11 +302,8 @@ fn lexical_semantic_search(
     let mut line_content: HashMap<String, String> = HashMap::new();
 
     for term in &terms {
-        let mut rg_args: Vec<String> = vec![
-            "-n".into(),
-            "--no-heading".into(),
-            "--smart-case".into(),
-        ];
+        let mut rg_args: Vec<String> =
+            vec!["-n".into(), "--no-heading".into(), "--smart-case".into()];
         if !file_type.is_empty() {
             rg_args.push("--type".into());
             rg_args.push(file_type.to_string());
@@ -335,15 +338,15 @@ fn lexical_semantic_search(
             let rendered = if show_scoring {
                 format!(
                     "[terms={}/{} conf={:.2}] {}",
-                    score,
-                    total_terms,
-                    confidence,
-                    content
+                    score, total_terms, confidence, content
                 )
             } else {
                 format!("[conf={:.2}] {}", confidence, content)
             };
-            Some(SemanticHitLine { rendered, confidence })
+            Some(SemanticHitLine {
+                rendered,
+                confidence,
+            })
         })
         .take(limit)
         .collect()
@@ -415,9 +418,7 @@ fn semantic_search_via_persisted_index(
     let response = match solocode_rust_core::scoring::handle_search_request(&raw) {
         Ok(r) => r,
         Err(e) => {
-            return PersistedSemanticOutcome::Error(format!(
-                "semantic index: scoring failed: {e}"
-            ));
+            return PersistedSemanticOutcome::Error(format!("semantic index: scoring failed: {e}"));
         }
     };
     if response.hits.is_empty() {
@@ -468,11 +469,7 @@ fn semantic_search_via_persisted_index(
             } else {
                 format!(
                     "{}{}{} (conf: {:.2})\n   {}",
-                    chunk.file_path,
-                    line_range,
-                    scope,
-                    confidence,
-                    snippet
+                    chunk.file_path, line_range, scope, confidence, snippet
                 )
             };
             Some(rendered)
@@ -508,7 +505,8 @@ fn target_directories_for_search(
         if segment.is_empty() || segment == "." {
             continue;
         }
-        let prefix = crate::workspace_paths::scoped_directory_prefix_for_filter(workspace, segment)?;
+        let prefix =
+            crate::workspace_paths::scoped_directory_prefix_for_filter(workspace, segment)?;
         if !prefix.is_empty() && seen.insert(prefix.clone()) {
             out.push(prefix);
         }
@@ -537,7 +535,10 @@ fn load_semantic_chunks_from_disk(cache_path: &Path) -> Option<Vec<PersistedSema
 
 fn load_semantic_cache(
     workspace: &Path,
-) -> Option<(Arc<Vec<PersistedSemanticChunk>>, Arc<RustCoreSearchSnapshotPayload>)> {
+) -> Option<(
+    Arc<Vec<PersistedSemanticChunk>>,
+    Arc<RustCoreSearchSnapshotPayload>,
+)> {
     let cache_path = crate::mcp_index_cache::semantic_jsonl_cache_path(workspace)?;
     let meta = fs::metadata(&cache_path).ok()?;
     let mtime = meta.modified().ok()?;
@@ -549,52 +550,55 @@ fn load_semantic_cache(
     let t0 = Instant::now();
     let mut cache_miss = false;
 
-    let cached: ParsedSemanticChunksCache = if let Ok(mut guard) =
-        PARSED_SEMANTIC_CHUNKS_CACHE.lock()
-    {
-        match guard.as_ref() {
-            Some(cached) if cached.cache_path == cache_path && cached.mtime == mtime && cached.len == len => {
-                ParsedSemanticChunksCache {
-                    cache_path: cached.cache_path.clone(),
-                    mtime: cached.mtime,
-                    len: cached.len,
-                    chunks: Arc::clone(&cached.chunks),
-                    snapshot: Arc::clone(&cached.snapshot),
+    let cached: ParsedSemanticChunksCache =
+        if let Ok(mut guard) = PARSED_SEMANTIC_CHUNKS_CACHE.lock() {
+            match guard.as_ref() {
+                Some(cached)
+                    if cached.cache_path == cache_path
+                        && cached.mtime == mtime
+                        && cached.len == len =>
+                {
+                    ParsedSemanticChunksCache {
+                        cache_path: cached.cache_path.clone(),
+                        mtime: cached.mtime,
+                        len: cached.len,
+                        chunks: Arc::clone(&cached.chunks),
+                        snapshot: Arc::clone(&cached.snapshot),
+                    }
+                }
+                _ => {
+                    cache_miss = true;
+                    let chunks = load_semantic_chunks_from_disk(&cache_path)?;
+                    let arc = Arc::new(chunks);
+                    let snapshot = Arc::new(build_semantic_snapshot(&arc));
+                    *guard = Some(ParsedSemanticChunksCache {
+                        cache_path: cache_path.clone(),
+                        mtime,
+                        len,
+                        chunks: Arc::clone(&arc),
+                        snapshot: Arc::clone(&snapshot),
+                    });
+                    ParsedSemanticChunksCache {
+                        cache_path: cache_path.clone(),
+                        mtime,
+                        len,
+                        chunks: arc,
+                        snapshot,
+                    }
                 }
             }
-            _ => {
-                cache_miss = true;
-                let chunks = load_semantic_chunks_from_disk(&cache_path)?;
-                let arc = Arc::new(chunks);
-                let snapshot = Arc::new(build_semantic_snapshot(&arc));
-                *guard = Some(ParsedSemanticChunksCache {
-                    cache_path: cache_path.clone(),
-                    mtime,
-                    len,
-                    chunks: Arc::clone(&arc),
-                    snapshot: Arc::clone(&snapshot),
-                });
-                ParsedSemanticChunksCache {
-                    cache_path: cache_path.clone(),
-                    mtime,
-                    len,
-                    chunks: arc,
-                    snapshot,
-                }
+        } else {
+            cache_miss = true;
+            let chunks = Arc::new(load_semantic_chunks_from_disk(&cache_path)?);
+            let snapshot = Arc::new(build_semantic_snapshot(&chunks));
+            ParsedSemanticChunksCache {
+                cache_path: cache_path.clone(),
+                mtime,
+                len,
+                chunks,
+                snapshot,
             }
-        }
-    } else {
-        cache_miss = true;
-        let chunks = Arc::new(load_semantic_chunks_from_disk(&cache_path)?);
-        let snapshot = Arc::new(build_semantic_snapshot(&chunks));
-        ParsedSemanticChunksCache {
-            cache_path: cache_path.clone(),
-            mtime,
-            len,
-            chunks,
-            snapshot,
-        }
-    };
+        };
 
     if profile {
         eprintln!(
@@ -666,7 +670,10 @@ fn build_semantic_snapshot(chunks: &[PersistedSemanticChunk]) -> RustCoreSearchS
 fn build_semantic_snapshot_for_refs(
     chunks: &[&PersistedSemanticChunk],
 ) -> RustCoreSearchSnapshotPayload {
-    let owned = chunks.iter().map(|chunk| (*chunk).clone()).collect::<Vec<_>>();
+    let owned = chunks
+        .iter()
+        .map(|chunk| (*chunk).clone())
+        .collect::<Vec<_>>();
     build_semantic_snapshot(&owned)
 }
 
@@ -681,7 +688,13 @@ fn contextualized_text(chunk: &PersistedSemanticChunk) -> String {
     if !chunk.imports.is_empty() {
         parts.push(format!(
             "# Uses: {}",
-            chunk.imports.iter().take(5).cloned().collect::<Vec<_>>().join(", ")
+            chunk
+                .imports
+                .iter()
+                .take(5)
+                .cloned()
+                .collect::<Vec<_>>()
+                .join(", ")
         ));
     }
     parts.push(chunk.content.clone());
@@ -723,16 +736,18 @@ fn extract_file_line_key(line: &str) -> Option<String> {
 /// Tokenize a natural-language query into search terms, filtering stop words.
 fn tokenize_query(query: &str) -> Vec<String> {
     static STOP_WORDS: &[&str] = &[
-        "the", "a", "an", "is", "are", "was", "were", "in", "on", "at", "to",
-        "for", "of", "with", "by", "from", "and", "or", "not", "this", "that",
-        "it", "how", "what", "where", "when", "why", "does", "do", "if", "else",
-        "i", "me", "my", "we", "our", "you", "your", "he", "she", "they",
-        "be", "been", "being", "have", "has", "had", "can", "could", "will",
+        "the", "a", "an", "is", "are", "was", "were", "in", "on", "at", "to", "for", "of", "with",
+        "by", "from", "and", "or", "not", "this", "that", "it", "how", "what", "where", "when",
+        "why", "does", "do", "if", "else", "i", "me", "my", "we", "our", "you", "your", "he",
+        "she", "they", "be", "been", "being", "have", "has", "had", "can", "could", "will",
         "would", "should", "shall", "may", "might", "must",
     ];
     query
         .split_whitespace()
-        .map(|w| w.trim_matches(|c: char| !c.is_alphanumeric() && c != '_').to_lowercase())
+        .map(|w| {
+            w.trim_matches(|c: char| !c.is_alphanumeric() && c != '_')
+                .to_lowercase()
+        })
         .filter(|w| w.len() >= 2 && !STOP_WORDS.contains(&w.as_str()))
         .collect()
 }
@@ -825,8 +840,7 @@ fn run_with_native_timeout(
                     return Ok(Output {
                         status: std::process::ExitStatus::from_raw(124 << 8),
                         stdout: Vec::new(),
-                        stderr: format!("{command} timed out after {timeout_secs}s")
-                            .into_bytes(),
+                        stderr: format!("{command} timed out after {timeout_secs}s").into_bytes(),
                     });
                 }
                 std::thread::sleep(std::time::Duration::from_millis(200));

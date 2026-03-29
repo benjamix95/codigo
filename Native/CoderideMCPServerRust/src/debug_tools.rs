@@ -103,6 +103,27 @@ pub fn handle(
     }
 }
 
+pub fn supports(name: &str) -> bool {
+    matches!(
+        name,
+        "coderide_debug_log"
+            | "coderide_debug_query"
+            | "coderide_debug_set_phase"
+            | "coderide_debug_request_user"
+            | "coderide_debug_resolve"
+            | "coderide_debug_session"
+            | "coderide_debug_hypothesize"
+            | "coderide_debug_timeline"
+            | "coderide_debug_snapshot"
+            | "coderide_debug_trace_analyze"
+            | "coderide_debug_context"
+            | "coderide_debug_test_check"
+            | "coderide_debug_mark"
+            | "coderide_debug_clean"
+            | "coderide_debug_instrument"
+    )
+}
+
 fn debug_set_phase(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult {
     let phase = string_arg(arguments, "phase").to_lowercase();
     let valid = [
@@ -114,7 +135,10 @@ fn debug_set_phase(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Cal
         "resolved",
     ];
     if phase.is_empty() {
-        return error_result("Error: 'phase' parameter is required", json!({ "error_code": "validation" }));
+        return error_result(
+            "Error: 'phase' parameter is required",
+            json!({ "error_code": "validation" }),
+        );
     }
     if !valid.contains(&phase.as_str()) {
         return error_result(
@@ -144,7 +168,10 @@ fn debug_request_user(arguments: &BTreeMap<String, Value>) -> CallToolResult {
     let kind = string_arg(arguments, "kind").to_lowercase();
     let prompt = string_arg(arguments, "prompt");
     if kind.is_empty() || prompt.is_empty() {
-        return error_result("Error: 'kind' and 'prompt' are required", json!({ "error_code": "validation" }));
+        return error_result(
+            "Error: 'kind' and 'prompt' are required",
+            json!({ "error_code": "validation" }),
+        );
     }
     if !["question", "reproduce", "fix_confirmation"].contains(&kind.as_str()) {
         return error_result(
@@ -168,7 +195,10 @@ fn debug_request_user(arguments: &BTreeMap<String, Value>) -> CallToolResult {
 fn debug_resolve(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult {
     let summary = string_arg(arguments, "summary");
     if summary.is_empty() {
-        return error_result("Error: 'summary' is required", json!({ "error_code": "validation" }));
+        return error_result(
+            "Error: 'summary' is required",
+            json!({ "error_code": "validation" }),
+        );
     }
     store_try_mut(workspace, |store| {
         store.resolved_summary = Some(summary.clone());
@@ -190,11 +220,15 @@ fn debug_resolve(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallT
 }
 
 fn debug_log(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult {
-    let severity = non_empty(string_arg(arguments, "severity")).unwrap_or_else(|| "info".to_string());
+    let severity =
+        non_empty(string_arg(arguments, "severity")).unwrap_or_else(|| "info".to_string());
     let source = non_empty(string_arg(arguments, "source")).unwrap_or_else(|| "agent".to_string());
     let message = string_arg(arguments, "message");
     if message.is_empty() {
-        return error_result("Error: 'message' is required", json!({ "error_code": "validation" }));
+        return error_result(
+            "Error: 'message' is required",
+            json!({ "error_code": "validation" }),
+        );
     }
     let detail = non_empty(string_arg(arguments, "detail"));
     let category = non_empty(string_arg(arguments, "category"));
@@ -239,37 +273,43 @@ fn debug_log(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolR
 
 fn debug_query(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult {
     with_store_read(workspace, |store| {
-    let search = string_arg(arguments, "search").to_lowercase();
-    let severity = string_arg(arguments, "severity").to_lowercase();
-    let hypothesis_id = string_arg(arguments, "hypothesis_id").to_lowercase();
+        let search = string_arg(arguments, "search").to_lowercase();
+        let severity = string_arg(arguments, "severity").to_lowercase();
+        let hypothesis_id = string_arg(arguments, "hypothesis_id").to_lowercase();
 
-    let filtered = store.logs.iter().filter(|entry| {
-        (severity.is_empty() || entry.severity.to_lowercase() == severity)
-            && (search.is_empty()
-                || entry.message.to_lowercase().contains(&search)
-                || entry
-                    .detail
-                    .as_deref()
-                    .unwrap_or_default()
-                    .to_lowercase()
-                    .contains(&search))
-            && (hypothesis_id.is_empty()
-                || entry
-                    .hypothesis_id
-                    .as_deref()
-                    .unwrap_or_default()
-                    .to_lowercase()
-                    .starts_with(&hypothesis_id))
-    });
+        let filtered = store.logs.iter().filter(|entry| {
+            (severity.is_empty() || entry.severity.to_lowercase() == severity)
+                && (search.is_empty()
+                    || entry.message.to_lowercase().contains(&search)
+                    || entry
+                        .detail
+                        .as_deref()
+                        .unwrap_or_default()
+                        .to_lowercase()
+                        .contains(&search))
+                && (hypothesis_id.is_empty()
+                    || entry
+                        .hypothesis_id
+                        .as_deref()
+                        .unwrap_or_default()
+                        .to_lowercase()
+                        .starts_with(&hypothesis_id))
+        });
 
-    let lines = filtered
-        .map(|entry| format!("[{}] {} — {}", entry.severity, entry.source, entry.message))
-        .collect::<Vec<_>>();
-    if lines.is_empty() {
-        text_with_structured("No debug logs found.".to_string(), json!({ "tool": "debug_query", "count": 0 }))
-    } else {
-        text_with_structured(lines.join("\n"), json!({ "tool": "debug_query", "count": lines.len() }))
-    }
+        let lines = filtered
+            .map(|entry| format!("[{}] {} — {}", entry.severity, entry.source, entry.message))
+            .collect::<Vec<_>>();
+        if lines.is_empty() {
+            text_with_structured(
+                "No debug logs found.".to_string(),
+                json!({ "tool": "debug_query", "count": 0 }),
+            )
+        } else {
+            text_with_structured(
+                lines.join("\n"),
+                json!({ "tool": "debug_query", "count": lines.len() }),
+            )
+        }
     })
 }
 
@@ -349,8 +389,16 @@ fn debug_session(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallT
             )
         }),
         "stats" => with_store_read(workspace, |store| {
-            let errors = store.logs.iter().filter(|entry| entry.severity == "error").count();
-            let warnings = store.logs.iter().filter(|entry| entry.severity == "warning").count();
+            let errors = store
+                .logs
+                .iter()
+                .filter(|entry| entry.severity == "error")
+                .count();
+            let warnings = store
+                .logs
+                .iter()
+                .filter(|entry| entry.severity == "warning")
+                .count();
             let stats = format!(
                 "session_active: {}\nlogs: {}\nerrors: {}\nwarnings: {}\nhypotheses: {}",
                 store.session_active,
@@ -394,12 +442,15 @@ fn debug_hypothesize(workspace: &Path, arguments: &BTreeMap<String, Value>) -> C
         "propose" => {
             let title = string_arg(arguments, "title");
             if title.is_empty() {
-                return error_result("Error: 'title' is required", json!({ "error_code": "validation" }));
+                return error_result(
+                    "Error: 'title' is required",
+                    json!({ "error_code": "validation" }),
+                );
             }
             store_try_mut(workspace, |store| {
                 let id = generate_id("hyp");
-                let status =
-                    non_empty(string_arg(arguments, "status")).unwrap_or_else(|| "proposed".to_string());
+                let status = non_empty(string_arg(arguments, "status"))
+                    .unwrap_or_else(|| "proposed".to_string());
                 let mut hypothesis = DebugHypothesis {
                     id: id.clone(),
                     title: title.clone(),
@@ -453,7 +504,11 @@ fn debug_hypothesize(workspace: &Path, arguments: &BTreeMap<String, Value>) -> C
                         json!({ "error_code": "validation" }),
                     ));
                 };
-                let Some(idx) = store.hypotheses.iter().position(|item| item.id == resolved_id) else {
+                let Some(idx) = store
+                    .hypotheses
+                    .iter()
+                    .position(|item| item.id == resolved_id)
+                else {
                     return Err(error_result(
                         "Error: hypothesis not found",
                         json!({ "error_code": "validation" }),
@@ -469,7 +524,8 @@ fn debug_hypothesize(workspace: &Path, arguments: &BTreeMap<String, Value>) -> C
                     store.hypotheses[idx].description = string_arg(arguments, "description");
                 }
                 if !string_arg(arguments, "root_cause_type").is_empty() {
-                    store.hypotheses[idx].root_cause_type = string_arg(arguments, "root_cause_type");
+                    store.hypotheses[idx].root_cause_type =
+                        string_arg(arguments, "root_cause_type");
                 }
                 if !parse_csv(string_arg(arguments, "related_files")).is_empty() {
                     store.hypotheses[idx].related_files =
@@ -487,7 +543,11 @@ fn debug_hypothesize(workspace: &Path, arguments: &BTreeMap<String, Value>) -> C
                     store,
                     "info",
                     "debug_hypothesize",
-                    format!("Hypothesis {} updated to {}", short_id(&resolved_id), next_status),
+                    format!(
+                        "Hypothesis {} updated to {}",
+                        short_id(&resolved_id),
+                        next_status
+                    ),
                     evidence,
                     Some("debug".to_string()),
                     Some(resolved_id.clone()),
@@ -586,7 +646,11 @@ fn debug_snapshot(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Call
                     json!({ "error_code": "validation" }),
                 );
             }
-            let Some(baseline) = store.snapshots.iter().find(|item| item.label == compare_with) else {
+            let Some(baseline) = store
+                .snapshots
+                .iter()
+                .find(|item| item.label == compare_with)
+            else {
                 return error_result(
                     format!("Error: snapshot '{}' not found", compare_with),
                     json!({ "error_code": "validation" }),
@@ -650,7 +714,8 @@ fn debug_snapshot(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Call
             let output = if store.snapshots.is_empty() {
                 "No snapshots have been captured yet.".to_string()
             } else {
-                store.snapshots
+                store
+                    .snapshots
                     .iter()
                     .map(|item| format!("{} ({})", item.label, item.timestamp))
                     .collect::<Vec<_>>()
@@ -661,16 +726,23 @@ fn debug_snapshot(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Call
                 json!({ "tool": "debug_snapshot", "action": "list", "output": output }),
             )
         }),
-        _ => error_result("Error: unsupported debug_snapshot action", json!({ "error_code": "validation" })),
+        _ => error_result(
+            "Error: unsupported debug_snapshot action",
+            json!({ "error_code": "validation" }),
+        ),
     }
 }
 
 fn debug_trace_analyze(arguments: &BTreeMap<String, Value>) -> CallToolResult {
     let error_text = string_arg(arguments, "error_text");
     if error_text.is_empty() {
-        return error_result("Error: 'error_text' is required", json!({ "error_code": "validation" }));
+        return error_result(
+            "Error: 'error_text' is required",
+            json!({ "error_code": "validation" }),
+        );
     }
-    let error_type = non_empty(string_arg(arguments, "error_type")).unwrap_or_else(|| detect_error_type(&error_text));
+    let error_type = non_empty(string_arg(arguments, "error_type"))
+        .unwrap_or_else(|| detect_error_type(&error_text));
     let hints = trace_location_hints(&error_text);
     let mut output = format!("error_type: {error_type}\n");
     if !hints.is_empty() {
@@ -727,7 +799,11 @@ fn trace_location_hints(text: &str) -> Vec<String> {
 
 fn debug_context(workspace: &Path) -> CallToolResult {
     let mut sections = vec![format!("workspace: {}", workspace.display())];
-    if let Some(status) = run_command(workspace, "/usr/bin/git", &["status", "--short", "--branch"]) {
+    if let Some(status) = run_command(
+        workspace,
+        "/usr/bin/git",
+        &["status", "--short", "--branch"],
+    ) {
         if !status.trim().is_empty() {
             sections.push(format!("git:\n{}", status.trim()));
         }
@@ -786,7 +862,11 @@ fn debug_test_check(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Ca
     } else if scope == "integration" {
         vec![DebugTestExecution {
             scheme: "Solo Code-IntegrationTests".to_string(),
-            only_testing: if filter.is_empty() { vec!["SoloCodeIntegrationTests".to_string()] } else { vec![filter.clone()] },
+            only_testing: if filter.is_empty() {
+                vec!["SoloCodeIntegrationTests".to_string()]
+            } else {
+                vec![filter.clone()]
+            },
         }]
     } else if !filter.is_empty() {
         grouped_executions_for_filters(&parse_csv(filter.clone()))
@@ -892,7 +972,10 @@ fn debug_test_check(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Ca
             "error_code": if exit_code == 0 { Value::Null } else { json!("test_failed") },
         });
         if exit_code == 0 {
-            Ok(text_with_structured("OK — debug test check passed".to_string(), payload))
+            Ok(text_with_structured(
+                "OK — debug test check passed".to_string(),
+                payload,
+            ))
         } else {
             Ok(error_result(
                 format!(
@@ -908,7 +991,8 @@ fn debug_test_check(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Ca
 fn debug_mark(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult {
     let path = string_arg(arguments, "path");
     let line = string_arg(arguments, "line").parse::<usize>().unwrap_or(0);
-    let comment = non_empty(string_arg(arguments, "comment")).unwrap_or_else(|| "DEBUG".to_string());
+    let comment =
+        non_empty(string_arg(arguments, "comment")).unwrap_or_else(|| "DEBUG".to_string());
     let code = string_arg(arguments, "code");
     let marker_type = non_empty(string_arg(arguments, "type"))
         .unwrap_or_else(|| "marker".to_string())
@@ -916,7 +1000,10 @@ fn debug_mark(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallTool
     let expression = string_arg(arguments, "expression");
     let hypothesis_id = short_id(&string_arg(arguments, "hypothesis_id"));
     if path.is_empty() || line == 0 {
-        return error_result("Error: path and line are required", json!({ "error_code": "validation" }));
+        return error_result(
+            "Error: path and line are required",
+            json!({ "error_code": "validation" }),
+        );
     }
     let file_path = match resolve_path(workspace, &path) {
         Ok(path) => path,
@@ -930,7 +1017,7 @@ fn debug_mark(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallTool
     let marker = if !code.is_empty() {
         code
     } else {
-        match generated_debug_marker(&marker_type, &comment, &expression, &tag) {
+        match generated_debug_marker(&marker_type, &comment, &expression, &tag, line) {
             Ok(marker) => marker,
             Err(message) => {
                 return error_result(message, json!({ "error_code": "validation" }));
@@ -941,7 +1028,10 @@ fn debug_mark(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallTool
     let insert_idx = line.saturating_sub(1).min(lines.len());
     lines.insert(insert_idx, marker.clone());
     if let Err(error) = write_lines(&file_path, &lines) {
-        return error_result(format!("Error: {error}"), json!({ "error_code": "write_failed" }));
+        return error_result(
+            format!("Error: {error}"),
+            json!({ "error_code": "write_failed" }),
+        );
     }
     text_with_structured(
         "OK — debug marker inserted".to_string(),
@@ -959,7 +1049,10 @@ fn debug_mark(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallTool
 
 fn debug_clean(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult {
     let raw_path = string_arg(arguments, "path");
-    let dry_run = matches!(string_arg(arguments, "dry_run").as_str(), "true" | "1" | "yes");
+    let dry_run = matches!(
+        string_arg(arguments, "dry_run").as_str(),
+        "true" | "1" | "yes"
+    );
     let clean_type = non_empty(string_arg(arguments, "type"))
         .unwrap_or_else(|| "all".to_string())
         .to_lowercase();
@@ -988,15 +1081,16 @@ fn debug_clean(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToo
     let mut preview = Vec::new();
 
     for file in files {
-        let Ok(lines) = read_lines(&file) else { continue };
+        let Ok(lines) = read_lines(&file) else {
+            continue;
+        };
         let mut kept = Vec::new();
         let mut file_cleaned = 0usize;
         for (index, line) in lines.iter().enumerate() {
             let lower = line.to_lowercase();
-            let matches_debug = type_patterns
-                .iter()
-                .any(|pattern| lower.contains(pattern));
-            let matches_hypothesis = hypothesis_id.is_empty() || lower.contains(&format!("[h:{hypothesis_id}]"));
+            let matches_debug = type_patterns.iter().any(|pattern| lower.contains(pattern));
+            let matches_hypothesis =
+                hypothesis_id.is_empty() || lower.contains(&format!("[h:{hypothesis_id}]"));
             if matches_debug && matches_hypothesis {
                 cleaned += 1;
                 file_cleaned += 1;
@@ -1012,7 +1106,10 @@ fn debug_clean(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToo
             touched += 1;
             if !dry_run {
                 if let Err(e) = write_lines(&file, &kept) {
-                    eprintln!("[debug_tools] WARNING: failed to write cleaned file {}: {e}", file.display());
+                    eprintln!(
+                        "[debug_tools] WARNING: failed to write cleaned file {}: {e}",
+                        file.display()
+                    );
                 }
             }
         }
@@ -1055,12 +1152,17 @@ fn debug_clean(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToo
 fn debug_instrument(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult {
     let path = string_arg(arguments, "path");
     let line = string_arg(arguments, "line").parse::<usize>().unwrap_or(0);
-    let instrument_type = non_empty(string_arg(arguments, "type")).unwrap_or_else(|| "log".to_string());
-    let expression = non_empty(string_arg(arguments, "expression")).unwrap_or_else(|| "self".to_string());
+    let instrument_type =
+        non_empty(string_arg(arguments, "type")).unwrap_or_else(|| "log".to_string());
+    let expression =
+        non_empty(string_arg(arguments, "expression")).unwrap_or_else(|| "self".to_string());
     let label = string_arg(arguments, "label");
     let hypothesis_id = short_id(&string_arg(arguments, "hypothesis_id"));
     if path.is_empty() || line == 0 {
-        return error_result("Error: path and line are required", json!({ "error_code": "validation" }));
+        return error_result(
+            "Error: path and line are required",
+            json!({ "error_code": "validation" }),
+        );
     }
 
     let tag = hypothesis_tag(&hypothesis_id);
@@ -1071,6 +1173,7 @@ fn debug_instrument(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Ca
         &label,
         condition.as_deref(),
         &tag,
+        line,
     ) {
         Ok(text) => text,
         Err(message) => {
@@ -1089,7 +1192,10 @@ fn debug_instrument(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Ca
     let insert_at = line.min(lines.len());
     lines.insert(insert_at, generated.clone());
     if let Err(error) = write_lines(&file_path, &lines) {
-        return error_result(format!("Error: {error}"), json!({ "error_code": "write_failed" }));
+        return error_result(
+            format!("Error: {error}"),
+            json!({ "error_code": "write_failed" }),
+        );
     }
     text_with_structured(
         "OK — debug instrumentation inserted".to_string(),
@@ -1110,25 +1216,96 @@ fn generated_debug_marker(
     comment: &str,
     expression: &str,
     tag: &str,
+    line: usize,
 ) -> Result<String, String> {
-    let expr = if expression.is_empty() {
-        "\"checkpoint\""
-    } else {
-        expression
-    };
+    let trimmed_expression = expression.trim();
     Ok(match marker_type {
-        "timing" => format!(
-        ),
-        "variable" => format!(
-        ),
+        "marker" => {
+            let mut output = String::from("// [DEBUG:marker] ");
+            output.push_str(comment);
+            output.push_str(tag);
+            output
+        }
+        "log" => {
+            let expr = if trimmed_expression.is_empty() {
+                "\"checkpoint\""
+            } else {
+                trimmed_expression
+            };
+            let mut output = String::from("print(\"[DEBUG] ");
+            output.push_str(comment);
+            output.push_str(": \\(");
+            output.push_str(expr);
+            output.push_str(")\") // [DEBUG:log] ");
+            output.push_str(comment);
+            output.push_str(tag);
+            output
+        }
+        "assert" => {
+            let assert_expr = if trimmed_expression.is_empty() {
+                "true"
+            } else {
+                trimmed_expression
+            };
+            let mut output = String::from("assert(");
+            output.push_str(assert_expr);
+            output.push_str(", \"[DEBUG ASSERT] ");
+            output.push_str(comment);
+            output.push_str("\") // [DEBUG:assert] ");
+            output.push_str(comment);
+            output.push_str(tag);
+            output
+        }
+        "timing" => {
+            let mut output = String::from("let _debugTimerStart_");
+            output.push_str(&line.to_string());
+            output.push_str(" = CFAbsoluteTimeGetCurrent(); defer ");
+            output.push('{');
+            output.push_str(" print(\"[DEBUG TIMING] ");
+            output.push_str(comment);
+            output.push_str(": \\(CFAbsoluteTimeGetCurrent() - _debugTimerStart_");
+            output.push_str(&line.to_string());
+            output.push_str(")s\") ");
+            output.push('}');
+            output.push_str(" // [DEBUG:timing] ");
+            output.push_str(comment);
+            output.push_str(tag);
+            output
+        }
+        "variable" => {
+            let variable_expr = if trimmed_expression.is_empty() {
+                "self"
+            } else {
+                trimmed_expression
+            };
+            let mut output = String::from("print(\"[DEBUG VAR] ");
+            output.push_str(comment);
+            output.push(' ');
+            output.push_str(variable_expr);
+            output.push_str(" = \\(");
+            output.push_str(variable_expr);
+            output.push_str(")\") // [DEBUG:variable] ");
+            output.push_str(comment);
+            output.push_str(tag);
+            output
+        }
         _ => return Err("Error: unsupported debug marker type".to_string()),
     })
 }
 
 fn clean_patterns_for_type(clean_type: &str) -> Option<Vec<&'static str>> {
     match clean_type {
-        "conditional_breaks" | "conditional_break" => {
-        }
+        "all" => Some(vec!["[debug:"]),
+        "markers" | "marker" => Some(vec!["[debug:marker]"]),
+        "logs" | "log" => Some(vec!["[debug:log]", "[debug:instrument-log]"]),
+        "asserts" | "assert" => Some(vec![
+            "[debug:assert]",
+            "[debug:instrument-assert]",
+            "[debug:instrument-conditional]",
+        ]),
+        "timing" => Some(vec!["[debug:timing]", "[debug:instrument-timing]"]),
+        "variables" | "variable" => Some(vec!["[debug:variable]", "[debug:instrument-variable]"]),
+        "conditional_breaks" | "conditional_break" => Some(vec!["[debug:instrument-conditional]"]),
         _ => None,
     }
 }
@@ -1139,6 +1316,7 @@ fn generated_debug_instrumentation(
     label: &str,
     condition: Option<&str>,
     tag: &str,
+    line: usize,
 ) -> Result<String, String> {
     let expr = if expression.trim().is_empty() {
         "self"
@@ -1157,28 +1335,88 @@ fn generated_debug_instrumentation(
     };
     let escaped_label = display_label.replace('"', "\\\"");
     Ok(match instrument_type {
-        "log" => format!(
-        ),
+        "log" => {
+            let mut output = String::from("print(\"[INSTRUMENT]");
+            output.push_str(&label_tag);
+            output.push_str(": \\(");
+            output.push_str(expr);
+            output.push_str(")\") // [DEBUG:instrument-log] ");
+            output.push_str(&display_label);
+            output.push_str(tag);
+            output
+        }
         "assert" => {
             let assert_condition = condition
                 .map(str::trim)
                 .filter(|value| !value.is_empty())
                 .unwrap_or(expr);
-            format!(
-            )
-        },
-        "timing" => format!(
-        ),
-        "variable" => format!(
-        ),
+            let mut output = String::from("assert(");
+            output.push_str(assert_condition);
+            output.push_str(", \"[INSTRUMENT ASSERT]");
+            output.push_str(&label_tag);
+            output.push_str(": ");
+            output.push_str(&escaped_label);
+            output.push_str("\") // [DEBUG:instrument-assert] ");
+            output.push_str(&display_label);
+            output.push_str(tag);
+            output
+        }
+        "timing" => {
+            let mut output = String::from("let _instrTimer_");
+            output.push_str(&line.to_string());
+            output.push_str(" = CFAbsoluteTimeGetCurrent(); defer ");
+            output.push('{');
+            output.push_str(" print(\"[INSTRUMENT TIMING]");
+            output.push_str(&label_tag);
+            output.push_str(
+                ": \\(String(format: \\\"%.4f\\\", CFAbsoluteTimeGetCurrent() - _instrTimer_",
+            );
+            output.push_str(&line.to_string());
+            output.push_str("))s for ");
+            output.push_str(expr);
+            output.push_str("\") ");
+            output.push('}');
+            output.push_str(" // [DEBUG:instrument-timing] ");
+            output.push_str(&display_label);
+            output.push_str(tag);
+            output
+        }
+        "variable" => {
+            let mut output = String::from("print(\"[INSTRUMENT VAR]");
+            output.push_str(&label_tag);
+            output.push(' ');
+            output.push_str(expr);
+            output.push_str(" = \\(");
+            output.push_str(expr);
+            output.push_str(") [type: \\(type(of: ");
+            output.push_str(expr);
+            output.push_str("))]\") // [DEBUG:instrument-variable] ");
+            output.push_str(&display_label);
+            output.push_str(tag);
+            output
+        }
         "conditional_break" => {
             let when = condition
                 .map(str::trim)
                 .filter(|value| !value.is_empty())
                 .unwrap_or("true");
-            format!(
-            )
-        },
+            let mut output = String::from("if ");
+            output.push_str(when);
+            output.push(' ');
+            output.push('{');
+            output.push_str(" print(\"[INSTRUMENT BREAK]");
+            output.push_str(&label_tag);
+            output.push_str(": condition met - ");
+            output.push_str(expr);
+            output.push_str(" = \\(");
+            output.push_str(expr);
+            output.push_str(")\") ");
+            output.push('}');
+            output.push_str(" // [DEBUG:instrument-conditional] ");
+            output.push_str(&display_label);
+            output.push_str(tag);
+            output
+        }
         _ => return Err("Error: unsupported debug instrumentation type".to_string()),
     })
 }
@@ -1212,18 +1450,38 @@ fn build_snapshot(store: &DebugStore, label: &str) -> DebugSnapshot {
         label: label.to_string(),
         timestamp: now_string(),
         log_count: store.logs.len(),
-        error_count: store.logs.iter().filter(|entry| entry.severity == "error").count(),
-        warning_count: store.logs.iter().filter(|entry| entry.severity == "warning").count(),
+        error_count: store
+            .logs
+            .iter()
+            .filter(|entry| entry.severity == "error")
+            .count(),
+        warning_count: store
+            .logs
+            .iter()
+            .filter(|entry| entry.severity == "warning")
+            .count(),
         hypothesis_count: store.hypotheses.len(),
-        confirmed_count: store.hypotheses.iter().filter(|item| item.status == "confirmed").count(),
-        rejected_count: store.hypotheses.iter().filter(|item| item.status == "rejected").count(),
+        confirmed_count: store
+            .hypotheses
+            .iter()
+            .filter(|item| item.status == "confirmed")
+            .count(),
+        rejected_count: store
+            .hypotheses
+            .iter()
+            .filter(|item| item.status == "rejected")
+            .count(),
     }
 }
 
 fn snapshot_summary(snapshot: &DebugSnapshot) -> String {
     format!(
         "Snapshot '{}': {} logs, {} errors, {} warnings, {} hypotheses",
-        snapshot.label, snapshot.log_count, snapshot.error_count, snapshot.warning_count, snapshot.hypothesis_count
+        snapshot.label,
+        snapshot.log_count,
+        snapshot.error_count,
+        snapshot.warning_count,
+        snapshot.hypothesis_count
     )
 }
 
@@ -1244,7 +1502,10 @@ fn export_report(store: &DebugStore) -> String {
     }
     report.push_str(&format!("\n## Logs ({})\n", store.logs.len()));
     for entry in store.logs.iter().rev().take(50) {
-        report.push_str(&format!("- [{}] {}: {}\n", entry.severity, entry.source, entry.message));
+        report.push_str(&format!(
+            "- [{}] {}: {}\n",
+            entry.severity, entry.source, entry.message
+        ));
     }
     report
 }
@@ -1257,7 +1518,15 @@ fn parse_json_map(raw: String) -> BTreeMap<String, String> {
         .ok()
         .map(|map| {
             map.into_iter()
-                .map(|(key, value)| (key, value.as_str().map(|item| item.to_string()).unwrap_or_else(|| value.to_string())))
+                .map(|(key, value)| {
+                    (
+                        key,
+                        value
+                            .as_str()
+                            .map(|item| item.to_string())
+                            .unwrap_or_else(|| value.to_string()),
+                    )
+                })
                 .collect()
         })
         .unwrap_or_default()
@@ -1290,7 +1559,10 @@ fn grouped_executions_for_filters(filters: &[String]) -> Vec<DebugTestExecution>
     }
     grouped
         .into_iter()
-        .map(|(scheme, only_testing)| DebugTestExecution { scheme, only_testing })
+        .map(|(scheme, only_testing)| DebugTestExecution {
+            scheme,
+            only_testing,
+        })
         .collect()
 }
 
@@ -1303,7 +1575,9 @@ fn executions_for_files(path: &str) -> Vec<DebugTestExecution> {
     }
     let files = parse_csv(path.to_string());
     let mut executions = Vec::new();
-    let has_engine = files.iter().any(|file| file.starts_with("Engine/") || file.starts_with("Tools/"));
+    let has_engine = files
+        .iter()
+        .any(|file| file.starts_with("Engine/") || file.starts_with("Tools/"));
     let has_app = files.iter().any(|file| file.starts_with("App/"));
     if has_app || !has_engine {
         executions.push(DebugTestExecution {
@@ -1386,13 +1660,19 @@ fn collect_debug_files(workspace: &Path) -> Vec<PathBuf> {
     let mut matches = Vec::new();
     let mut stack = vec![workspace.to_path_buf()];
     while let Some(path) = stack.pop() {
-        let Ok(entries) = fs::read_dir(&path) else { continue };
+        let Ok(entries) = fs::read_dir(&path) else {
+            continue;
+        };
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_dir() {
                 // Skip hidden dirs and common large dirs
                 let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-                if name.starts_with('.') || name == "node_modules" || name == "target" || name == "build" {
+                if name.starts_with('.')
+                    || name == "node_modules"
+                    || name == "target"
+                    || name == "build"
+                {
                     continue;
                 }
                 stack.push(path);
@@ -1415,7 +1695,12 @@ fn collect_debug_files(workspace: &Path) -> Vec<PathBuf> {
 fn read_lines(path: &Path) -> Result<Vec<String>, CallToolResult> {
     fs::read_to_string(path)
         .map(|content| content.lines().map(|line| line.to_string()).collect())
-        .map_err(|error| error_result(format!("Error: {}", error), json!({ "error_code": "read_failed" })))
+        .map_err(|error| {
+            error_result(
+                format!("Error: {}", error),
+                json!({ "error_code": "read_failed" }),
+            )
+        })
 }
 
 fn write_lines(path: &Path, lines: &[String]) -> Result<(), String> {
@@ -1531,7 +1816,9 @@ fn store_try_mut(
 }
 
 fn resolved_xcodebuild_path() -> String {
-    let override_path = std::env::var("SOLOCODE_DEBUG_XCODEBUILD_PATH").ok().filter(|value| !value.trim().is_empty());
+    let override_path = std::env::var("SOLOCODE_DEBUG_XCODEBUILD_PATH")
+        .ok()
+        .filter(|value| !value.trim().is_empty());
     if let Some(path) = override_path {
         return path;
     }
@@ -1632,7 +1919,11 @@ fn string_arg(arguments: &BTreeMap<String, Value>, key: &str) -> String {
 }
 
 fn non_empty(value: String) -> Option<String> {
-    if value.is_empty() { None } else { Some(value) }
+    if value.is_empty() {
+        None
+    } else {
+        Some(value)
+    }
 }
 
 fn now_string() -> String {
@@ -1676,44 +1967,4 @@ fn error_result(text: impl Into<String>, structured: Value) -> CallToolResult {
 }
 
 #[cfg(test)]
-mod generated_tests {
-    use super::{
-        clean_patterns_for_type, debug_test_timeout_ms, generated_debug_instrumentation,
-        generated_debug_marker,
-    };
-    use serde_json::json;
-    use std::collections::BTreeMap;
-
-    #[test]
-    fn debug_marker_log_generation_is_stable() {
-        let generated =
-            generated_debug_marker("log", "checkpoint", "value", " [H:abcd]").unwrap();
-        assert!(generated.contains("checkpoint"));
-        assert!(generated.contains("[H:abcd]"));
-    }
-
-    #[test]
-    fn debug_clean_logs_only_matches_log_markers() {
-        let patterns = clean_patterns_for_type("logs").unwrap();
-    }
-
-    #[test]
-    fn debug_instrument_assert_uses_condition_when_present() {
-        let generated = generated_debug_instrumentation(
-            "assert",
-            "value",
-            "Value positive",
-            Some("value > 0"),
-            "",
-        )
-        .unwrap();
-        assert!(generated.contains("assert(value > 0"));
-    }
-
-    #[test]
-    fn debug_test_timeout_is_clamped() {
-        let mut arguments = BTreeMap::new();
-        arguments.insert("timeout_ms".to_string(), json!("9999999"));
-        assert_eq!(debug_test_timeout_ms(&arguments), 900_000);
-    }
-}
+mod generated_tests;

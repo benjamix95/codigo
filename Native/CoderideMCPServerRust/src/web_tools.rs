@@ -19,6 +19,10 @@ pub fn handle(
     }
 }
 
+pub fn supports(name: &str) -> bool {
+    matches!(name, "coderide_web_fetch" | "coderide_web_search")
+}
+
 fn web_fetch(arguments: &BTreeMap<String, Value>) -> CallToolResult {
     let raw_url = string_arg(arguments, "url");
     if raw_url.is_empty() {
@@ -214,17 +218,14 @@ fn format_curl_max_time(secs: f64) -> String {
         format!("{}", rounded as i64)
     } else {
         let s = format!("{rounded:.3}");
-        s.trim_end_matches('0')
-            .trim_end_matches('.')
-            .to_string()
+        s.trim_end_matches('0').trim_end_matches('.').to_string()
     }
 }
 
 #[cfg(test)]
 mod timeout_tests {
     use super::{
-        duckduckgo_search_url, format_curl_max_time, normalize_http_url,
-        resolve_timeout_seconds,
+        duckduckgo_search_url, format_curl_max_time, normalize_http_url, resolve_timeout_seconds,
     };
     use serde_json::json;
 
