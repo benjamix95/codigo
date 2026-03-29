@@ -11,6 +11,18 @@ extension PipelineIntegrationService {
                 runtime: runtime,
                 chatStore: chatStore
             )
+            // Commit finale esplicito: il percorso Rust-success in
+            // `runPipelineEventsCommit` aggiorna lo store via
+            // `applyScopedForPipeline` ma NON chiama
+            // `ChatPipelineCommitter.commit()`. Senza questo commit
+            // il messaggio assistente nello store potrebbe avere
+            // blocchi/testo incompleti quando il runtime viene rimosso
+            // e la streaming overlay sparisce.
+            ChatPipelineCommitter.commit(
+                runtime.chatTurnState,
+                chatStore: chatStore,
+                persistImmediately: true
+            )
         }
         flushSnapshotNow(for: conversationId)
         return runtime
@@ -52,6 +64,12 @@ extension PipelineIntegrationService {
         unregisterDebugStore(for: conversationId)
         suppressedDebugProjectionConversationIds.remove(conversationId)
         flushSnapshotNow(for: conversationId)
+        // Dopo la rimozione di runtime/snapshot, il prossimo refresh SwiftUI
+        // leggerà direttamente dallo store base (niente più streaming overlay).
+        // Forziamo una notifica non-throttled per garantire che il body venga
+        // rivalutato con `snapshotIsLoading = false` e i messaggi storici
+        // includano il contenuto assistente appena committato.
+        chatStore?.flushConversationChangeNotification()
         if let completionContext {
             runtime.onCompletion?(completionContext)
         }
