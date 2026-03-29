@@ -287,6 +287,11 @@ extension ChatPanelView {
         let scrollView = ScrollView(.vertical, showsIndicators: false) {
             chatMessagesAreaContent
         }
+        .background(
+            ChatMessagesScrollViewportObserver { isNearBottom in
+                handleMessagesViewportChange(isNearBottom: isNearBottom)
+            }
+        )
         .padding(.top, 20)
         .padding(.bottom, 24)
         .frame(maxWidth: chatColumnMaxWidth)

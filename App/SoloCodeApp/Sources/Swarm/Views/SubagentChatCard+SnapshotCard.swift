@@ -73,13 +73,13 @@ struct SubagentSnapshotCardView: View {
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title)
-                        .font(.system(size: 12.5, weight: .medium))
+                        .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.primary.opacity(0.7))
                         .lineLimit(1)
                         .truncationMode(.tail)
 
                     Text(subtitle)
-                        .font(.system(size: 11.5, weight: .regular))
+                        .font(.system(size: 10.5, weight: .regular))
                         .foregroundStyle(.secondary.opacity(0.6))
                         .lineLimit(1)
                         .truncationMode(.tail)
@@ -101,7 +101,7 @@ struct SubagentSnapshotCardView: View {
                 }
             }
             .padding(.horizontal, 14)
-            .padding(.vertical, 11)
+            .padding(.vertical, SubagentChatCardCompactPresentation.headerVerticalPadding)
 
             // Task prompt section
             if let prompt = snapshot.taskPrompt, !prompt.isEmpty {
@@ -114,12 +114,12 @@ struct SubagentSnapshotCardView: View {
                     Text(prompt)
                         .font(.system(size: 10.5, weight: .regular))
                         .foregroundStyle(.secondary.opacity(0.7))
-                        .lineLimit(isExpanded ? nil : 2)
+                        .lineLimit(isExpanded ? nil : SubagentChatCardCompactPresentation.taskPromptCollapsedLineLimit)
                         .truncationMode(.tail)
                         .textSelection(.enabled)
                 }
                 .padding(.horizontal, 14)
-                .padding(.vertical, 6)
+                .padding(.vertical, SubagentChatCardCompactPresentation.taskPromptVerticalPadding)
             }
 
             if let preview = previewText, !preview.isEmpty {
@@ -128,11 +128,11 @@ struct SubagentSnapshotCardView: View {
                     Text(preview)
                         .font(.system(size: 11, weight: .regular))
                         .foregroundStyle(.secondary.opacity(0.55))
-                        .lineLimit(3)
+                        .lineLimit(SubagentChatCardCompactPresentation.compactPreviewLineLimit)
                         .truncationMode(.tail)
                         .textSelection(.enabled)
                         .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
+                        .padding(.vertical, SubagentChatCardCompactPresentation.compactPreviewVerticalPadding)
                 } else {
                     Divider().opacity(0.15).padding(.horizontal, 12)
                     ScrollView {
@@ -144,7 +144,7 @@ struct SubagentSnapshotCardView: View {
                             .padding(.horizontal, 14)
                             .padding(.vertical, 8)
                     }
-                    .frame(maxHeight: 200)
+                    .frame(maxHeight: SubagentChatCardCompactPresentation.expandedSnapshotPreviewMaxHeight)
                 }
             }
         }
@@ -171,12 +171,10 @@ struct SubagentSnapshotCardView: View {
     }
 
     private var snapshotPreviewText: String? {
-        let transcriptPreview = snapshot.transcript?
-            .suffix(isExpanded ? 20 : 6)
-            .map(\.detail)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-            .joined(separator: "\n")
+        let transcriptPreview = SubagentChatCardCompactPresentation.compactPreviewText(
+            from: snapshot.transcript?.map(\.detail) ?? [],
+            suffixCount: isExpanded ? 20 : SubagentChatCardCompactPresentation.completedTranscriptPreviewEntryLimit
+        )
         if let transcriptPreview, !transcriptPreview.isEmpty {
             return transcriptPreview
         }

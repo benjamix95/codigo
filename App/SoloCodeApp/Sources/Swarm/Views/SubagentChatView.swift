@@ -15,7 +15,7 @@ struct SubagentChatView: View {
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 12) {
+                LazyVStack(alignment: .leading, spacing: 10) {
                     ForEach(segments) { segment in
                         segmentView(segment)
                             .id(segment.id)
@@ -29,7 +29,7 @@ struct SubagentChatView: View {
                     Color.clear.frame(height: 1).id("sa-chat-bottom")
                 }
                 .padding(.horizontal, 14)
-                .padding(.vertical, 10)
+                .padding(.vertical, 8)
             }
             .onChange(of: card.transcript.count) { _ in
                 scrollToBottom(proxy)

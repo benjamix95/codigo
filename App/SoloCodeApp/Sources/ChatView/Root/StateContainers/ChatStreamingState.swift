@@ -52,4 +52,6 @@ struct ChatScrollState {
     var autoScrollWorkItem: DispatchWorkItem?
     var lastAutoScrollTarget: AnyHashable?
     var lastAutoScrollAt: Date = .distantPast
+    var lastProgrammaticScrollAt: Date = .distantPast
+    var pendingProgrammaticViewportObservations = 0
 }

@@ -8,13 +8,13 @@ extension SubagentChatCardView {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(.system(size: 12.5, weight: .medium))
+                    .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.primary.opacity(0.7))
                     .lineLimit(1)
                     .truncationMode(.tail)
 
                 Text(subtitle)
-                    .font(.system(size: 11.5, weight: .regular))
+                    .font(.system(size: 10.5, weight: .regular))
                     .foregroundStyle(.secondary.opacity(0.6))
                     .lineLimit(1)
                     .textShimmer(active: card.status == .running)
@@ -61,7 +61,7 @@ extension SubagentChatCardView {
             }
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 11)
+        .padding(.vertical, SubagentChatCardCompactPresentation.headerVerticalPadding)
     }
 
     @ViewBuilder
@@ -77,12 +77,12 @@ extension SubagentChatCardView {
                 Text(prompt)
                     .font(.system(size: 10.5, weight: .regular))
                     .foregroundStyle(.secondary.opacity(0.7))
-                    .lineLimit(isExpanded ? nil : 2)
+                    .lineLimit(isExpanded ? nil : SubagentChatCardCompactPresentation.taskPromptCollapsedLineLimit)
                     .truncationMode(.tail)
                     .textSelection(.enabled)
             }
             .padding(.horizontal, 14)
-            .padding(.vertical, 6)
+            .padding(.vertical, SubagentChatCardCompactPresentation.taskPromptVerticalPadding)
         }
     }
 
@@ -95,11 +95,11 @@ extension SubagentChatCardView {
                 Text(preview)
                     .font(.system(size: 11, weight: .regular))
                     .foregroundStyle(.secondary.opacity(0.55))
-                    .lineLimit(3)
+                    .lineLimit(SubagentChatCardCompactPresentation.compactPreviewLineLimit)
                     .truncationMode(.tail)
                     .textSelection(.enabled)
                     .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
+                    .padding(.vertical, SubagentChatCardCompactPresentation.compactPreviewVerticalPadding)
             }
         }
     }
@@ -109,7 +109,7 @@ extension SubagentChatCardView {
         if isExpanded {
             Divider().opacity(0.15).padding(.horizontal, 12)
             SubagentChatView(card: card, isFollowingLive: card.status == .running)
-                .frame(maxHeight: 320)
+                .frame(maxHeight: SubagentChatCardCompactPresentation.expandedTranscriptMaxHeight)
         }
     }
 
@@ -132,43 +132,35 @@ extension SubagentChatCardView {
     }
 
     var compactPreviewText: String? {
-        let transcriptPreview = card.transcript
-            .suffix(4)
-            .map(\.detail)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-            .joined(separator: "\n")
-        if !transcriptPreview.isEmpty {
+        let transcriptPreview = SubagentChatCardCompactPresentation.compactPreviewText(
+            from: card.transcript.map(\.detail),
+            suffixCount: SubagentChatCardCompactPresentation.liveTranscriptPreviewEntryLimit
+        )
+        if let transcriptPreview, !transcriptPreview.isEmpty {
             return transcriptPreview
         }
         if card.status == .running {
-            let text = card.liveText.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !text.isEmpty else { return nil }
-            let lines = text.components(separatedBy: .newlines)
-                .map { $0.trimmingCharacters(in: .whitespaces) }
-                .filter { !$0.isEmpty }
-            return lines.suffix(4).joined(separator: "\n")
+            return SubagentChatCardCompactPresentation.compactPreviewText(
+                from: card.liveText,
+                suffixCount: SubagentChatCardCompactPresentation.liveTranscriptPreviewEntryLimit
+            )
         }
         return completedResultPreview
     }
 
     var completedResultPreview: String? {
         guard card.status == .completed || card.status == .failed else { return nil }
-        let transcriptPreview = card.transcript
-            .suffix(6)
-            .map(\.detail)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-            .joined(separator: "\n")
-        if !transcriptPreview.isEmpty {
+        let transcriptPreview = SubagentChatCardCompactPresentation.compactPreviewText(
+            from: card.transcript.map(\.detail),
+            suffixCount: SubagentChatCardCompactPresentation.completedTranscriptPreviewEntryLimit
+        )
+        if let transcriptPreview, !transcriptPreview.isEmpty {
             return transcriptPreview
         }
-        let text = card.liveText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return nil }
-        let lines = text.components(separatedBy: .newlines)
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
-        return lines.suffix(6).joined(separator: "\n")
+        return SubagentChatCardCompactPresentation.compactPreviewText(
+            from: card.liveText,
+            suffixCount: SubagentChatCardCompactPresentation.completedTranscriptPreviewEntryLimit
+        )
     }
 
     @ViewBuilder

@@ -88,6 +88,8 @@ extension ChatPanelView {
             // Animated scrollTo blocks the main thread layout pass and
             // causes the UI to disappear (black screen) when multiple
             // scroll operations overlap.
+            scrollState.lastProgrammaticScrollAt = Date()
+            scrollState.pendingProgrammaticViewportObservations = 2
             proxy.scrollTo(target, anchor: .bottom)
             // #region agent log
             if let anchor = target as? String, anchor == chatScrollBottomAnchorId {
