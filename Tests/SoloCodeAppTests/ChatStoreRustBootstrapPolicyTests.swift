@@ -22,6 +22,12 @@ final class ChatStoreRustBootstrapPolicyTests: XCTestCase {
         )
     }
 
+    func testDoesNotSkipRustBootstrapForNormalAppLaunchEnvironment() {
+        XCTAssertFalse(
+            shouldSkipRustStoreBootstrapForTests(environment: [:])
+        )
+    }
+
     func testMarkersSanitizationDoesNotCrashWhenReviewCoreIsForcedOff() async {
         setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
         defer { unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT") }

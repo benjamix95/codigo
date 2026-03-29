@@ -63,6 +63,21 @@ copy_artifact() {
   mv -f "$tmp_path" "$dest_path"
 }
 
+copy_cached_outputs() {
+  local dylib_src="$OUT_DIR/$LIB_NAME.$DYLIB_EXT"
+  local static_src="$OUT_DIR/$LIB_NAME.a"
+
+  if [[ -f "$dylib_src" && -n "${BUILT_PRODUCTS_DIR:-}" ]]; then
+    copy_artifact "$dylib_src" "$PRODUCTS_OUT"
+  fi
+  if [[ -f "$static_src" && -n "${BUILT_PRODUCTS_DIR:-}" ]]; then
+    copy_artifact "$static_src" "$PRODUCTS_OUT"
+  fi
+  if [[ -f "$dylib_src" && -n "$BUNDLE_OUT" ]]; then
+    copy_artifact "$dylib_src" "$BUNDLE_OUT"
+  fi
+}
+
 resolve_cargo() {
   command -v cargo 2>/dev/null && return 0
   for p in "$HOME/.cargo/bin/cargo" /usr/local/bin/cargo /opt/homebrew/bin/cargo; do
@@ -98,6 +113,7 @@ if [[ -f "$PRIMARY_OUTPUT" ]] && ! needs_rebuild "$STAMP_FILE" \
   "$CRATE_DIR/src" \
   "$ROOT_DIR/Native/Cargo.toml" \
   "$ROOT_DIR/scripts/build_rust_search_backend.sh"; then
+  copy_cached_outputs
   echo "[rust-search] artifact gia' aggiornato, skip build"
   exit 0
 fi

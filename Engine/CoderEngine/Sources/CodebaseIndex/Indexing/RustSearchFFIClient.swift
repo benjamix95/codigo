@@ -33,13 +33,9 @@ public func shouldDeferRustReviewCoreBootstrap(environment: [String: String]) ->
     {
         return true
     }
-    if Bundle.allBundles.contains(where: { $0.bundlePath.hasSuffix(".xctest") }) {
-        return true
-    }
-    if Bundle.allFrameworks.contains(where: { $0.bundlePath.contains("XCTest.framework") }) {
-        return true
-    }
-    return NSClassFromString("XCTestCase") != nil
+    // Use only explicit XCTest launch markers. Debug app bundles can contain
+    // XCTest artifacts without actually running under the XCTest host.
+    return false
 }
 
 func shouldScanDerivedDataForRustReviewCoreFallback(

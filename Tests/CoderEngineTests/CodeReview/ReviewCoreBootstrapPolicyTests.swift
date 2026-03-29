@@ -30,6 +30,12 @@ final class ReviewCoreBootstrapPolicyTests: XCTestCase {
         )
     }
 
+    func testDoesNotDeferRustBootstrapForNormalAppLaunchEnvironment() {
+        XCTAssertFalse(
+            shouldDeferRustReviewCoreBootstrap(environment: [:])
+        )
+    }
+
     func testDerivedDataFallbackIsDisabledWhenRunningInsideAppBundle() {
         XCTAssertFalse(
             shouldScanDerivedDataForRustReviewCoreFallback(
