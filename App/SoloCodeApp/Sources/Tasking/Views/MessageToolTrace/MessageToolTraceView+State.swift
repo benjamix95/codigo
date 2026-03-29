@@ -210,41 +210,18 @@ extension MessageToolTraceView {
     }
     struct EventsChangeToken: Equatable {
         let count: Int
-        let firstId: UUID?
-        let firstSequence: Int
-        let firstRunning: Bool
-        let lastId: UUID?
-        let lastSequence: Int
-        let lastRunning: Bool
-        let lastStatus: String
-        let lastDetail: String
+        let digest: Int
 
         static let empty = EventsChangeToken(
             count: -1,
-            firstId: nil,
-            firstSequence: -1,
-            firstRunning: false,
-            lastId: nil,
-            lastSequence: -1,
-            lastRunning: false,
-            lastStatus: "",
-            lastDetail: ""
+            digest: 0
         )
     }
 
     var eventsChangeToken: EventsChangeToken {
-        let first = events.first
-        let last = events.last
         return EventsChangeToken(
             count: events.count,
-            firstId: first?.id,
-            firstSequence: first?.sequence ?? -1,
-            firstRunning: first?.isRunning ?? false,
-            lastId: last?.id,
-            lastSequence: last?.sequence ?? -1,
-            lastRunning: last?.isRunning ?? false,
-            lastStatus: last?.payload["status"] ?? "",
-            lastDetail: last?.detail ?? ""
+            digest: eventsDigest(events)
         )
     }
 
@@ -265,5 +242,33 @@ extension MessageToolTraceView {
         derivedCache.isExpanded = isExpanded
         derivedCache.changeToken = token
         return d
+    }
+
+    private func eventsDigest(_ events: [ToolTraceEvent]) -> Int {
+        var hasher = Hasher()
+        hasher.combine(events.count)
+
+        for event in events {
+            hasher.combine(event.id)
+            hasher.combine(event.sequence)
+            hasher.combine(event.timestamp.timeIntervalSince1970.bitPattern)
+            hasher.combine(event.providerId)
+            hasher.combine(event.conversationId)
+            hasher.combine(event.assistantMessageId)
+            hasher.combine(event.type)
+            hasher.combine(event.title)
+            hasher.combine(event.detail ?? "")
+            hasher.combine(event.phase.rawValue)
+            hasher.combine(event.isRunning)
+            hasher.combine(event.groupId ?? "")
+            hasher.combine(event.rawKind)
+
+            for key in event.payload.keys.sorted() {
+                hasher.combine(key)
+                hasher.combine(event.payload[key] ?? "")
+            }
+        }
+
+        return hasher.finalize()
     }
 }
