@@ -227,6 +227,7 @@ extension ChatPanelView {
                     composerTimerAutoHideTask?.cancel()
                     composerTimerAutoHideTask = nil
                     lastTaskEndedByManualStop = false
+                    lastTaskCompletionOutcome = nil
                 }
             }
             .onChange(of: inputText) { newValue in
@@ -264,6 +265,7 @@ extension ChatPanelView {
                         composerTimerAutoHideTask?.cancel()
                         composerTimerAutoHideTask = nil
                         lastTaskEndedByManualStop = false
+                        lastTaskCompletionOutcome = nil
                     }
                 }
                 if wasActive && !isActive {
@@ -280,6 +282,7 @@ extension ChatPanelView {
                         let elapsed = max(0, Int(Date().timeIntervalSince(startDate)))
                         let frozen = buildComposerFrozenTimerState(
                             elapsedSeconds: elapsed,
+                            outcome: lastTaskCompletionOutcome,
                             endedByManualStop: lastTaskEndedByManualStop
                         )
                         composerFrozenTimerState = frozen
@@ -296,6 +299,7 @@ extension ChatPanelView {
                             }
                         }
                         lastTaskEndedByManualStop = false
+                        lastTaskCompletionOutcome = nil
                     }
                 }
             }

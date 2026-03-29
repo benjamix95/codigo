@@ -51,6 +51,7 @@ struct ChatComposerView: View {
     let runtimeTaskStartDate: Date?
     let frozenTimerText: String?
     let frozenTimerDismissible: Bool
+    let frozenTimerTone: ComposerFrozenTimerState.Tone
     let isIDEStyle: Bool
     let activeModeColor: Color
     let activeModeGradient: LinearGradient

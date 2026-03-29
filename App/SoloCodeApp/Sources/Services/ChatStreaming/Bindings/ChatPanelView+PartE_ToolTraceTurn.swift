@@ -117,6 +117,9 @@ extension ChatPanelView {
     @MainActor
     internal func finalizeToolTraceTurn(conversationId: UUID?, outcome: ToolTraceTurnOutcome? = nil) {
         let finalOutcome = outcome ?? toolTraceTurnOutcome(for: flowCoordinator.state)
+        if let conversationId, conversationId == self.conversationId {
+            lastTaskCompletionOutcome = finalOutcome
+        }
 
         if let conversationId {
             guard let active = toolRuntime.activeToolTraceTurnsByConversation[conversationId] else { return }

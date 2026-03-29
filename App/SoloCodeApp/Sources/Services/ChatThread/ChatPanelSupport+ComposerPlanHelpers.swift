@@ -4,9 +4,16 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct ComposerFrozenTimerState: Equatable {
+    enum Tone: Equatable {
+        case neutral
+        case success
+        case error
+    }
+
     let text: String
     let dismissible: Bool
     let autoHideDelay: TimeInterval?
+    let tone: Tone
 }
 
 func formatComposerElapsed(_ seconds: Int) -> String {
@@ -18,12 +25,27 @@ func formatComposerElapsed(_ seconds: Int) -> String {
 
 func buildComposerFrozenTimerState(
     elapsedSeconds: Int,
+    outcome: ToolTraceTurnOutcome?,
     endedByManualStop: Bool
 ) -> ComposerFrozenTimerState {
-    ComposerFrozenTimerState(
+    let resolvedTone: ComposerFrozenTimerState.Tone = {
+        switch outcome {
+        case .success?:
+            return .success
+        case .failed?:
+            return .error
+        case .aborted?:
+            return endedByManualStop ? .neutral : .error
+        case nil:
+            return endedByManualStop ? .neutral : .success
+        }
+    }()
+
+    return ComposerFrozenTimerState(
         text: formatComposerElapsed(elapsedSeconds),
         dismissible: !endedByManualStop,
-        autoHideDelay: endedByManualStop ? 2.0 : nil
+        autoHideDelay: endedByManualStop ? 2.0 : nil,
+        tone: resolvedTone
     )
 }
 

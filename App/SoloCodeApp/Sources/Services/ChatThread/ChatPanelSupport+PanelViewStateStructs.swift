@@ -44,6 +44,7 @@ struct ChatPanelComposerViewState {
     var composerTimerAutoHideTask: Task<Void, Never>?
     var composerTaskStartDate: Date?
     var lastTaskEndedByManualStop = false
+    var lastTaskCompletionOutcome: ToolTraceTurnOutcome?
     var isOptimizingPrompt = false
     var showPromptOptimizerPopup = false
     var optimizedPromptResult = ""

@@ -31,6 +31,9 @@ extension ChatPanelView {
 
     var composerFrozenTimerText: String? { composerFrozenTimerState?.text }
     var composerFrozenTimerDismissible: Bool { composerFrozenTimerState?.dismissible == true }
+    var composerFrozenTimerTone: ComposerFrozenTimerState.Tone {
+        composerFrozenTimerState?.tone ?? .neutral
+    }
 
     var shouldShowTaskPanelTodoSection: Bool {
         let planFlowActive =

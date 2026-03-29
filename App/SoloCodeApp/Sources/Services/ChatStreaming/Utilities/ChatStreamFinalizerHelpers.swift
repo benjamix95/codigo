@@ -68,6 +68,22 @@ enum ChatStreamFinalizerUIDecisions {
         guard let conversation else { return false }
         guard conversation.messages.contains(where: { $0.role == .assistant }) else { return false }
         guard let lastMessage = conversation.messages.last else { return false }
-        return lastMessage.role == .assistant && !lastMessage.isStreaming
+        return lastMessage.role == .assistant && isEffectivelyFinalAssistantMessage(lastMessage)
+    }
+
+    private static func isEffectivelyFinalAssistantMessage(_ message: ChatMessage) -> Bool {
+        guard message.role == .assistant else { return false }
+        if !message.isStreaming { return true }
+
+        let normalizedStatus = message.turnMetadata?.status
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        if normalizedStatus == "completed"
+            || normalizedStatus == "failed"
+            || normalizedStatus == "cancelled" {
+            return true
+        }
+
+        return message.turnMetadata?.completedAt != nil
     }
 }

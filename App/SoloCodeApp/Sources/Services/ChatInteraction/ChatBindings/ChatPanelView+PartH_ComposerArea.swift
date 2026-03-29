@@ -67,6 +67,7 @@ extension ChatPanelView {
                 runtimeTaskStartDate: composerRuntimeStartDate,
                 frozenTimerText: composerFrozenTimerText,
                 frozenTimerDismissible: composerFrozenTimerDismissible,
+                frozenTimerTone: composerFrozenTimerTone,
                 isIDEStyle: coderMode == .ide,
                 activeModeColor: activeModeColor,
                 activeModeGradient: activeModeGradient,

@@ -7,17 +7,39 @@ import XCTest
 
 final class ComposerRuntimeTimerTests: XCTestCase {
     func testBuildComposerFrozenTimerStateForManualStopAutoHides() {
-        let state = buildComposerFrozenTimerState(elapsedSeconds: 95, endedByManualStop: true)
+        let state = buildComposerFrozenTimerState(
+            elapsedSeconds: 95,
+            outcome: .aborted,
+            endedByManualStop: true
+        )
         XCTAssertEqual(state.text, "1:35")
         XCTAssertFalse(state.dismissible)
         XCTAssertEqual(state.autoHideDelay, 2.0)
+        XCTAssertEqual(state.tone, .neutral)
     }
 
     func testBuildComposerFrozenTimerStateForNaturalCompletionIsDismissible() {
-        let state = buildComposerFrozenTimerState(elapsedSeconds: 125, endedByManualStop: false)
+        let state = buildComposerFrozenTimerState(
+            elapsedSeconds: 125,
+            outcome: .success,
+            endedByManualStop: false
+        )
         XCTAssertEqual(state.text, "2:05")
         XCTAssertTrue(state.dismissible)
         XCTAssertNil(state.autoHideDelay)
+        XCTAssertEqual(state.tone, .success)
+    }
+
+    func testBuildComposerFrozenTimerStateForProgramAbortUsesErrorTone() {
+        let state = buildComposerFrozenTimerState(
+            elapsedSeconds: 30,
+            outcome: .aborted,
+            endedByManualStop: false
+        )
+
+        XCTAssertTrue(state.dismissible)
+        XCTAssertNil(state.autoHideDelay)
+        XCTAssertEqual(state.tone, .error)
     }
 
     func testFormatComposerElapsedClampsNegativeValue() {
@@ -43,6 +65,7 @@ final class ComposerRuntimeTimerTests: XCTestCase {
             runtimeTaskStartDate: nil,
             frozenTimerText: nil,
             frozenTimerDismissible: false,
+            frozenTimerTone: .neutral,
             isIDEStyle: false,
             activeModeColor: .mint,
             activeModeGradient: LinearGradient(

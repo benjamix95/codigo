@@ -217,43 +217,6 @@ extension ChatComposerView {
     }
 
     @ViewBuilder
-    internal var runtimeTimerLabel: some View {
-        if let startDate = runtimeTaskStartDate {
-            ElapsedTimerView(startDate: startDate) { elapsed in
-                Text(formatElapsed(elapsed))
-                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .frame(minWidth: 36, alignment: .trailing)
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 4)
-                    .background(Color.white.opacity(0.08), in: Capsule())
-            }
-        } else if let frozenTimerText {
-            if frozenTimerDismissible {
-                Button {
-                    onDismissFrozenTimer()
-                } label: {
-                    Text(frozenTimerText)
-                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 4)
-                        .background(Color.white.opacity(0.08), in: Capsule())
-                }
-                .buttonStyle(.plain)
-                .help("Hide timer")
-            } else {
-                Text(frozenTimerText)
-                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 4)
-                    .background(Color.white.opacity(0.08), in: Capsule())
-            }
-        }
-    }
-
-    @ViewBuilder
     internal var voiceStatusView: some View {
         switch voiceState {
         case .idle:

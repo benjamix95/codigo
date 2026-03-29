@@ -81,6 +81,11 @@ extension ChatPanelView {
         nonmutating set { composerState.lastTaskEndedByManualStop = newValue }
     }
 
+    var lastTaskCompletionOutcome: ToolTraceTurnOutcome? {
+        get { composerState.lastTaskCompletionOutcome }
+        nonmutating set { composerState.lastTaskCompletionOutcome = newValue }
+    }
+
     var isOptimizingPrompt: Bool {
         get { composerState.isOptimizingPrompt }
         nonmutating set { composerState.isOptimizingPrompt = newValue }

@@ -53,6 +53,36 @@ final class ChatPanelFinalActionsVisibilityTests: XCTestCase {
         )
     }
 
+    func testVisibleWhenLastAssistantStreamingFlagIsStaleButTurnMetadataIsCompleted() {
+        let conversation = Conversation(
+            title: "Thread",
+            messages: [
+                ChatMessage(
+                    role: .assistant,
+                    content: "Final answer",
+                    turnMetadata: ChatTurnMetadata(
+                        turnId: "turn-1",
+                        providerId: "codex-cli",
+                        sequence: 1,
+                        status: "completed",
+                        startedAt: Date(timeIntervalSince1970: 10),
+                        completedAt: Date(timeIntervalSince1970: 12),
+                        updatedAt: Date(timeIntervalSince1970: 12),
+                        isStreaming: false
+                    ),
+                    isStreaming: true
+                ),
+            ]
+        )
+
+        XCTAssertTrue(
+            ChatPanelView.shouldShowFinalChatActions(
+                conversation: conversation,
+                isLoadingForCurrentConversation: false
+            )
+        )
+    }
+
     func testVisibleWhenLastMessageIsFinalAssistant() {
         let conversation = Conversation(
             title: "Thread",
