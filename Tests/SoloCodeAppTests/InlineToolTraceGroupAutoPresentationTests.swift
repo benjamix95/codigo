@@ -38,6 +38,25 @@ final class InlineToolTraceGroupAutoPresentationTests: XCTestCase {
         XCTAssertTrue(next.didAutoCollapseAfterCompletion)
     }
 
+    func testReconcileAutoCollapsesCompletedTerminalSection() {
+        let runningTerminal = InlineToolTraceGroupAutoPresentationState(
+            isExpanded: true,
+            didAutoCollapseAfterCompletion: false
+        )
+
+        let completedTerminal = InlineToolTraceGroupAutoPresentation.reconcile(
+            current: runningTerminal,
+            hasRunningEvent: false,
+            hasEvents: true
+        )
+
+        XCTAssertFalse(
+            completedTerminal.isExpanded,
+            "Le sezioni terminal devono richiudersi appena il gruppo non e' piu' running."
+        )
+        XCTAssertTrue(completedTerminal.didAutoCollapseAfterCompletion)
+    }
+
     func testReconcilePreservesManualReopenAfterAutoCollapse() {
         let current = InlineToolTraceGroupAutoPresentationState(
             isExpanded: true,

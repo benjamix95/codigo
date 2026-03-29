@@ -19,5 +19,6 @@
 - **Strategia di fix minimo:** mantenere i gruppi collassabili solo per `exploration` e `terminal`; lasciare gli edit come `.toolEvent` standalone e usare il titolo normalizzato del file change.
 - **Refinement UI:** riga standalone dedicata con action label attenuata, filename in evidenza e badge `+/-` colorati, così il file toccato resta leggibile anche a colpo d'occhio.
 - **Refinement UI 2:** uniformata anche la resa delle righe `exploration` e `terminal` nei gruppi inline, con header del gruppo più leggibile e row compatte nello stesso linguaggio visivo.
+- **Regressione coperta:** aggiunto controllo esplicito sul fatto che una sezione `terminal` completata torni collassata appena il gruppo non e' piu' running.
 - **Verifica post-fix:** test mirati `ChatTimelineInlineToolGroupingTests` e `InlineToolTraceEventViewDisplayTests`; verifica manuale sulla timeline chat con mix read/edit.
 - **Commit previsto:** `fix(chat): keep edited files visible outside tool groups`

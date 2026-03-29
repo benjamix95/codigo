@@ -8,5 +8,5 @@
 - Estratta anche [`ChatTurnInlineToolGroupRowView.swift`](/Users/benjaminstoica/SoloCode/App/SoloCodeApp/Sources/ChatView/Timeline/ChatTurnInlineToolGroupRowView.swift) per dare a righe `exploration` e `terminal` lo stesso linguaggio visivo compatto delle righe edit; aggiornato anche l'header di gruppo in [`InlineToolTraceGroupView.swift`](/Users/benjaminstoica/SoloCode/App/SoloCodeApp/Sources/ChatView/Timeline/InlineToolTraceGroupView.swift).
 
 ## Verifiche
-- `xcodebuild test -workspace '/Users/benjaminstoica/SoloCode/Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/ChatTimelineInlineToolGroupingTests -only-testing:SoloCodeAppTests/InlineToolTraceEventViewDisplayTests -only-testing:SoloCodeAppTests/ChatTurnInlineToolGroupRowPresentationTests`
-- Esito: successo, 6 test eseguiti senza failure.
+- `xcodebuild test -workspace '/Users/benjaminstoica/SoloCode/Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/ChatTimelineInlineToolGroupingTests -only-testing:SoloCodeAppTests/InlineToolTraceEventViewDisplayTests -only-testing:SoloCodeAppTests/ChatTurnInlineToolGroupRowPresentationTests -only-testing:SoloCodeAppTests/InlineToolTraceGroupAutoPresentationTests`
+- Esito: successo, 12 test eseguiti senza failure.
