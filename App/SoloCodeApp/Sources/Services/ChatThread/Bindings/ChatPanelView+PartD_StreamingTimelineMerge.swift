@@ -61,7 +61,12 @@ extension ChatPanelView {
                 // #endregion
             }
             if resolution.source == .persistedMessage {
-                conversationRuntime.cachePipelineTurnStateForAssistantMessage(turn)
+                // `messageForStreamingTimelineDisplay` è nel percorso di layout del body: mutare
+                // `@State conversationRuntime` qui innesca “Modifying state during view update”.
+                let turnToCache = turn
+                Task { @MainActor in
+                    conversationRuntime.cachePipelineTurnStateForAssistantMessage(turnToCache)
+                }
             }
             if mergeUsedSyntheticTurn,
                let syntheticReason = resolution.syntheticReason
