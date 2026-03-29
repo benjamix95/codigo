@@ -3,7 +3,7 @@ use crate::tool_schema::input_schema_for;
 
 const TOOL_NAMES: &str = include_str!("tool_names.txt");
 pub const CATALOG_VERSION: &str = "2026-03-26";
-pub const CATALOG_TOOL_COUNT: usize = 138;
+pub const CATALOG_TOOL_COUNT: usize = 140;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ToolFamily {

@@ -29,6 +29,8 @@ public enum ReviewAuditToolName {
     public static let perfUIResponsiveness = "audit_perf_ui_responsiveness"
     public static let perfStartup = "audit_perf_startup"
     public static let perfHotPaths = "audit_perf_hot_paths"
+    public static let perfCorrelate = "audit_perf_correlate"
+    public static let perfTrending = "audit_perf_trending"
 
     public static let runProfile = "audit_run_profile"
     public static let correlateFindings = "audit_correlate_findings"
@@ -69,6 +71,11 @@ public enum ReviewAuditToolName {
         perfHotPaths,
     ]
 
+    public static let performanceAdvancedTools = [
+        perfCorrelate,
+        perfTrending,
+    ]
+
     public static let metaTools = [
         runProfile,
         correlateFindings,
@@ -77,7 +84,7 @@ public enum ReviewAuditToolName {
     ]
 
     public static let all = securityTools + bugTools + performanceTools
-    public static let allToolNames = all + metaTools
+    public static let allToolNames = all + performanceAdvancedTools + metaTools
 }
 
 public enum ReviewAuditProfile: String, Sendable, Codable, CaseIterable {

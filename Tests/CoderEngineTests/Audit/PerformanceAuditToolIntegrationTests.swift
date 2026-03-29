@@ -33,6 +33,19 @@ final class PerformanceAuditToolIntegrationTests: XCTestCase {
             registry.record(forRuntimeName: "coderide_audit_perf_hot_paths")?.runtimeName,
             ReviewAuditToolName.perfHotPaths
         )
+        XCTAssertEqual(
+            registry.record(forRuntimeName: "auditperfcorrelate")?.runtimeName,
+            ReviewAuditToolName.perfCorrelate
+        )
+        XCTAssertEqual(
+            registry.record(forRuntimeName: "auditperftrending")?.runtimeName,
+            ReviewAuditToolName.perfTrending
+        )
+    }
+
+    func testAdvancedPerformanceAuditToolsAreAddressable() {
+        XCTAssertTrue(ReviewAuditToolName.allToolNames.contains(ReviewAuditToolName.perfCorrelate))
+        XCTAssertTrue(ReviewAuditToolName.allToolNames.contains(ReviewAuditToolName.perfTrending))
     }
 
     func testPerformanceAuditToolsAreReadOnlyForProviderPolicy() {

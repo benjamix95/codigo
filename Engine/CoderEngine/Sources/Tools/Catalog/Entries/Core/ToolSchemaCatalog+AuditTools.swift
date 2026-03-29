@@ -27,6 +27,8 @@ extension ToolSchemaCatalog {
         auditEntry(ReviewAuditToolName.perfUIResponsiveness, "Detect UI-thread blocking work and responsiveness regressions"),
         auditEntry(ReviewAuditToolName.perfStartup, "Detect eager startup work, constructors, and launch-time regressions"),
         auditEntry(ReviewAuditToolName.perfHotPaths, "Detect hot paths using churn, complexity, and nested-loop signals"),
+        auditEntry(ReviewAuditToolName.perfCorrelate, "Correlate multiple performance findings into compound hotspots and shared clusters"),
+        auditEntry(ReviewAuditToolName.perfTrending, "Compare current performance findings against baseline trends and highlight regressions"),
         auditEntry(ReviewAuditToolName.runProfile, "Run a predefined audit profile and aggregate its findings", properties: [
             "profile": ["type": "string", "description": "quick, security_deep, bug_hunt_deep, performance_deep, performance_extended, performance_full, release_gate, ios_preflight, backend_regression"],
             "scope_files": ["type": "string", "description": "Optional JSON array or comma-separated list of scoped files"],

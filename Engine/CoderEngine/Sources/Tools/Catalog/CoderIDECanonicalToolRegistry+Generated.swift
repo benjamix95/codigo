@@ -518,6 +518,42 @@ enum CoderIDECanonicalToolRegistryGenerated {
           }
         },
         {
+          "mcp_name": "coderide_audit_perf_correlate",
+          "runtime_name": "audit_perf_correlate",
+          "family": "audit",
+          "description": "Read-only performance audit helper: correlate multiple perf findings into compound hotspots and shared clusters. Usage: optional path, scope_files or scopeFiles (JSON array or CSV).",
+          "read_only": true,
+          "mutating_runtime": false,
+          "first_round_exempt": false,
+          "plugin_capabilities": [],
+          "runtime_aliases": [
+            "auditperfcorrelate"
+          ],
+          "availability": {
+            "app": "available",
+            "subagents": "available",
+            "providers": "available"
+          }
+        },
+        {
+          "mcp_name": "coderide_audit_perf_trending",
+          "runtime_name": "audit_perf_trending",
+          "family": "audit",
+          "description": "Read-only performance audit helper: compare current perf findings with baseline trends and surface regressions. Usage: optional path, scope_files or scopeFiles (JSON array or CSV).",
+          "read_only": true,
+          "mutating_runtime": false,
+          "first_round_exempt": false,
+          "plugin_capabilities": [],
+          "runtime_aliases": [
+            "auditperftrending"
+          ],
+          "availability": {
+            "app": "available",
+            "subagents": "available",
+            "providers": "available"
+          }
+        },
+        {
           "mcp_name": "coderide_bughunter_autofix_apply",
           "runtime_name": "bughunter_autofix_apply",
           "family": "bughunter",

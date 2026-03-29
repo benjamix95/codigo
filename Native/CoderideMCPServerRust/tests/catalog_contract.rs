@@ -22,7 +22,7 @@ fn tools_list_matches_frozen_catalog_size_and_annotations() {
 
     let listed = read_message(&mut child);
     let tools = listed["result"]["tools"].as_array().expect("tools array");
-    assert_eq!(tools.len(), 138);
+    assert_eq!(tools.len(), 140);
     assert!(tools.iter().all(|tool| tool["description"].is_string()));
     assert!(tools
         .iter()
@@ -42,6 +42,21 @@ fn tools_list_matches_frozen_catalog_size_and_annotations() {
     assert!(tools
         .iter()
         .any(|tool| tool["name"] == "coderide_subagent_debugger"));
+    assert!(tools
+        .iter()
+        .any(|tool| tool["name"] == "coderide_audit_perf_correlate"));
+    assert!(tools
+        .iter()
+        .any(|tool| tool["name"] == "coderide_audit_perf_trending"));
+
+    let perf_correlate = tools
+        .iter()
+        .find(|tool| tool["name"] == "coderide_audit_perf_correlate")
+        .expect("perf correlate tool");
+    assert!(perf_correlate["description"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("correlate multiple perf findings"));
 
     terminate(child);
 }

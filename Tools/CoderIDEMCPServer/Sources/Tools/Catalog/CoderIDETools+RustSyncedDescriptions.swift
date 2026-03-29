@@ -51,6 +51,8 @@ enum RustSyncedToolDescriptions {
       "coderide_audit_perf_ui_responsiveness": "Read-only performance audit: detect UI responsiveness issues such as main-thread blocking, heavy onAppear, and synchronous I/O in UI code. Usage: optional path, scope_files or scopeFiles (JSON array or CSV).",
       "coderide_audit_perf_startup": "Read-only performance audit: detect startup-time issues such as +load methods, constructors, and eager initialization. Usage: optional path, scope_files or scopeFiles (JSON array or CSV).",
       "coderide_audit_perf_hot_paths": "Read-only performance audit: detect hot paths via git churn analysis, nested loops, and file complexity indicators. Usage: optional path, scope_files or scopeFiles (JSON array or CSV).",
+      "coderide_audit_perf_correlate": "Read-only performance audit helper: correlate multiple perf findings into compound hotspots and shared clusters. Usage: optional path, scope_files or scopeFiles (JSON array or CSV).",
+      "coderide_audit_perf_trending": "Read-only performance audit helper: compare current perf findings with baseline trends and surface regressions. Usage: optional path, scope_files or scopeFiles (JSON array or CSV).",
       "coderide_bughunter_autofix_apply": "Apply autofix for top verified finding. Usage: run_id (required); optional conversation_id.",
       "coderide_bughunter_autofix_commit": "Apply+commit autofix and queue follow-up review. Usage: run_id (required); optional conversation_id.",
       "coderide_bughunter_autofix_preview": "Preview autofix for top verified BugHunter finding. Usage: run_id (required); optional conversation_id.",

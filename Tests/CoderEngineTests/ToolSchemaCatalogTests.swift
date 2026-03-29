@@ -26,7 +26,7 @@ final class ToolSchemaCatalogTests: XCTestCase {
             "audit_bug_error_handling", "audit_bug_api_contracts", "audit_bug_test_impact",
             "audit_bug_dependency_drift", "audit_bug_diff_semantics",
             "audit_perf_bottlenecks", "audit_perf_memory", "audit_perf_ui_responsiveness",
-            "audit_perf_startup", "audit_perf_hot_paths",
+            "audit_perf_startup", "audit_perf_hot_paths", "audit_perf_correlate", "audit_perf_trending",
             "audit_run_profile", "audit_correlate_findings", "audit_verify_bundle", "audit_explain_finding",
             "codebase_search", "find_symbol", "list_symbols", "find_references",
             "index_status", "reindex",

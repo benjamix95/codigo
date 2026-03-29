@@ -4,17 +4,18 @@ use std::collections::HashMap;
 use std::sync::OnceLock;
 
 pub fn description_for(name: &str) -> String {
-    if let Some(text) = audit_description(name) {
-        return text;
-    }
     static MAP: OnceLock<HashMap<String, String>> = OnceLock::new();
     let map = MAP.get_or_init(|| {
         serde_json::from_str(include_str!("tool_descriptions.json"))
             .expect("parse embedded tool_descriptions.json")
     });
-    map.get(name)
-        .cloned()
-        .unwrap_or_else(|| format!("CoderIDE tool `{name}` — add entry to tool_descriptions.json or audit_description match."))
+    if let Some(text) = map.get(name).cloned() {
+        return text;
+    }
+    if let Some(text) = audit_description(name) {
+        return text;
+    }
+    format!("CoderIDE tool `{name}` — add entry to tool_descriptions.json or audit_description match.")
 }
 
 fn audit_description(name: &str) -> Option<String> {

@@ -334,6 +334,8 @@ extension UnifiedToolRuntime {
              ReviewAuditToolName.perfUIResponsiveness,
              ReviewAuditToolName.perfStartup,
              ReviewAuditToolName.perfHotPaths,
+             ReviewAuditToolName.perfCorrelate,
+             ReviewAuditToolName.perfTrending,
              ReviewAuditToolName.runProfile,
              ReviewAuditToolName.correlateFindings,
              ReviewAuditToolName.verifyBundle,
