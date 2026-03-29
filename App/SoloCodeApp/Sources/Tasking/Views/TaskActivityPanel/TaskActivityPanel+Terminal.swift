@@ -23,7 +23,7 @@ struct ChatTerminalSessionsView: View {
     }
 
     private var runningSession: TerminalActivitySession? {
-        sessions.first(where: { $0.isRunning || $0.status == "started" || $0.status == "running" || $0.status == "in_progress" })
+        sessions.first(where: \.isRunning)
     }
 
     private var terminalCardFill: Color { Color(nsColor: .controlBackgroundColor).opacity(0.22) }
@@ -260,7 +260,7 @@ struct ChatTerminalSessionsView: View {
             output: preferLonger(existing.output, incoming.output),
             stderr: preferLonger(existing.stderr, incoming.stderr),
             timestamp: max(existing.timestamp, incoming.timestamp),
-            isRunning: incoming.isRunning || (incoming.status == "started" || incoming.status == "running" || incoming.status == "in_progress"),
+            isRunning: incoming.isRunning,
             sourceActivityId: incoming.sourceActivityId,
             groupId: incoming.groupId ?? existing.groupId,
             toolCallId: incoming.toolCallId ?? existing.toolCallId,

@@ -70,4 +70,41 @@ final class TerminalActivitySessionTests: XCTestCase {
         XCTAssertEqual(session.id, "call-camel-9")
         XCTAssertEqual(session.command, "pwd")
     }
+
+    func testInitFromActivityTreatsCompletedStatusAsNotRunning() {
+        let activity = TaskActivity(
+            type: "command_execution",
+            title: "Run command",
+            detail: nil,
+            payload: [
+                "tool_call_id": "tc-complete-1",
+                "status": "completed",
+                "command": "swift test",
+            ],
+            timestamp: Date(timeIntervalSince1970: 400),
+            phase: .executing,
+            isRunning: true,
+            groupId: nil
+        )
+
+        let session = TerminalActivitySession(from: activity)
+
+        XCTAssertEqual(session.status, "completed")
+        XCTAssertFalse(session.isRunning)
+    }
+
+    func testRunningStateUsesStartedStatusEvenWhenFallbackIsFalse() {
+        XCTAssertTrue(
+            TerminalActivitySession.normalizedRunningState(
+                status: "started",
+                fallbackIsRunning: false
+            )
+        )
+        XCTAssertFalse(
+            TerminalActivitySession.normalizedRunningState(
+                status: "completed",
+                fallbackIsRunning: true
+            )
+        )
+    }
 }

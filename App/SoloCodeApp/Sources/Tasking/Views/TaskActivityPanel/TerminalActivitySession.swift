@@ -44,6 +44,7 @@ struct TerminalActivitySession: Identifiable {
     }
 
     init(from activity: TaskActivity) {
+        let normalizedStatus = activity.payload["status"]?.lowercased()
         sourceActivityId = activity.id
         toolCallId = activity.payload["tool_call_id"]
             ?? activity.payload["toolCallId"]
@@ -57,7 +58,10 @@ struct TerminalActivitySession: Identifiable {
         output = activity.payload["output"]
         stderr = activity.payload["stderr"]
         timestamp = activity.timestamp
-        isRunning = activity.isRunning
-        status = activity.payload["status"]?.lowercased()
+        status = normalizedStatus
+        isRunning = Self.normalizedRunningState(
+            status: normalizedStatus,
+            fallbackIsRunning: activity.isRunning
+        )
     }
 }
