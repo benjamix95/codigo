@@ -29,6 +29,7 @@ enum CoderideDisplayLineFilter {
         if core.isEmpty { return false }
         let lower = core.lowercased()
         if lower.contains("[policy error]") { return true }
+        if lower.hasPrefix("select:") { return true }
         if lower.contains("[coderide") { return true }
         if lower.hasPrefix("coderide_") { return true }
         if lower.hasPrefix("mcp__coderide__coderide_") { return true }

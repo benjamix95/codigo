@@ -62,6 +62,21 @@ final class ChatStreamFailureHandlingTests: XCTestCase {
         XCTAssertFalse(out.contains("CODERIDE"))
     }
 
+    func testCoderideDisplayLineFilterRemovesInternalSelectLines() {
+        let content = """
+        Prima riga
+        select:mcp__coderide__coderide_grep,mcp__coderide__coderide_read_range
+        Ultima riga
+        """
+
+        let out = CoderideDisplayLineFilter.stripDisplayLinesWithCoderideToolPrefix(content)
+
+        XCTAssertTrue(out.contains("Prima riga"))
+        XCTAssertTrue(out.contains("Ultima riga"))
+        XCTAssertFalse(out.contains("select:"))
+        XCTAssertFalse(out.contains("coderide_grep"))
+    }
+
     func testStripStreamingCoderideMarkersRemovesInlinePolicyAckWithoutTrimmingVisibleText() {
         let content = """
         [CODERIDE:policy_ack|hash=abc123]

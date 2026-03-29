@@ -1,8 +1,10 @@
+use super::codex_app_server_prompt::merged_codex_base_instructions;
 use super::codex_app_server_support::{
     enrich_codex_process_error, first_result_text, flatten_app_server_params_to_payload,
     is_turn_completed, json_rpc_id, normalize_status, raw_string_field, send_error,
     send_notification, send_request, send_result, spawn_stderr_collector,
 };
+use super::codex_app_server_tool_search::CodexToolSearchEmitter;
 use crate::main_chat::providers::common::string_value;
 use crate::main_chat::providers::session::{emit_error, emit_raw, emit_text_delta, is_cancelled};
 use app_core_protocol::main_chat_provider::MainChatProviderSessionConfig;
@@ -59,6 +61,8 @@ struct CodexAgentMessageGate {
     visible_timeline_text: String,
     /// `phase` dell’item `agentMessage` da `item/started` (le delta spesso non la ripetono).
     agent_message_phase_by_item_id: HashMap<String, String>,
+    /// Parser incrementale delle righe `select:...` emesse dal runtime Codex durante la selection dei tool.
+    tool_search_emitter: CodexToolSearchEmitter,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -127,6 +131,17 @@ impl CodexAgentMessageGate {
 
     fn flush_pending(&mut self) -> Option<String> {
         None
+    }
+
+    fn extract_tool_search_from_delta(&mut self, delta: &str) -> Vec<BTreeMap<String, String>> {
+        self.tool_search_emitter.consume_delta(delta)
+    }
+
+    fn extract_tool_search_from_completed_text(
+        &mut self,
+        text: &str,
+    ) -> Vec<BTreeMap<String, String>> {
+        self.tool_search_emitter.consume_completed_text(text)
     }
 }
 
@@ -345,6 +360,9 @@ fn handle_notification(
                 // passa da `text_delta`; gli `assistant_update` restano su
                 // `item/started` e `item/completed`.
                 gate.refresh_agent_message_phase_from_delta_payload(&payload);
+                for tool_search_payload in gate.extract_tool_search_from_delta(&delta) {
+                    emit_raw(session_id, "tool_search", tool_search_payload);
+                }
             }
         }
         "item/reasoning/textDelta" | "item/reasoning/summaryTextDelta" => {
@@ -485,6 +503,9 @@ fn handle_item_notification(
                 card.insert("phase_kind".to_string(), phase_kind.to_string());
             }
             if let Some(text) = item.get("text").and_then(string_value) {
+                for tool_search_payload in gate.extract_tool_search_from_completed_text(&text) {
+                    emit_raw(session_id, "tool_search", tool_search_payload);
+                }
                 card.insert("output".to_string(), codex_truncate_str(&text, 2_000));
             }
             card.insert("lifecycle".to_string(), "completed".to_string());
@@ -874,7 +895,7 @@ fn thread_start_params(config: &MainChatProviderSessionConfig) -> Value {
         "modelProvider": config.codex_model_provider.clone(),
         "approvalPolicy": config.codex_ask_for_approval.clone().unwrap_or_else(|| "never".to_string()),
         "sandbox": sandbox_value(config),
-        "baseInstructions": config.system_prompt.clone(),
+        "baseInstructions": merged_codex_base_instructions(config.system_prompt.as_deref()),
         "developerInstructions": config.context_prompt.clone(),
         "ephemeral": true,
         "experimentalRawEvents": true,
