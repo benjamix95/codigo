@@ -25,6 +25,7 @@ extension UnifiedToolRuntime {
             statusInfo: refreshedStatus,
             requestedWorkspacePaths: requestedPaths
         ) else {
+            await scheduleVectorBackfillIfNeeded(index: index)
             return .useIndex
         }
 

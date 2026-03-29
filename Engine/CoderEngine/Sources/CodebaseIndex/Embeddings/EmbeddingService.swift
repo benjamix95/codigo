@@ -32,7 +32,7 @@ public actor EmbeddingService {
     // MARK: - Public API
 
     /// Embed a single text → 384-dim vector.
-    /// Returns nil if all backends are unavailable.
+    /// Falls back to deterministic pseudo-hash embeddings if no native backend is available.
     public func embed(_ text: String) async -> [Float]? {
         // Try CoreML.
         if let backend = coreMLBackend {
@@ -46,8 +46,9 @@ public actor EmbeddingService {
             activeBackend = .rustONNX
             return result
         }
-        logger.warning("No embedding backend available for text (\(text.prefix(50))...)")
-        return nil
+        activeBackend = .pseudoHash
+        logger.warning("No native embedding backend available for text (\(text.prefix(50))...) — using pseudo-hash fallback")
+        return PseudoHashEmbeddingBackend.embed(text)
     }
 
     /// Embed a batch of texts. Returns one vector per input (same order).
@@ -86,8 +87,9 @@ public actor EmbeddingService {
             }
         }
 
-        logger.warning("No embedding backend available for batch of \(texts.count) texts")
-        return texts.map { _ in nil }
+        activeBackend = .pseudoHash
+        logger.warning("No native embedding backend available for batch of \(texts.count) texts — using pseudo-hash fallback")
+        return PseudoHashEmbeddingBackend.embedBatch(texts).map(Optional.init)
     }
 
     /// Which backend is currently active.
@@ -99,7 +101,7 @@ public actor EmbeddingService {
     public func isAvailable() async -> Bool {
         if let backend = coreMLBackend, await backend.isAvailable { return true }
         if await rustBackend.isAvailable { return true }
-        return false
+        return true
     }
 
     // MARK: - Private

@@ -11,6 +11,8 @@ extension UnifiedToolRuntime {
         let vectorEnabled = IndexFeatureFlags.vectorSearchEnabled
         let trigramEnabled = IndexFeatureFlags.trigramIndexEnabled
         let vectorDBAvailable = (try? PostgresPersistenceStore.shared.isVectorSearchAvailable()) ?? false
+        let vectorStats = (try? PostgresPersistenceStore.shared.vectorSearchTableStats())
+            ?? VectorSearchTableStats(rowCount: 0, fileCount: 0)
         let postgresConfiguration = ManagedPostgresConfiguration.default
 
         var payload: [String: String] = [
@@ -20,6 +22,8 @@ extension UnifiedToolRuntime {
             "grep_cache_entries": "\(grepFallbackCacheOrder.count)",
             "vector_enabled": vectorEnabled ? "true" : "false",
             "vector_db_available": vectorDBAvailable ? "true" : "false",
+            "embedding_row_count": "\(vectorStats.rowCount)",
+            "embedding_file_count": "\(vectorStats.fileCount)",
             "trigram_enabled": trigramEnabled ? "true" : "false",
             "postgres_port": "\(postgresConfiguration.port)",
             "postgres_root": postgresConfiguration.rootDirectory.path,
@@ -68,6 +72,8 @@ extension UnifiedToolRuntime {
         - rg_available: \(rgAvailable ? "yes" : "no")
         - vector_enabled: \(vectorEnabled ? "yes" : "no")
         - vector_db_available: \(vectorDBAvailable ? "yes" : "no")
+        - embedding_row_count: \(vectorStats.rowCount)
+        - embedding_file_count: \(vectorStats.fileCount)
         - trigram_enabled: \(trigramEnabled ? "yes" : "no")
         - embedding_backend: \(payload["embedding_backend"] ?? "unknown")
         - postgres_port: \(payload["postgres_port"] ?? "unknown")

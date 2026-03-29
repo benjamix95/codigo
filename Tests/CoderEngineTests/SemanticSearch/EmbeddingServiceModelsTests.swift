@@ -82,4 +82,23 @@ final class EmbeddingServiceModelsTests: XCTestCase {
         XCTAssertEqual(response.error?.code, "fail")
         XCTAssertEqual(response.error?.message, "oops")
     }
+
+    func testPseudoHashEmbeddingBackendProducesNormalizedEmbedding() {
+        let embedding = PseudoHashEmbeddingBackend.embed("where is auth flow handled")
+
+        XCTAssertEqual(embedding.count, 384)
+        XCTAssertTrue(embedding.contains { $0 != 0 })
+        let norm = sqrt(embedding.reduce(0) { $0 + ($1 * $1) })
+        XCTAssertEqual(norm, 1.0, accuracy: 0.0001)
+    }
+
+    func testEmbeddingServiceFallsBackToPseudoHashWhenNativeBackendsAreUnavailable() async {
+        let service = EmbeddingService(vocabURL: URL(fileURLWithPath: "/tmp/nonexistent-vocab.txt"))
+
+        let embedding = await service.embed("fallback me")
+        let backend = await service.currentBackend()
+
+        XCTAssertEqual(embedding?.count, 384)
+        XCTAssertEqual(backend, .pseudoHash)
+    }
 }
