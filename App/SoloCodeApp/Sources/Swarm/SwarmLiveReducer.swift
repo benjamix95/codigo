@@ -26,6 +26,7 @@ enum SwarmLiveReducer {
         dedupeKeys: inout [String: Set<String>],
         limitRecentEvents: Int = defaultRecentEventsLimit
     ) {
+        let activity = canonicalize(activity, existingCards: cards)
         guard let owner = ownerSwarmId(for: activity, includeOrchestratorFallback: false) else {
             return
         }
@@ -186,11 +187,11 @@ enum SwarmLiveReducer {
         guard ownerSwarmId(for: activity, includeOrchestratorFallback: false) != nil else {
             return false
         }
-        if activity.type == "agent" {
-            let detail = (activity.detail ?? activity.payload["detail"] ?? "").lowercased()
-            if detail == "started" || detail == "completed" || detail == "failed" {
-                return true
-            }
+        switch normalizedLifecycleStatus(activity) {
+        case .running, .completed, .failed:
+            return true
+        case .none:
+            break
         }
         return isErrorEvent(activity)
     }
@@ -204,142 +205,17 @@ enum SwarmLiveReducer {
 
     private static func statusTransition(for activity: TaskActivity) -> Transition {
         if isErrorEvent(activity) { return .failed }
-        let detail = (activity.detail ?? activity.payload["detail"] ?? "").lowercased()
-        let status = (activity.payload["status"] ?? "").lowercased()
-        // Check completed/failed BEFORE isRunning — an explicit "completed" detail
-        // must take priority over the isRunning flag to prevent cards from being
-        // stuck in running state when the stream marks them completed.
-        if detail == "completed" || status == "completed" {
+        switch normalizedLifecycleStatus(activity) {
+        case .completed:
             return .completed
-        }
-        if activity.type == "agent", detail == "failed" || status == "failed" {
+        case .failed:
             return .failed
-        }
-        if detail == "started" || status == "started" || activity.isRunning {
+        case .running:
             return .running
+        case .none:
+            break
         }
         return .none
     }
 
-    private static func isErrorEvent(_ activity: TaskActivity) -> Bool {
-        let normalizedType = activity.type.lowercased()
-        if [
-            "web_search_failed", "web_fetch_failed", "tool_execution_error", "tool_validation_error", "tool_timeout",
-            "permission_denied", "error",
-        ].contains(normalizedType) {
-            return true
-        }
-        let status = (activity.payload["status"] ?? "").lowercased()
-        if status == "error" || status == "fatal" {
-            return true
-        }
-        let severity = (activity.payload["severity"] ?? "").lowercased()
-        return severity == "error" || severity == "critical"
-    }
-
-    private static func isWarningEvent(_ activity: TaskActivity) -> Bool {
-        guard !isErrorEvent(activity) else { return false }
-        let status = (activity.payload["status"] ?? "").lowercased()
-        if status == "failed" || status == "warning" {
-            return true
-        }
-        let severity = (activity.payload["severity"] ?? "").lowercased()
-        if severity == "warning" {
-            return true
-        }
-        return false
-    }
-
-    private static func summary(for events: [TaskActivity]) -> String {
-        let titles = events.suffix(6).map(\.title).filter { !$0.isEmpty }
-        guard !titles.isEmpty else { return "Swarm completed." }
-        var seen = Set<String>()
-        var compact: [String] = []
-        for title in titles where seen.insert(title).inserted {
-            compact.append(title)
-            if compact.count == 3 { break }
-        }
-        return "Completed • " + compact.joined(separator: " → ")
-    }
-
-    private static func transcriptEntry(for activity: TaskActivity) -> SubagentTranscriptEntry? {
-        // Reasoning/thinking text
-        if activity.type == "subagent_text" || activity.type == "reasoning" {
-            let source = (activity.payload["source"] ?? "").lowercased()
-            if let text = activity.payload["text"] {
-                if source == "reasoning" || activity.type == "reasoning"
-                    || activity.phase == .thinking {
-                    return SubagentTranscriptEntry.reasoning(text, timestamp: activity.timestamp)
-                }
-                return SubagentTranscriptEntry.assistantText(text, timestamp: activity.timestamp)
-            }
-        }
-        // Completion result
-        let detail = (activity.detail ?? activity.payload["detail"] ?? "").lowercased()
-        let status = (activity.payload["status"] ?? "").lowercased()
-        if activity.type == "agent" && (detail == "completed" || status == "completed") {
-            let resultText = activity.payload["output"]
-                ?? activity.payload["summary"]
-                ?? activity.title
-            return SubagentTranscriptEntry.result(
-                resultText,
-                timestamp: activity.timestamp
-            )
-        }
-        return SubagentTranscriptEntry.activity(activity)
-    }
-
-    private static func bestDetail(
-        for activity: TaskActivity,
-        displayName: String
-    ) -> String? {
-        let candidates = [
-            activity.detail,
-            activity.payload["detail"],
-            activity.payload["summary"],
-            activity.payload["query"],
-            activity.payload["path"],
-            activity.payload["command"],
-            activity.payload["tool"],
-            activity.payload["mcp_tool"],
-            activity.payload["name"],
-            activity.payload["uri"],
-        ]
-        for candidate in candidates {
-            if let text = SwarmLivePresentation.normalizedSubtitleText(
-                candidate,
-                excluding: displayName
-            ) {
-                return text
-            }
-        }
-        return nil
-    }
-
-    private static func bestDisplayName(for activity: TaskActivity) -> String? {
-        let text = activity.title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, text.lowercased() != activity.type.lowercased() else {
-            return nil
-        }
-        let lower = text.lowercased()
-        // Never use raw IDs or technical strings as display names
-        if lower.hasPrefix("sa-") || lower.hasPrefix("swarm-") || lower.hasPrefix("swarm ") { return nil }
-        if lower.contains("toolu_") { return nil }
-        if lower.hasPrefix("mcp__") || lower.contains("__coderide__") { return nil }
-        if lower.hasPrefix("subagent_") { return nil }
-        if lower == "started" || lower == "running" || lower == "completed" { return nil }
-        return text
-    }
-
-    private static func dedupeKey(for activity: TaskActivity, owner: String) -> String {
-        // Use 500ms buckets (divide by 2) instead of 10ms to reduce boundary effects.
-        // Events within the same 500ms window with identical properties are deduped.
-        let bucket = Int(activity.timestamp.timeIntervalSince1970 * 2)
-        let status = (activity.payload["status"] ?? "").lowercased()
-        let gid = activity.groupId ?? activity.payload["group_id"] ?? SwarmMetadata.canonicalGroupId(from: activity.payload) ?? "-"
-        let conversationScope = canonicalConversationScope(from: activity.payload) ?? "-"
-        return [
-            owner, conversationScope, gid, activity.type, activity.title, status, "\(bucket)",
-        ].joined(separator: "|")
-    }
 }

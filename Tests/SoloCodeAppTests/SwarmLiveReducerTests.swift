@@ -65,6 +65,114 @@ final class SwarmLiveReducerTests: XCTestCase {
         XCTAssertEqual(cards["reviewer"]?.status, .completed)
     }
 
+    func testTerminalSuccessLikeStatusMarksCardCompleted() {
+        let started = TaskActivity(
+            type: "agent",
+            title: "Explorer",
+            detail: "started",
+            payload: [
+                "swarm_id": "sa-explorer-old",
+                "group_id": "swarm-sa-explorer-old",
+                "status": "started",
+                "role": "explorer",
+                "readable_name": "Auth Flow",
+                "task_summary": "Inspect auth flow",
+            ],
+            timestamp: Date(timeIntervalSince1970: 200),
+            phase: .executing,
+            isRunning: true,
+            groupId: "swarm-sa-explorer-old"
+        )
+        let completed = TaskActivity(
+            type: "agent",
+            title: "Auth Flow — successful",
+            detail: nil,
+            payload: [
+                "swarm_id": "sa-explorer-old",
+                "group_id": "swarm-sa-explorer-old",
+                "status": "success",
+                "role": "explorer",
+                "readable_name": "Auth Flow",
+                "task_summary": "Inspect auth flow",
+            ],
+            timestamp: Date(timeIntervalSince1970: 201),
+            phase: .executing,
+            isRunning: false,
+            groupId: "swarm-sa-explorer-old"
+        )
+
+        let cards = SwarmLiveReducer.reduce(activities: [started, completed], limitRecentEvents: 80)
+        XCTAssertEqual(cards["sa-explorer-old"]?.status, .completed)
+    }
+
+    func testReducerAliasesDuplicateRunningAndCompletedEventsToSameCard() {
+        let startedFromToolUse = TaskActivity(
+            type: "agent",
+            title: "Auth Flow",
+            detail: "started",
+            payload: [
+                "swarm_id": "sa-old-123",
+                "group_id": "swarm-sa-old-123",
+                "status": "started",
+                "role": "explorer",
+                "readable_name": "Auth Flow",
+                "task_summary": "Inspect auth flow",
+            ],
+            timestamp: Date(timeIntervalSince1970: 300),
+            phase: .executing,
+            isRunning: true,
+            groupId: "swarm-sa-old-123"
+        )
+        let duplicateStartedFromNativeProvider = TaskActivity(
+            type: "agent",
+            title: "Auth Flow",
+            detail: nil,
+            payload: [
+                "swarm_id": "sa-new-456",
+                "group_id": "swarm-sa-new-456",
+                "status": "running",
+                "role": "explorer",
+                "readable_name": "Auth Flow",
+                "task_summary": "Inspect auth flow",
+            ],
+            timestamp: Date(timeIntervalSince1970: 301),
+            phase: .executing,
+            isRunning: true,
+            groupId: "swarm-sa-new-456"
+        )
+        let completedFromNativeProvider = TaskActivity(
+            type: "agent",
+            title: "Auth Flow — completed",
+            detail: nil,
+            payload: [
+                "swarm_id": "sa-new-456",
+                "group_id": "swarm-sa-new-456",
+                "status": "completed",
+                "role": "explorer",
+                "readable_name": "Auth Flow",
+                "task_summary": "Inspect auth flow",
+            ],
+            timestamp: Date(timeIntervalSince1970: 302),
+            phase: .executing,
+            isRunning: false,
+            groupId: "swarm-sa-new-456"
+        )
+
+        let cards = SwarmLiveReducer.reduce(
+            activities: [
+                startedFromToolUse,
+                duplicateStartedFromNativeProvider,
+                completedFromNativeProvider,
+            ],
+            limitRecentEvents: 80
+        )
+
+        XCTAssertEqual(cards.count, 1)
+        XCTAssertEqual(cards["sa-old-123"]?.status, .completed)
+        XCTAssertEqual(cards["sa-old-123"]?.recentEvents.count, 3)
+        XCTAssertNil(cards["sa-new-456"])
+    }
+
     func testErrorEventSetsFailedStatus() {
         let failed = TaskActivity(
             type: "tool_execution_error",
