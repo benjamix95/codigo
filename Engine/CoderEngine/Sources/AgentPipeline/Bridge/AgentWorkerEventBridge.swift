@@ -21,9 +21,22 @@ public final class AgentWorkerEventBridge: AgentWorkerDelegate, @unchecked Senda
         }
     }
 
+    private func identifiers(
+        sequence: UInt64,
+        kind: String,
+        taskId: String
+    ) -> (eventId: String, idempotencyKey: String) {
+        let sequenceString = String(sequence)
+        return (
+            eventId: "evt_stream_" + sequenceString + "_" + kind + "_" + taskId,
+            idempotencyKey: jobId + "_" + kind + "_" + sequenceString + "_" + taskId
+        )
+    }
+
     private let eventBus: EventBus
     private let jobId: String
-    private var isShutdown = false
+    /// Protected by lock — accessed from multiple threads (shutdown() + publishOrLog).
+    private let isShutdownLock = OSAllocatedUnfairLock(initialState: false)
 
     public init(eventBus: EventBus, jobId: String) {
         self.eventBus = eventBus
@@ -34,13 +47,13 @@ public final class AgentWorkerEventBridge: AgentWorkerDelegate, @unchecked Senda
 
     /// Arresta il bridge: tutte le publish successive vengono ignorate.
     public func shutdown() {
-        isShutdown = true
+        isShutdownLock.withLock { $0 = true }
     }
 
     // MARK: - Private Helpers
 
     private func publishOrLog(_ event: EventBusEvent, taskId: String) async {
-        guard !isShutdown else {
+        guard !isShutdownLock.withLock({ $0 }) else {
             NSLog("[AgentWorkerEventBridge] publish skipped (bridge shutdown), eventType=%@, taskId=%@", "\(event.type)", taskId)
             return
         }
@@ -67,14 +80,15 @@ public final class AgentWorkerEventBridge: AgentWorkerDelegate, @unchecked Senda
         didEmitTextDelta delta: String
     ) async {
         let seq = nextSequence()
+        let ids = identifiers(sequence: seq, kind: "delta", taskId: taskId)
         let event = EventBusEvent(
-            eventId: "evt_stream_\(seq)_delta_\(taskId)",
+            eventId: ids.eventId,
             jobId: self.jobId,
             taskId: taskId,
             type: .textDelta,
             payload: ["delta": delta, "task_id": taskId],
             sequenceNumber: seq,
-            idempotencyKey: "\(self.jobId)_delta_\(seq)_\(taskId)"
+            idempotencyKey: ids.idempotencyKey
         )
         await publishOrLog(event, taskId: taskId)
     }
@@ -84,14 +98,15 @@ public final class AgentWorkerEventBridge: AgentWorkerDelegate, @unchecked Senda
         didReplace replacement: String
     ) async {
         let seq = nextSequence()
+        let ids = identifiers(sequence: seq, kind: "replace", taskId: taskId)
         let event = EventBusEvent(
-            eventId: "evt_stream_\(seq)_replace_\(taskId)",
+            eventId: ids.eventId,
             jobId: self.jobId,
             taskId: taskId,
             type: .textReplace,
             payload: ["replacement": replacement, "task_id": taskId],
             sequenceNumber: seq,
-            idempotencyKey: "\(self.jobId)_replace_\(seq)_\(taskId)"
+            idempotencyKey: ids.idempotencyKey
         )
         await publishOrLog(event, taskId: taskId)
     }
@@ -101,18 +116,19 @@ public final class AgentWorkerEventBridge: AgentWorkerDelegate, @unchecked Senda
         didEmitRaw type: String, payload: [String: String]
     ) async {
         let seq = nextSequence()
+        let ids = identifiers(sequence: seq, kind: "raw", taskId: taskId)
         var mergedPayload = payload
         mergedPayload["raw_type"] = type
         mergedPayload["task_id"] = taskId
 
         let event = EventBusEvent(
-            eventId: "evt_stream_\(seq)_raw_\(taskId)",
+            eventId: ids.eventId,
             jobId: self.jobId,
             taskId: taskId,
             type: .rawAgentEvent,
             payload: mergedPayload,
             sequenceNumber: seq,
-            idempotencyKey: "\(self.jobId)_raw_\(seq)_\(taskId)"
+            idempotencyKey: ids.idempotencyKey
         )
         await publishOrLog(event, taskId: taskId)
     }

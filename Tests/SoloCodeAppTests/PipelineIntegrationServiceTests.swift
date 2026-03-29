@@ -620,6 +620,166 @@ final class PipelineIntegrationServiceTests: XCTestCase {
         XCTAssertTrue(service.cancelCurrentJob(for: conversationId))
     }
 
+    func testRawEventHandlerSuppressesTaskActivitySideEffectsToAvoidDuplicateApplication() {
+        let suiteName = "PipelineIntegrationServiceTests.raw-activity-owned-by-callback.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let chatStore = ChatStore(userDefaults: defaults)
+        let todoStore = TodoStore(
+            storageKey: "CoderIDE.todos.tests.\(UUID().uuidString)",
+            userDefaults: defaults
+        )
+        let taskActivityStore = TaskActivityStore()
+        let swarmProgressStore = SwarmProgressStore()
+        let executionController = ExecutionController()
+        let service = PipelineIntegrationService()
+        service.configure(
+            chatStore: chatStore,
+            taskActivityStore: taskActivityStore,
+            swarmProgressStore: swarmProgressStore,
+            todoStore: todoStore,
+            executionController: executionController
+        )
+
+        let conversationId = chatStore.conversations[0].id
+        chatStore.addMessage(
+            ChatMessage(role: .assistant, content: "", isStreaming: true),
+            to: conversationId
+        )
+        let context = WorkspaceContext(workspacePaths: [URL(fileURLWithPath: "/tmp")])
+        var callbackTypes: [String] = []
+        service.executeJob(
+            makeJob(id: "job-raw-command"),
+            tasks: [TaskNode(taskId: "task-raw-command", title: "Command callback ownership")],
+            workerAdapter: AgentWorkerAdapter(
+                provider: DelayedMockPipelineProvider(
+                    id: "provider-raw-command",
+                    text: "done",
+                    delayNanoseconds: 500_000_000
+                ),
+                context: context,
+                jobId: "job-raw-command"
+            ),
+            providerId: "provider-raw-command",
+            conversationId: conversationId,
+            assistantMessageId: UUID(),
+            rawEventHandler: { type, _, _, _ in
+                callbackTypes.append(type)
+            }
+        )
+
+        service.handleRawEvent(
+            RawEventPayload(
+                jobId: "job-raw-command",
+                taskId: "task-raw-command",
+                rawType: "command_execution",
+                payload: [
+                    "title": "Run targeted tests",
+                    "detail": "xcodebuild test -only-testing",
+                    "status": "running",
+                    "group_id": "cmd-ownership",
+                ]
+            ),
+            for: conversationId
+        )
+
+        taskActivityStore.flushPending()
+
+        XCTAssertEqual(callbackTypes, ["command_execution"])
+        XCTAssertTrue(taskActivityStore.activities.isEmpty)
+        XCTAssertTrue(taskActivityStore.envelopes.isEmpty)
+
+        XCTAssertTrue(service.cancelCurrentJob(for: conversationId))
+    }
+
+    func testAssistantUpdateSkipsRedundantPipelineReplaceWhenVisibleTextAlreadyContainsPayload() {
+        let suiteName = "PipelineIntegrationServiceTests.assistant-update-dedup.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let chatStore = ChatStore(userDefaults: defaults)
+        let todoStore = TodoStore(
+            storageKey: "CoderIDE.todos.tests.\(UUID().uuidString)",
+            userDefaults: defaults
+        )
+        let taskActivityStore = TaskActivityStore()
+        let swarmProgressStore = SwarmProgressStore()
+        let executionController = ExecutionController()
+        let service = PipelineIntegrationService()
+        service.configure(
+            chatStore: chatStore,
+            taskActivityStore: taskActivityStore,
+            swarmProgressStore: swarmProgressStore,
+            todoStore: todoStore,
+            executionController: executionController
+        )
+
+        let conversationId = chatStore.conversations[0].id
+        let assistantMessageId = UUID()
+        chatStore.addMessage(
+            ChatMessage(id: assistantMessageId, role: .assistant, content: "", isStreaming: true),
+            to: conversationId
+        )
+
+        let context = WorkspaceContext(workspacePaths: [URL(fileURLWithPath: "/tmp")])
+        service.executeJob(
+            makeJob(id: "job-assistant-update"),
+            tasks: [TaskNode(taskId: "task-assistant-update", title: "Assistant update dedup")],
+            workerAdapter: AgentWorkerAdapter(
+                provider: DelayedMockPipelineProvider(
+                    id: "provider-assistant-update",
+                    text: "done",
+                    delayNanoseconds: 500_000_000
+                ),
+                context: context,
+                jobId: "job-assistant-update"
+            ),
+            providerId: "provider-assistant-update",
+            conversationId: conversationId,
+            assistantMessageId: assistantMessageId
+        )
+
+        service.handleRawEvent(
+            RawEventPayload(
+                jobId: "job-assistant-update",
+                taskId: "task-assistant-update",
+                rawType: "assistant_update",
+                payload: ["output": "Visible answer with more detail"]
+            ),
+            for: conversationId
+        )
+
+        let sequenceAfterFirstUpdate = service.runtime(for: conversationId)?.nextPipelineSequence
+        XCTAssertEqual(
+            service.runtime(for: conversationId)?.chatTurnState.primaryTextSnapshot,
+            "Visible answer with more detail"
+        )
+
+        service.handleRawEvent(
+            RawEventPayload(
+                jobId: "job-assistant-update",
+                taskId: "task-assistant-update",
+                rawType: "assistant_update",
+                payload: ["output": "Visible answer"]
+            ),
+            for: conversationId
+        )
+
+        XCTAssertEqual(
+            service.runtime(for: conversationId)?.nextPipelineSequence,
+            sequenceAfterFirstUpdate
+        )
+        XCTAssertEqual(
+            service.runtime(for: conversationId)?.chatTurnState.primaryTextSnapshot,
+            "Visible answer with more detail"
+        )
+
+        XCTAssertTrue(service.cancelCurrentJob(for: conversationId))
+    }
+
     func testFinalizeExecutionIsIdempotentAfterCancelAndClearsTaskState() async throws {
         let suiteName = "PipelineIntegrationServiceTests.finalize-cancel.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

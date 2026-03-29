@@ -62,11 +62,6 @@ extension PipelineIntegrationService {
                 rawType,
                 conversationId.uuidString.lowercased()
             )
-        } else {
-            forwardRawEnvelopeToTaskActivity(
-                normalizedEnvelope,
-                for: conversationId
-            )
         }
 
         // Applica subito eventi pipeline accodati dal debounce 16ms, così raw path + XCTest vedono stato coerente.
@@ -99,9 +94,15 @@ extension PipelineIntegrationService {
 
         let rawText = rawEvent.payload["output"] ?? rawEvent.payload["text"]
             ?? rawEvent.payload["content"] ?? rawEvent.payload["detail"] ?? ""
-        let cleaned = ChatStore.stripCoderideMarkers(rawText, aggressive: true)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !cleaned.isEmpty else {
+        let currentVisibleText = runtime.chatTurnState.textByStreamId[
+            rawEvent.taskId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? (runtime.chatTurnState.orderedTextStreamIds.first ?? "main")
+                : rawEvent.taskId
+        ] ?? runtime.chatTurnState.primaryTextSnapshot
+        guard let promoted = promotedAssistantUpdateContent(
+            currentVisibleText: currentVisibleText,
+            incomingRawOutput: rawText
+        ) else {
             return
         }
         if mainChatTraceLoggingEnabled() {
@@ -109,7 +110,7 @@ extension PipelineIntegrationService {
                 "[MainChatTrace] pipeline assistant_update project conv=%@ msg=%@ chars=%ld status=%@",
                 conversationId.uuidString.lowercased(),
                 runtime.assistantMessageId.uuidString.lowercased(),
-                cleaned.count,
+                promoted.count,
                 status
             )
         }
@@ -117,11 +118,6 @@ extension PipelineIntegrationService {
         let streamId = rawEvent.taskId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             ? (runtime.chatTurnState.orderedTextStreamIds.first ?? "main")
             : rawEvent.taskId
-        guard runtime.chatTurnState.textByStreamId[streamId]?.trimmingCharacters(in: .whitespacesAndNewlines) != cleaned else {
-            return
-        }
-
-
         consumePipelineEvents([ChatPipelineEvent(
             conversationId: conversationId,
             assistantMessageId: runtime.assistantMessageId,
@@ -129,7 +125,7 @@ extension PipelineIntegrationService {
             sequence: 0,
             source: providerId,
             kind: .textReplace,
-            payload: ["replacement": cleaned, "stream_id": streamId, "task_id": streamId, "provider_id": providerId]
+            payload: ["replacement": promoted, "stream_id": streamId, "task_id": streamId, "provider_id": providerId]
         )], for: conversationId)
     }
 
