@@ -15,7 +15,7 @@ enum ChatTurnInterleavedSegment: Identifiable {
     var id: String {
         switch self {
         case .text(let id, _, _): return "seg-text-\(id)"
-        case .reasoning(let id, _, _): return "seg-reason-\(id)"
+        case .reasoning(let id, _, let sequence): return "seg-reason-\(id)-\(sequence)"
         case .toolEvent(let id, _, _): return "seg-trace-\(id)"
         case .toolGroup(let id, _, _): return "seg-trace-group-\(id)"
         case .subagentLiveCard(let id, _, _): return "seg-live-subagent-\(id)"

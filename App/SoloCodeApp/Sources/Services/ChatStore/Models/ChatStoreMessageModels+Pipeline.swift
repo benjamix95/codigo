@@ -39,10 +39,10 @@ extension ChatMessage {
                             at: 0
                         )
                     }
-                    return fixed
+                    return sanitizeTimelineBlockIDs(fixed)
                 }
             }
-            return blocks
+            return sanitizeTimelineBlockIDs(blocks)
         }
 
         var derived: [PersistedChatTimelineBlock] = [
@@ -69,7 +69,9 @@ extension ChatMessage {
             }
         }
 
-        return derived.filter { !$0.text.isEmpty || !$0.items.isEmpty }
+        return sanitizeTimelineBlockIDs(
+            derived.filter { !$0.text.isEmpty || !$0.items.isEmpty }
+        )
     }
 
     var exportMarkdownContent: String {

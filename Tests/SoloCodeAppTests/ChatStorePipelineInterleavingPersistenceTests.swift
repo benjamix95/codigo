@@ -123,4 +123,29 @@ final class ChatStorePipelineInterleavingPersistenceTests: XCTestCase {
             ["Prima parte", "Seconda parte"]
         )
     }
+
+    func testResolvedTimelineBlocksSanitizeDuplicateReasoningIDsFromPipelineState() {
+        let conversationId = UUID()
+        let assistantId = UUID()
+
+        var state = ChatTurnState(
+            conversationId: conversationId,
+            assistantMessageId: assistantId,
+            turnId: assistantId.uuidString,
+            providerId: "codex-cli"
+        )
+        state.textSegments = ["Risposta"]
+        state.textByStreamId = ["main": "Risposta"]
+        state.orderedTextStreamIds = ["main"]
+        state.reasoningByGroupId = ["reasoning": "Step 1\n\nStep 2"]
+        state.timelineSegments = [
+            ChatTimelineSegment(kind: .reasoning, index: 0, sequence: 0),
+            ChatTimelineSegment(kind: .text, index: 0, sequence: 1),
+            ChatTimelineSegment(kind: .reasoning, index: 0, sequence: 2),
+        ]
+
+        let ids = state.blocks.map(\.id)
+
+        XCTAssertEqual(ids, ["reasoning", "text-seg-0", "reasoning__dup1-seq2"])
+    }
 }

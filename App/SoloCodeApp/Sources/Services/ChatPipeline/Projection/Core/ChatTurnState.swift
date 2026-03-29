@@ -151,7 +151,7 @@ struct ChatTurnState: Codable, Equatable {
             }
         }
         resolved.append(contentsOf: artifacts.map(\.timelineBlock))
-        return resolved
+        return sanitizeTimelineBlockIDs(resolved)
     }
 
     var metadata: ChatTurnMetadata {
