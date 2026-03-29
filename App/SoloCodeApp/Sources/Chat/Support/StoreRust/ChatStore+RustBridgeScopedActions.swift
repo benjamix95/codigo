@@ -18,6 +18,13 @@ extension ChatStore {
         }
 
         switch request.action {
+        case "create_conversation":
+            return RustMainChatStoreActionScope(
+                conversationIds: [conversationId],
+                planBoardConversationIds: [],
+                removeScopedConversationsIfMissing: false,
+                removeScopedPlanBoardsIfMissing: false
+            )
         case "append_message",
              "insert_message_before",
              "sync_assistant_content",

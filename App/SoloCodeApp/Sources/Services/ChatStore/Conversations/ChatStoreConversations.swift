@@ -38,6 +38,7 @@ extension ChatStore {
         let shouldUseLocalFallback =
             shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment)
             || !applyRustStoreAction("create_conversation") { request in
+                request.conversationId = conv.id.uuidString.lowercased()
                 request.conversation = RustMainChatStoreAdapter.conversationSnapshot(conv)
             }
         if shouldUseLocalFallback || !conversations.contains(where: { $0.id == conv.id }) {
@@ -54,6 +55,7 @@ extension ChatStore {
         let shouldUseLocalFallback =
             shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment)
             || !applyRustStoreAction("create_conversation") { request in
+                request.conversationId = conv.id.uuidString.lowercased()
                 request.conversation = RustMainChatStoreAdapter.conversationSnapshot(conv)
             }
         if shouldUseLocalFallback || !conversations.contains(where: { $0.id == conv.id }) {
