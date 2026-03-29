@@ -22,11 +22,16 @@ extension PipelineIntegrationService {
             return nil
         }
         guard !parsedTodos.isEmpty else { return }
+        let shouldUseTaskScopedFallbackId = parsedTodos.count == 1
 
         var canonicalPlanIdsToSync = Set<UUID>()
         todoStore.performBatchUpdates {
             for todo in parsedTodos {
-                let todoId = resolvedRawTodoID(from: p, parsedTodo: todo)
+                let todoId = resolvedRawTodoID(
+                    from: p,
+                    parsedTodo: todo,
+                    allowTaskScopedFallback: shouldUseTaskScopedFallbackId
+                )
                 if let planId = runtime.planConversationId {
                     var updated = todoStore.upsertCanonicalOnlyFromAgent(
                         id: todoId,
@@ -93,10 +98,14 @@ extension PipelineIntegrationService {
 
     func resolvedRawTodoID(
         from payload: RawEventPayload,
-        parsedTodo: TodoWritePayload?
+        parsedTodo: TodoWritePayload?,
+        allowTaskScopedFallback: Bool
     ) -> UUID? {
         if let direct = parsedTodo?.id {
             return direct
+        }
+        guard allowTaskScopedFallback else {
+            return nil
         }
         return UUID(uuidString: payload.taskId)
     }

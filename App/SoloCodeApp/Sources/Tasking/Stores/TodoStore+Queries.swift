@@ -68,6 +68,10 @@ extension TodoStore {
         if !scoped.isEmpty {
             return sortedCanonicalFirstTodos(scoped)
         }
+        let hasScopedCanonicalElsewhere = canonical.contains { $0.planConversationId != nil }
+        guard !hasScopedCanonicalElsewhere else {
+            return []
+        }
         let legacyUnscoped = canonical.filter { $0.planConversationId == nil }
         return sortedCanonicalFirstTodos(legacyUnscoped)
     }
