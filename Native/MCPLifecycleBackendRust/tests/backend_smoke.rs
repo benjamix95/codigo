@@ -305,6 +305,43 @@ fn lifecycle_backend_respawns_when_server_config_changes() {
     child.close();
 }
 
+#[test]
+fn lifecycle_backend_acknowledges_server_initiated_requests() {
+    let temp_root = make_temp_dir("mcp-lifecycle-server-request");
+    let cwd = temp_root.join("workspace");
+    fs::create_dir_all(&cwd).expect("create workspace");
+    let boot_file = temp_root.join("boot-count.txt");
+    let fake_binary = env!("CARGO_BIN_EXE_fake-mcp-server").to_string();
+
+    let server = json!({
+        "id": "fake-request",
+        "name": "Fake Server Request",
+        "command": fake_binary,
+        "args": [boot_file.display().to_string()],
+        "cwd": cwd.display().to_string(),
+        "env": {
+            "MCP_FAKE_VALUE": "expected-env",
+            "MCP_FAKE_EMIT_SERVER_REQUEST_ON_LIST": "1"
+        }
+    });
+
+    let mut child = BackendHarness::spawn();
+    let list = child.request("1", "list_servers", json!({ "servers": [server.clone()] }));
+    assert!(list["ok"].as_bool().unwrap_or(false));
+
+    let tools = child.request("2", "list_tools", json!({ "server": server }));
+    assert!(tools["ok"].as_bool().unwrap_or(false));
+
+    let status = child.request(
+        "3",
+        "call_tool",
+        json!({ "serverId": "fake-request", "toolName": "server_request_status", "arguments": {} }),
+    );
+    assert_eq!(status["payload"]["content"], "acknowledged");
+
+    child.close();
+}
+
 struct BackendHarness {
     child: Child,
     stdin: ChildStdin,

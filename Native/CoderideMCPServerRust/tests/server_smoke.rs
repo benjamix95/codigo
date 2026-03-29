@@ -207,6 +207,69 @@ fn todo_read_and_subagent_ack_work() {
 }
 
 #[test]
+fn todo_write_can_clear_existing_items() {
+    let home = make_temp_dir("rust-mcp-home");
+    let workspace = make_temp_dir("rust-mcp-workspace");
+    let todos_path = home
+        .join("Library")
+        .join("Application Support")
+        .join("CoderIDE")
+        .join("mcp-shared");
+    fs::create_dir_all(&todos_path).expect("create todos dir");
+    fs::write(
+        todos_path.join("todos.json"),
+        serde_json::to_vec_pretty(&vec![json!({
+            "title": "Da cancellare",
+            "status": "pending",
+            "priority": "medium"
+        })])
+        .expect("serialize todos"),
+    )
+    .expect("write todos");
+
+    let mut child = spawn_server(&home, &workspace);
+    initialize(&mut child);
+
+    write_message(
+        child.stdin.as_mut().expect("stdin"),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 90,
+            "method": "tools/call",
+            "params": {
+                "name": "coderide_todo_write",
+                "arguments": { "todos": "" }
+            }
+        }),
+    );
+    let cleared = read_message(&mut child);
+    assert_eq!(
+        cleared["result"]["content"][0]["text"].as_str(),
+        Some("OK — todo list updated")
+    );
+
+    write_message(
+        child.stdin.as_mut().expect("stdin"),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 91,
+            "method": "tools/call",
+            "params": {
+                "name": "coderide_todo_read",
+                "arguments": {}
+            }
+        }),
+    );
+    let todo_read = read_message(&mut child);
+    assert_eq!(
+        todo_read["result"]["content"][0]["text"].as_str(),
+        Some("No todos found.")
+    );
+
+    terminate(child);
+}
+
+#[test]
 fn plan_tools_and_ide_acks_work() {
     let home = make_temp_dir("rust-mcp-home");
     let workspace = make_temp_dir("rust-mcp-workspace");
@@ -543,7 +606,7 @@ fn search_tools_work() {
     assert!(read_range["result"]["content"][0]["text"].as_str().unwrap_or("").contains("2: struct Sample {}"));
 
     write_message(child.stdin.as_mut().expect("stdin"), json!({
-        "jsonrpc":"2.0","id":30_1,"method":"tools/call",
+        "jsonrpc":"2.0","id":301,"method":"tools/call",
         "params":{"name":"coderide_read_range","arguments":{"path":"Sample.swift","start_line":"2","end_line":"4"}}
     }));
     let read_range_string_args = read_message(&mut child);
@@ -814,7 +877,7 @@ fn review_security_and_bughunter_tools_work() {
     let review_findings = read_message(&mut child);
     assert!(review_findings["result"]["content"][0]["text"].as_str().unwrap_or("").contains("redacted-swift-file-"));
 
-    write_message(child.stdin.as_mut().expect("stdin"), json!({"jsonrpc":"2.0","id":71_5,"method":"tools/call","params":{"name":"coderide_review_diff_summary","arguments":{"session_id":"review-1"}}}));
+    write_message(child.stdin.as_mut().expect("stdin"), json!({"jsonrpc":"2.0","id":715,"method":"tools/call","params":{"name":"coderide_review_diff_summary","arguments":{"session_id":"review-1"}}}));
     let review_diff = read_message(&mut child);
     let review_diff_text = review_diff["result"]["content"][0]["text"].as_str().unwrap_or("");
     assert!(review_diff_text.contains("Sources/Auth.swift"));

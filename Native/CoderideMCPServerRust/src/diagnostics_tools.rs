@@ -56,7 +56,7 @@ struct RustCoreSearchQueryPayload {
     num_results: usize,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct RustCoreSearchSnapshotPayload {
     chunks: Vec<RustCoreChunkPayload>,
@@ -69,7 +69,7 @@ struct RustCoreSearchSnapshotPayload {
     b: f64,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct RustCoreChunkPayload {
     chunk_id: String,
@@ -92,6 +92,7 @@ struct ParsedSemanticChunksCache {
     mtime: SystemTime,
     len: u64,
     chunks: Arc<Vec<PersistedSemanticChunk>>,
+    snapshot: Arc<RustCoreSearchSnapshotPayload>,
 }
 
 static PARSED_SEMANTIC_CHUNKS_CACHE: Mutex<Option<ParsedSemanticChunksCache>> = Mutex::new(None);
@@ -361,7 +362,7 @@ fn semantic_search_via_persisted_index(
         std::env::var("SOLOCODE_MCP_SEMANTIC_LOAD_PROFILE").as_deref(),
         Ok("1")
     );
-    let Some(chunks) = load_semantic_chunks(workspace) else {
+    let Some((chunks, cached_snapshot)) = load_semantic_cache(workspace) else {
         return PersistedSemanticOutcome::SkipIndex;
     };
     if chunks.is_empty() {
@@ -369,7 +370,7 @@ fn semantic_search_via_persisted_index(
     }
 
     let filtered_chunks = chunks
-        .into_iter()
+        .iter()
         .filter(|chunk| {
             (file_type.is_empty() || matches_semantic_file_type(&chunk.file_path, file_type))
                 && (target_directories.is_empty()
@@ -383,7 +384,11 @@ fn semantic_search_via_persisted_index(
     }
 
     let t_snap = Instant::now();
-    let snapshot = build_semantic_snapshot(&filtered_chunks);
+    let snapshot = if file_type.is_empty() && target_directories.is_empty() {
+        (*cached_snapshot).clone()
+    } else {
+        build_semantic_snapshot_for_refs(&filtered_chunks)
+    };
     if profile {
         eprintln!(
             "[mcp-semantic] build_semantic_snapshot {:.2}ms ({} filtered chunks)",
@@ -530,7 +535,9 @@ fn load_semantic_chunks_from_disk(cache_path: &Path) -> Option<Vec<PersistedSema
     Some(chunks)
 }
 
-fn load_semantic_chunks(workspace: &Path) -> Option<Vec<PersistedSemanticChunk>> {
+fn load_semantic_cache(
+    workspace: &Path,
+) -> Option<(Arc<Vec<PersistedSemanticChunk>>, Arc<RustCoreSearchSnapshotPayload>)> {
     let cache_path = crate::mcp_index_cache::semantic_jsonl_cache_path(workspace)?;
     let meta = fs::metadata(&cache_path).ok()?;
     let mtime = meta.modified().ok()?;
@@ -542,29 +549,51 @@ fn load_semantic_chunks(workspace: &Path) -> Option<Vec<PersistedSemanticChunk>>
     let t0 = Instant::now();
     let mut cache_miss = false;
 
-    let arc_chunks: Arc<Vec<PersistedSemanticChunk>> = if let Ok(mut guard) =
+    let cached: ParsedSemanticChunksCache = if let Ok(mut guard) =
         PARSED_SEMANTIC_CHUNKS_CACHE.lock()
     {
         match guard.as_ref() {
             Some(cached) if cached.cache_path == cache_path && cached.mtime == mtime && cached.len == len => {
-                Arc::clone(&cached.chunks)
+                ParsedSemanticChunksCache {
+                    cache_path: cached.cache_path.clone(),
+                    mtime: cached.mtime,
+                    len: cached.len,
+                    chunks: Arc::clone(&cached.chunks),
+                    snapshot: Arc::clone(&cached.snapshot),
+                }
             }
             _ => {
                 cache_miss = true;
                 let chunks = load_semantic_chunks_from_disk(&cache_path)?;
                 let arc = Arc::new(chunks);
+                let snapshot = Arc::new(build_semantic_snapshot(&arc));
                 *guard = Some(ParsedSemanticChunksCache {
                     cache_path: cache_path.clone(),
                     mtime,
                     len,
                     chunks: Arc::clone(&arc),
+                    snapshot: Arc::clone(&snapshot),
                 });
-                arc
+                ParsedSemanticChunksCache {
+                    cache_path: cache_path.clone(),
+                    mtime,
+                    len,
+                    chunks: arc,
+                    snapshot,
+                }
             }
         }
     } else {
         cache_miss = true;
-        Arc::new(load_semantic_chunks_from_disk(&cache_path)?)
+        let chunks = Arc::new(load_semantic_chunks_from_disk(&cache_path)?);
+        let snapshot = Arc::new(build_semantic_snapshot(&chunks));
+        ParsedSemanticChunksCache {
+            cache_path: cache_path.clone(),
+            mtime,
+            len,
+            chunks,
+            snapshot,
+        }
     };
 
     if profile {
@@ -576,7 +605,7 @@ fn load_semantic_chunks(workspace: &Path) -> Option<Vec<PersistedSemanticChunk>>
         );
     }
 
-    Some((*arc_chunks).clone())
+    Some((cached.chunks, cached.snapshot))
 }
 
 fn build_semantic_snapshot(chunks: &[PersistedSemanticChunk]) -> RustCoreSearchSnapshotPayload {
@@ -632,6 +661,13 @@ fn build_semantic_snapshot(chunks: &[PersistedSemanticChunk]) -> RustCoreSearchS
         k1: 1.2,
         b: 0.75,
     }
+}
+
+fn build_semantic_snapshot_for_refs(
+    chunks: &[&PersistedSemanticChunk],
+) -> RustCoreSearchSnapshotPayload {
+    let owned = chunks.iter().map(|chunk| (*chunk).clone()).collect::<Vec<_>>();
+    build_semantic_snapshot(&owned)
 }
 
 fn contextualized_text(chunk: &PersistedSemanticChunk) -> String {

@@ -4,6 +4,14 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+fn expected_catalog_tool_count() -> usize {
+    include_str!("../src/tool_names.txt")
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .count()
+}
+
 #[test]
 fn tools_list_matches_frozen_catalog_size_and_annotations() {
     let home = make_temp_dir("rust-mcp-home");
@@ -22,7 +30,7 @@ fn tools_list_matches_frozen_catalog_size_and_annotations() {
 
     let listed = read_message(&mut child);
     let tools = listed["result"]["tools"].as_array().expect("tools array");
-    assert_eq!(tools.len(), 142);
+    assert_eq!(tools.len(), expected_catalog_tool_count());
     assert!(tools.iter().all(|tool| tool["description"].is_string()));
     assert!(tools
         .iter()

@@ -1,3 +1,4 @@
+use app_core_protocol::jsonrpc::JsonRpcErrorResponse;
 use crate::error::BackendError;
 use crate::mcp_models::{
     PromptDescriptor, PromptResultPayload, ResourceContentPayload, ResourceDescriptor,
@@ -7,14 +8,19 @@ use crate::protocol::{ServerConfig, ToolDescriptor};
 use app_core_protocol::mcp::{CallToolResult, InitializeResult, ListToolsResult, ToolContent};
 use serde_json::{Map, Value};
 use std::io::{BufRead, BufReader, Write};
-use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
+use std::process::{Child, ChildStderr, ChildStdin, ChildStdout, Command, Stdio};
+use std::sync::{Arc, Mutex};
 
 pub struct McpProcess {
     child: Child,
     stdin: ChildStdin,
     stdout: BufReader<ChildStdout>,
     next_id: u64,
+    pending_responses: Vec<Value>,
+    stderr_tail: Arc<Mutex<String>>,
 }
+
+const STDERR_TAIL_MAX_CHARS: usize = 8_192;
 
 impl McpProcess {
     pub fn spawn(server: &ServerConfig) -> Result<Self, BackendError> {
@@ -30,7 +36,7 @@ impl McpProcess {
         }
         command.stdin(Stdio::piped());
         command.stdout(Stdio::piped());
-        command.stderr(Stdio::null());
+        command.stderr(Stdio::piped());
 
         let mut child = command.spawn()?;
         let stdin = child
@@ -41,12 +47,20 @@ impl McpProcess {
             .stdout
             .take()
             .ok_or_else(|| BackendError::io("failed to open child stdout"))?;
+        let stderr = child
+            .stderr
+            .take()
+            .ok_or_else(|| BackendError::io("failed to open child stderr"))?;
+        let stderr_tail = Arc::new(Mutex::new(String::new()));
+        spawn_stderr_drain(stderr, Arc::clone(&stderr_tail));
 
         let mut process = Self {
             child,
             stdin,
             stdout: BufReader::new(stdout),
             next_id: 1,
+            pending_responses: Vec::new(),
+            stderr_tail,
         };
         process.initialize()?;
         Ok(process)
@@ -246,30 +260,83 @@ impl McpProcess {
     }
 
     fn read_response(&mut self, expected_id: u64) -> Result<Value, BackendError> {
+        if let Some(index) = self
+            .pending_responses
+            .iter()
+            .position(|value| value.get("id").and_then(Value::as_u64) == Some(expected_id))
+        {
+            let value = self.pending_responses.remove(index);
+            return self.extract_result(value);
+        }
+
         let mut line = String::new();
         loop {
             line.clear();
             let read = self.stdout.read_line(&mut line)?;
             if read == 0 {
-                return Err(BackendError::protocol("MCP server closed stdout"));
+                return Err(BackendError::protocol(self.with_stderr_context(
+                    "MCP server closed stdout".to_string(),
+                )));
             }
             if line.trim().is_empty() {
                 continue;
             }
-            let value: Value = serde_json::from_str(line.trim())?;
+            let value: Value = serde_json::from_str(line.trim()).map_err(|error| {
+                BackendError::protocol(self.with_stderr_context(error.to_string()))
+            })?;
             if value.get("method").is_some() && value.get("id").is_none() {
                 continue;
             }
-            if value.get("id").and_then(Value::as_u64) != Some(expected_id) {
+            if value.get("method").is_some() && value.get("id").is_some() {
+                self.respond_method_not_found(&value)?;
                 continue;
             }
-            if let Some(error) = value.get("error") {
-                return Err(BackendError::protocol(error.to_string()));
+            if value.get("id").and_then(Value::as_u64) != Some(expected_id) {
+                if value.get("id").is_some() {
+                    self.pending_responses.push(value);
+                }
+                continue;
             }
-            return value
-                .get("result")
-                .cloned()
-                .ok_or_else(|| BackendError::protocol("missing JSON-RPC result"));
+            return self.extract_result(value);
+        }
+    }
+
+    fn extract_result(&self, value: Value) -> Result<Value, BackendError> {
+        if let Some(error) = value.get("error") {
+            return Err(BackendError::protocol(self.with_stderr_context(error.to_string())));
+        }
+        value
+            .get("result")
+            .cloned()
+            .ok_or_else(|| BackendError::protocol(self.with_stderr_context("missing JSON-RPC result".to_string())))
+    }
+
+    fn respond_method_not_found(&mut self, value: &Value) -> Result<(), BackendError> {
+        let Some(id) = value.get("id").cloned() else {
+            return Ok(());
+        };
+        let method = value
+            .get("method")
+            .and_then(Value::as_str)
+            .unwrap_or("unknown");
+        let payload = serde_json::to_value(JsonRpcErrorResponse::method_not_found(
+            serde_json::from_value(id).map_err(BackendError::from)?,
+            format!("unsupported server-initiated method: {method}"),
+        ))?;
+        self.write_line(&payload)
+    }
+
+    fn with_stderr_context(&self, message: String) -> String {
+        let stderr = self
+            .stderr_tail
+            .lock()
+            .ok()
+            .map(|value| value.trim().to_string())
+            .unwrap_or_default();
+        if stderr.is_empty() {
+            message
+        } else {
+            format!("{message} | stderr: {stderr}")
         }
     }
 }
@@ -289,4 +356,43 @@ pub fn flatten_tool_content(result: &CallToolResult) -> String {
         })
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+fn spawn_stderr_drain(stderr: ChildStderr, stderr_tail: Arc<Mutex<String>>) {
+    std::thread::spawn(move || {
+        let mut reader = BufReader::new(stderr);
+        let mut line = String::new();
+        loop {
+            line.clear();
+            match reader.read_line(&mut line) {
+                Ok(0) => break,
+                Ok(_) => append_stderr_tail(&stderr_tail, line.trim_end()),
+                Err(_) => break,
+            }
+        }
+    });
+}
+
+fn append_stderr_tail(stderr_tail: &Arc<Mutex<String>>, chunk: &str) {
+    if chunk.is_empty() {
+        return;
+    }
+    let Ok(mut tail) = stderr_tail.lock() else {
+        return;
+    };
+    if !tail.is_empty() {
+        tail.push('\n');
+    }
+    tail.push_str(chunk);
+    if tail.chars().count() > STDERR_TAIL_MAX_CHARS {
+        let kept = tail
+            .chars()
+            .rev()
+            .take(STDERR_TAIL_MAX_CHARS)
+            .collect::<String>()
+            .chars()
+            .rev()
+            .collect::<String>();
+        *tail = kept;
+    }
 }

@@ -29,45 +29,48 @@ pub fn handle(
 fn run_tests(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult {
     let filter = string_arg(arguments, "filter");
     let scheme_arg = string_arg(arguments, "scheme");
+    let destination = non_empty_string_arg(arguments, "destination")
+        .unwrap_or_else(|| "platform=macOS".to_string());
+    let timeout_secs = timeout_seconds_arg(arguments).unwrap_or(900);
     if workspace.join("Cargo.toml").is_file() {
         if filter.is_empty() {
-            return shell_output("cargo", &["test"], workspace, 600);
+            return shell_output("cargo", &["test"], workspace, timeout_secs.min(600));
         }
-        return shell_output("cargo", &["test", filter.as_str()], workspace, 600);
+        return shell_output("cargo", &["test", filter.as_str()], workspace, timeout_secs.min(600));
     }
     if workspace.join("Package.swift").is_file() {
         if filter.is_empty() {
-            return shell_output("swift", &["test"], workspace, 600);
+            return shell_output("swift", &["test"], workspace, timeout_secs.min(600));
         }
-        return shell_output("swift", &["test", "--filter", filter.as_str()], workspace, 600);
+        return shell_output("swift", &["test", "--filter", filter.as_str()], workspace, timeout_secs.min(600));
     }
-    if let Some(proj) = first_xcodeproj(workspace) {
+    if let Some((flag, container)) = first_xcode_container(workspace, arguments) {
         let scheme = if !scheme_arg.is_empty() {
             scheme_arg
-        } else if let Some(s) = xcodebuild_first_scheme(&proj) {
+        } else if let Some(s) = xcodebuild_first_scheme(flag, &container) {
             s
         } else {
-            proj.file_stem()
+            container
+                .file_stem()
                 .and_then(|x| x.to_str())
                 .unwrap_or("App")
                 .to_string()
         };
-        let proj_arg = proj.to_string_lossy().into_owned();
+        let container_arg = container.to_string_lossy().into_owned();
         let mut args: Vec<String> = vec![
             "test".into(),
-            "-project".into(),
-            proj_arg,
+            flag.into(),
+            container_arg,
             "-scheme".into(),
             scheme,
             "-destination".into(),
-            "platform=macOS".into(),
+            destination,
         ];
         if !filter.is_empty() {
-            args.push("-only-testing".into());
-            args.push(filter);
+            args.push(format!("-only-testing:{filter}"));
         }
         let args_ref: Vec<&str> = args.iter().map(String::as_str).collect();
-        return shell_output("xcodebuild", &args_ref, workspace, 900);
+        return shell_output("xcodebuild", &args_ref, workspace, timeout_secs);
     }
     CallToolResult::text(
         json!({
@@ -80,10 +83,10 @@ fn run_tests(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolR
 }
 
 /// Primo scheme elencato da `xcodebuild -list` (stabile per la maggior parte dei progetti).
-fn xcodebuild_first_scheme(xcodeproj: &Path) -> Option<String> {
+fn xcodebuild_first_scheme(container_flag: &str, container_path: &Path) -> Option<String> {
     let out = Command::new("xcodebuild")
-        .arg("-project")
-        .arg(xcodeproj)
+        .arg(container_flag)
+        .arg(container_path)
         .arg("-list")
         .output()
         .ok()?;
@@ -102,6 +105,21 @@ fn xcodebuild_first_scheme(xcodeproj: &Path) -> Option<String> {
     None
 }
 
+fn first_xcode_container(
+    workspace: &Path,
+    arguments: &BTreeMap<String, Value>,
+) -> Option<(&'static str, PathBuf)> {
+    if let Some(path) = non_empty_string_arg(arguments, "workspace") {
+        return Some(("-workspace", workspace.join(path)));
+    }
+    if let Some(path) = non_empty_string_arg(arguments, "project") {
+        return Some(("-project", workspace.join(path)));
+    }
+    first_xcworkspace(workspace)
+        .map(|path| ("-workspace", path))
+        .or_else(|| first_xcodeproj(workspace).map(|path| ("-project", path)))
+}
+
 fn first_xcodeproj(workspace: &Path) -> Option<PathBuf> {
     let entries = std::fs::read_dir(workspace).ok()?;
     let mut projects: Vec<PathBuf> = entries
@@ -114,6 +132,20 @@ fn first_xcodeproj(workspace: &Path) -> Option<PathBuf> {
     }
     projects.sort();
     projects.into_iter().next()
+}
+
+fn first_xcworkspace(workspace: &Path) -> Option<PathBuf> {
+    let entries = std::fs::read_dir(workspace).ok()?;
+    let mut workspaces: Vec<PathBuf> = entries
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .filter(|p| p.extension().and_then(|x| x.to_str()) == Some("xcworkspace"))
+        .collect();
+    if workspaces.is_empty() {
+        return None;
+    }
+    workspaces.sort();
+    workspaces.into_iter().next()
 }
 
 /// Fingerprint allineato a `AgentDebugSessionNDJSONLog` (Swift): path canonici ordinati, join `\u{1e}`.
@@ -261,5 +293,56 @@ fn run_with_timeout(
                 std::thread::sleep(std::time::Duration::from_millis(20));
             }
         }
+    }
+}
+
+fn non_empty_string_arg(arguments: &BTreeMap<String, Value>, key: &str) -> Option<String> {
+    let value = string_arg(arguments, key);
+    if value.is_empty() {
+        None
+    } else {
+        Some(value)
+    }
+}
+
+fn timeout_seconds_arg(arguments: &BTreeMap<String, Value>) -> Option<u64> {
+    let timeout_ms = non_empty_string_arg(arguments, "timeout_ms")
+        .and_then(|value| value.parse::<u64>().ok())
+        .map(|value| (value / 1000).max(1));
+    timeout_ms.or_else(|| {
+        non_empty_string_arg(arguments, "timeout_seconds")
+            .and_then(|value| value.parse::<u64>().ok())
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{first_xcode_container, timeout_seconds_arg};
+    use serde_json::json;
+    use std::collections::BTreeMap;
+    use std::fs;
+
+    #[test]
+    fn timeout_ms_is_converted_to_seconds() {
+        let mut arguments = BTreeMap::new();
+        arguments.insert("timeout_ms".to_string(), json!("1500"));
+        assert_eq!(timeout_seconds_arg(&arguments), Some(1));
+    }
+
+    #[test]
+    fn xcode_container_prefers_workspace_over_project() {
+        let root = std::env::temp_dir().join(format!(
+            "support-workflow-tools-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("App.xcworkspace")).unwrap();
+        fs::create_dir_all(root.join("App.xcodeproj")).unwrap();
+
+        let container = first_xcode_container(&root, &BTreeMap::new()).unwrap();
+        assert_eq!(container.0, "-workspace");
+        assert!(container.1.ends_with("App.xcworkspace"));
+
+        let _ = fs::remove_dir_all(root);
     }
 }

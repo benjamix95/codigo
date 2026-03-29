@@ -20,6 +20,7 @@ pub fn read_bughunter_snapshots() -> Vec<Value> {
     read_json_objects(&bughunter_runs_dir())
 }
 
+#[allow(dead_code)]
 pub fn read_bughunter_snapshot(run_id: &str) -> Option<Value> {
     let path = bughunter_runs_dir().join(format!("{run_id}.json"));
     read_json_value(&path)
@@ -221,16 +222,12 @@ fn write_json<T: serde::Serialize + ?Sized>(path: &Path, value: &T) -> Result<()
         fs::create_dir_all(parent).map_err(|error| error.to_string())?;
     }
     let data = serde_json::to_vec_pretty(value).map_err(|error| error.to_string())?;
-    let lock_result = with_file_lock(path, LockMode::Exclusive, || {
+    with_file_lock(path, LockMode::Exclusive, || {
         // Atomic write: temp file + rename to prevent partial writes.
         let tmp_path = path.with_extension("json.tmp");
         fs::write(&tmp_path, &data).map_err(|error| error.to_string())?;
         fs::rename(&tmp_path, path).map_err(|error| error.to_string())
-    });
-    match lock_result {
-        Ok(inner) => Ok(inner),
-        Err(e) => Err(e),
-    }
+    })
 }
 
 fn string_field(value: &Value, key: &str) -> Option<String> {
@@ -256,7 +253,7 @@ fn date_field(value: &Value, key: &str) -> Option<f64> {
     value
         .get(key)
         .and_then(Value::as_str)
-        .and_then(|text| chrono_like_to_unix(text))
+        .and_then(chrono_like_to_unix)
 }
 
 fn chrono_like_to_unix(text: &str) -> Option<f64> {

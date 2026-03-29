@@ -20,13 +20,14 @@ pub fn handle(
 }
 
 fn web_fetch(arguments: &BTreeMap<String, Value>) -> CallToolResult {
-    let mut url = string_arg(arguments, "url");
-    if url.is_empty() {
+    let raw_url = string_arg(arguments, "url");
+    if raw_url.is_empty() {
         return CallToolResult::error("Error: 'url' parameter is required");
     }
-    if !url.contains("://") {
-        url = format!("https://{url}");
-    }
+    let url = match normalize_http_url(&raw_url) {
+        Ok(url) => url,
+        Err(message) => return CallToolResult::error(message),
+    };
     let timeout = timeout_arg(arguments);
     match Command::new("curl")
         .args(["-LfsSL", "--max-time", &timeout, url.as_str()])
@@ -56,8 +57,7 @@ fn web_search(arguments: &BTreeMap<String, Value>) -> CallToolResult {
     if query.is_empty() {
         return CallToolResult::error("Error: 'query' parameter is required");
     }
-    let encoded = query.replace(' ', "+");
-    let url = format!("https://duckduckgo.com/html/?q={encoded}");
+    let url = duckduckgo_search_url(&query);
     let timeout = timeout_arg(arguments);
     match Command::new("curl")
         .args(["-LfsSL", "--max-time", &timeout, url.as_str()])
@@ -119,6 +119,61 @@ fn strip_tags(input: &str) -> String {
         .replace("&nbsp;", " ")
 }
 
+fn normalize_http_url(raw: &str) -> Result<String, String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err("Error: 'url' parameter is required".to_string());
+    }
+    if trimmed
+        .chars()
+        .any(|ch| ch.is_ascii_control() || matches!(ch, ' ' | '\t'))
+    {
+        return Err("Error: URL contains invalid whitespace/control characters".to_string());
+    }
+
+    let normalized = if trimmed.contains("://") {
+        trimmed.to_string()
+    } else {
+        format!("https://{trimmed}")
+    };
+
+    let Some((scheme, remainder)) = normalized.split_once("://") else {
+        return Err("Error: invalid URL format".to_string());
+    };
+    match scheme.to_ascii_lowercase().as_str() {
+        "http" | "https" => {}
+        _ => {
+            return Err("Error: only http:// and https:// URLs are allowed".to_string());
+        }
+    }
+    if remainder.is_empty() || remainder.starts_with('/') {
+        return Err("Error: URL must include a host".to_string());
+    }
+
+    Ok(normalized)
+}
+
+fn duckduckgo_search_url(query: &str) -> String {
+    format!(
+        "https://duckduckgo.com/html/?q={}",
+        form_urlencode_component(query)
+    )
+}
+
+fn form_urlencode_component(input: &str) -> String {
+    let mut encoded = String::with_capacity(input.len());
+    for byte in input.bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                encoded.push(byte as char);
+            }
+            b' ' => encoded.push('+'),
+            _ => encoded.push_str(&format!("%{:02X}", byte)),
+        }
+    }
+    encoded
+}
+
 fn string_arg(arguments: &BTreeMap<String, Value>, key: &str) -> String {
     arguments
         .get(key)
@@ -167,7 +222,10 @@ fn format_curl_max_time(secs: f64) -> String {
 
 #[cfg(test)]
 mod timeout_tests {
-    use super::{format_curl_max_time, resolve_timeout_seconds};
+    use super::{
+        duckduckgo_search_url, format_curl_max_time, normalize_http_url,
+        resolve_timeout_seconds,
+    };
     use serde_json::json;
 
     #[test]
@@ -185,5 +243,25 @@ mod timeout_tests {
     #[test]
     fn out_of_range_falls_back_to_default() {
         assert_eq!(resolve_timeout_seconds(Some(&json!(200.0))), 30.0);
+    }
+
+    #[test]
+    fn fetch_rejects_non_http_scheme() {
+        let error = normalize_http_url("file:///etc/passwd").unwrap_err();
+        assert!(error.contains("only http:// and https://"));
+    }
+
+    #[test]
+    fn fetch_defaults_to_https_when_scheme_missing() {
+        assert_eq!(
+            normalize_http_url("example.com/docs").unwrap(),
+            "https://example.com/docs"
+        );
+    }
+
+    #[test]
+    fn search_url_percent_encodes_reserved_characters() {
+        let url = duckduckgo_search_url("rust & mcp? 100%");
+        assert!(url.ends_with("rust+%26+mcp%3F+100%25"));
     }
 }

@@ -457,7 +457,18 @@ pub fn input_schema_for(name: &str) -> Value {
             ],
             &["url"],
         ),
-        "coderide_run_tests" => object_schema(&[("filter", "string"), ("scheme", "string")], &[]),
+        "coderide_run_tests" => object_schema(
+            &[
+                ("filter", "string"),
+                ("scheme", "string"),
+                ("workspace", "string"),
+                ("project", "string"),
+                ("destination", "string"),
+                ("timeout_ms", "string"),
+                ("timeout_seconds", "string"),
+            ],
+            &[],
+        ),
         "coderide_export_debug_bundle" => object_schema(&[("workspace_roots", "string")], &[]),
         _ => object_schema(&[], &[]),
     }

@@ -16,6 +16,11 @@ fn main() {
 
 fn run() -> Result<(), String> {
     let boot_count = bump_boot_count()?;
+    let inject_server_request = std::env::var("MCP_FAKE_EMIT_SERVER_REQUEST_ON_LIST")
+        .ok()
+        .as_deref()
+        == Some("1");
+    let mut server_request_acknowledged = false;
     let stdin = io::stdin();
     let mut stdout = io::stdout();
     for line in stdin.lock().lines() {
@@ -23,8 +28,15 @@ fn run() -> Result<(), String> {
         if line.trim().is_empty() {
             continue;
         }
+        let value: Value = serde_json::from_str(&line).map_err(|error| error.to_string())?;
+        if value.get("method").is_none() {
+            if value.get("id").and_then(Value::as_i64) == Some(999) {
+                server_request_acknowledged = true;
+            }
+            continue;
+        }
         let inbound: JsonRpcInbound =
-            serde_json::from_str(&line).map_err(|error| error.to_string())?;
+            serde_json::from_value(value).map_err(|error| error.to_string())?;
         match inbound {
             JsonRpcInbound::Notification(_) => continue,
             JsonRpcInbound::Request(request) => match request.method.as_str() {
@@ -46,6 +58,17 @@ fn run() -> Result<(), String> {
                 }
                 "ping" => write_line(&mut stdout, &JsonRpcResponse::ok(request.id, json!({})))?,
                 "tools/list" => {
+                    if inject_server_request {
+                        write_line(
+                            &mut stdout,
+                            &json!({
+                                "jsonrpc": "2.0",
+                                "id": 999,
+                                "method": "server/prompt",
+                                "params": { "message": "ack me" }
+                            }),
+                        )?;
+                    }
                     let result = ListToolsResult {
                         tools: vec![
                             tool("echo", "Echo input message", json_schema("message")),
@@ -67,6 +90,11 @@ fn run() -> Result<(), String> {
                             tool(
                                 "env_value",
                                 "Return MCP_FAKE_VALUE env variable",
+                                json!({"type":"object","properties":{}}),
+                            ),
+                            tool(
+                                "server_request_status",
+                                "Return whether the client acknowledged the injected server request",
                                 json!({"type":"object","properties":{}}),
                             ),
                         ],
@@ -170,7 +198,7 @@ fn run() -> Result<(), String> {
                     let params: ToolCallParams =
                         serde_json::from_value(request.params.unwrap_or_else(|| json!({})))
                             .map_err(|error| error.to_string())?;
-                    let result = handle_tool(params, boot_count)?;
+                    let result = handle_tool(params, boot_count, server_request_acknowledged)?;
                     write_line(&mut stdout, &JsonRpcResponse::ok(request.id, result))?;
                 }
                 _ => write_line(&mut stdout, &JsonRpcResponse::ok(request.id, json!({})))?,
@@ -180,7 +208,11 @@ fn run() -> Result<(), String> {
     Ok(())
 }
 
-fn handle_tool(params: ToolCallParams, boot_count: u64) -> Result<CallToolResult, String> {
+fn handle_tool(
+    params: ToolCallParams,
+    boot_count: u64,
+    server_request_acknowledged: bool,
+) -> Result<CallToolResult, String> {
     let arguments = params.arguments.unwrap_or_default();
     let message = arguments
         .get("message")
@@ -199,6 +231,11 @@ fn handle_tool(params: ToolCallParams, boot_count: u64) -> Result<CallToolResult
             let value = std::env::var("MCP_FAKE_VALUE").unwrap_or_else(|_| "missing".to_string());
             CallToolResult::text(value)
         }
+        "server_request_status" => CallToolResult::text(if server_request_acknowledged {
+            "acknowledged"
+        } else {
+            "pending"
+        }),
         _ => CallToolResult::error(format!("unknown tool: {}", params.name)),
     };
     Ok(result)

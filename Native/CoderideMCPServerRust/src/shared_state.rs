@@ -16,10 +16,10 @@ pub fn read_todos_text() -> String {
     let mut lines = Vec::new();
     let mut done_count = 0usize;
     for todo in &todos {
-        let title = string_field(&todo, "title").unwrap_or("(untitled)");
-        let status = string_field(&todo, "status").unwrap_or("pending");
-        let priority = string_field(&todo, "priority").unwrap_or("medium");
-        let active_form = string_field(&todo, "activeForm").unwrap_or("");
+        let title = string_field(todo, "title").unwrap_or("(untitled)");
+        let status = string_field(todo, "status").unwrap_or("pending");
+        let priority = string_field(todo, "priority").unwrap_or("medium");
+        let active_form = string_field(todo, "activeForm").unwrap_or("");
         let icon = match status {
             "done" => {
                 done_count += 1;
@@ -64,32 +64,9 @@ pub fn write_todos(arguments: &BTreeMap<String, Value>) -> Result<String, String
     }
 
     if let Some(todos_value) = todos_value {
-        if todos_value.is_array() {
-            let items = todos_value.as_array().cloned().unwrap_or_default();
-            write_json_array(items)?;
+        if let Some(items) = parse_todos_payload(todos_value)? {
+            write_todos_locked(items)?;
             return Ok("OK — todo list updated".to_string());
-        }
-        if todos_value.is_object() {
-            write_json_array(vec![todos_value.clone()])?;
-            return Ok("OK — todo list updated".to_string());
-        }
-        if let Some(text) = todos_value.as_str() {
-            let trimmed = text.trim();
-            if trimmed.is_empty() {
-                return Ok("OK — empty todo list received, clear request acknowledged".to_string());
-            }
-            if trimmed.starts_with('[') || trimmed.starts_with('{') {
-                let parsed: Value = serde_json::from_str(trimmed)
-                    .map_err(|_| "Error: 'todos' must be valid JSON".to_string())?;
-                if parsed.is_array() {
-                    write_json_array(parsed.as_array().cloned().unwrap_or_default())?;
-                } else if parsed.is_object() {
-                    write_json_array(vec![parsed])?;
-                } else {
-                    return Err("Error: 'todos' must be a JSON array or object".to_string());
-                }
-                return Ok("OK — todo list updated".to_string());
-            }
         }
     }
 
@@ -111,6 +88,77 @@ pub fn write_todos(arguments: &BTreeMap<String, Value>) -> Result<String, String
         write_json_array(existing)
     })?;
     Ok("OK — todo list updated".to_string())
+}
+
+fn write_todos_locked(items: Vec<Value>) -> Result<(), String> {
+    with_file_lock(&todos_file_path(), LockMode::Exclusive, || write_json_array(items.clone()))
+}
+
+fn parse_todos_payload(value: &Value) -> Result<Option<Vec<Value>>, String> {
+    if value.is_null() {
+        return Ok(Some(Vec::new()));
+    }
+    if value.is_array() {
+        return Ok(Some(value.as_array().cloned().unwrap_or_default()));
+    }
+    if value.is_object() {
+        return Ok(Some(vec![value.clone()]));
+    }
+    let Some(text) = value.as_str() else {
+        return Ok(None);
+    };
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return Ok(Some(Vec::new()));
+    }
+    if trimmed.starts_with('[') || trimmed.starts_with('{') {
+        let parsed: Value = serde_json::from_str(trimmed)
+            .map_err(|_| "Error: 'todos' must be valid JSON".to_string())?;
+        if parsed.is_array() {
+            return Ok(Some(parsed.as_array().cloned().unwrap_or_default()));
+        }
+        if parsed.is_object() {
+            return Ok(Some(vec![parsed]));
+        }
+        return Err("Error: 'todos' must be a JSON array or object".to_string());
+    }
+
+    let checklist = parse_checklist_todos(trimmed);
+    if checklist.is_empty() {
+        return Err(
+            "Error: 'todos' must be valid JSON or a checklist string with '- [ ] item' lines"
+                .to_string(),
+        );
+    }
+    Ok(Some(checklist))
+}
+
+fn parse_checklist_todos(text: &str) -> Vec<Value> {
+    text.lines()
+        .filter_map(|line| {
+            let trimmed = line.trim();
+            let marker = trimmed
+                .strip_prefix("- [ ] ")
+                .map(|rest| ("pending", rest))
+                .or_else(|| trimmed.strip_prefix("- [~] ").map(|rest| ("in_progress", rest)))
+                .or_else(|| trimmed.strip_prefix("- [x] ").map(|rest| ("done", rest)))
+                .or_else(|| trimmed.strip_prefix("- [!] ").map(|rest| ("blocked", rest)))?;
+            let title = marker.1.trim();
+            if title.is_empty() {
+                return None;
+            }
+            Some(json!({
+                "id": format!("rust-{}", unique_id()),
+                "title": title,
+                "status": marker.0,
+                "priority": "medium",
+                "notes": "",
+                "activeForm": "",
+                "linkedFiles": [],
+                "source": "rust-mcp",
+            }))
+        })
+        .collect()
 }
 
 fn write_json_array(items: Vec<Value>) -> Result<(), String> {
@@ -191,4 +239,27 @@ fn unique_id() -> String {
         .as_nanos() as u64;
     let seq = COUNTER.fetch_add(1, Ordering::Relaxed);
     format!("{nanos:016x}-{seq:04x}")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{parse_checklist_todos, parse_todos_payload};
+    use serde_json::json;
+
+    #[test]
+    fn empty_todos_string_maps_to_clear() {
+        let parsed = parse_todos_payload(&json!("   ")).unwrap().unwrap();
+        assert!(parsed.is_empty());
+    }
+
+    #[test]
+    fn checklist_string_maps_to_todo_items() {
+        let parsed = parse_checklist_todos(
+            "- [ ] Analizzare i log\n- [~] Correggere il parser\n- [x] Verificare i test",
+        );
+        assert_eq!(parsed.len(), 3);
+        assert_eq!(parsed[0]["status"], "pending");
+        assert_eq!(parsed[1]["status"], "in_progress");
+        assert_eq!(parsed[2]["status"], "done");
+    }
 }

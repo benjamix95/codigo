@@ -329,6 +329,7 @@ impl MainChatProviderSessionResponse {
 }
 
 impl MainChatRuntimeTransportResponse {
+    #[allow(clippy::too_many_arguments)]
     pub fn success(
         provider_id: String,
         backend: MainChatProviderBackend,

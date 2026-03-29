@@ -248,13 +248,13 @@ fn build_review_request(name: &str, args: &HashMap<String, String>) -> ReviewMCP
         bughunter_findings_payload: active_bughunter
             .as_ref()
             .and_then(|run| run.get("reviewSessionId").and_then(Value::as_str))
-            .and_then(|session_id| state::read_review_snapshot(session_id))
+            .and_then(state::read_review_snapshot)
             .map(|snapshot| bughunter_findings_payload(&snapshot, args))
             .unwrap_or_default(),
         bughunter_cluster_payload: active_bughunter
             .as_ref()
             .and_then(|run| run.get("reviewSessionId").and_then(Value::as_str))
-            .and_then(|session_id| state::read_review_snapshot(session_id))
+            .and_then(state::read_review_snapshot)
             .and_then(|snapshot| cluster_payload(&snapshot)),
         security_gate_payload: active_review.as_ref().map(security_gate_payload),
     }
@@ -545,7 +545,7 @@ fn bughunter_status_payload_from_review(_snapshots: &[Value]) -> Option<HashMap<
 /// Limite risposta MCP per evitare tool result enormi su patch grandi.
 const REVIEW_MCP_PREVIEW_PATCH_MAX_DIFF_BYTES: usize = 48 * 1024;
 
-fn clamp_utf8_prefix<'a>(s: &'a str, max_bytes: usize) -> (&'a str, bool) {
+fn clamp_utf8_prefix(s: &str, max_bytes: usize) -> (&str, bool) {
     if s.len() <= max_bytes {
         return (s, false);
     }

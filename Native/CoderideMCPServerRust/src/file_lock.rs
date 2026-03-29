@@ -4,6 +4,7 @@ use std::path::Path;
 
 /// Modalità di lock per advisory file lock.
 #[derive(Clone, Copy)]
+#[allow(dead_code)]
 pub enum LockMode {
     /// Lock condiviso (più lettori).
     Shared,

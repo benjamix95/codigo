@@ -183,3 +183,13 @@
 5. Sistemare `debug_test_check` / `run_tests` per Xcode/iOS.
 6. Allineare il contract test del catalogo.
 7. Ottimizzare `semantic_search` con cache strutturale reale.
+
+## Stato dopo fix batch
+- Risolto: compile break `debug_*`.
+- Risolto: allowlist `http/https` e query encoding corretto per `web_*`.
+- Risolto: `todo_write` ora esegue clear reale e passa tutte le scritture bulk sotto lock esclusivo.
+- Risolto: lifecycle backend MCP ora conserva risposte fuori ordine, risponde alle server-request non supportate e raccoglie `stderr`.
+- Risolto: contract test catalogo allineato al catalogo reale.
+- Migliorato: `debug_test_check` e `run_tests` ora supportano timeout e container Xcode più robusti (`xcworkspace`/`xcodeproj`, destination override).
+- Migliorato: cache semantica con snapshot riusabile per ricerche globali senza filtri.
+- Extra hardening: `debug_mark`, `debug_clean`, `debug_instrument` ora rispettano il path sandbox del workspace.

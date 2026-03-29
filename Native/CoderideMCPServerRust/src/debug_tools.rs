@@ -758,10 +758,14 @@ fn debug_test_check(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Ca
     let scope = non_empty(string_arg(arguments, "scope")).unwrap_or_else(|| "related".to_string());
     let filter = string_arg(arguments, "filter");
     let path = string_arg(arguments, "path");
+    let timeout_ms = debug_test_timeout_ms(arguments);
 
     let xcodebuild = resolved_xcodebuild_path();
-    let Some(xcodebuild) = xcodebuild else {
-        return error_result("Unable to locate xcodebuild", json!({ "error_code": "validation" }));
+    let Some((container_flag, container_path)) = debug_test_container(workspace) else {
+        return error_result(
+            "No Xcode validation config or workspace/project found for debug_test_check",
+            json!({ "error_code": "validation" }),
+        );
     };
 
     let executions = if scope == "failing" {
@@ -797,11 +801,6 @@ fn debug_test_check(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Ca
         );
     }
 
-    let xcode_ws = std::env::var("SOLOCODE_DEBUG_XCODE_WORKSPACE")
-        .ok()
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| "Solo Code.xcworkspace".to_string());
     let xcode_dest = std::env::var("SOLOCODE_DEBUG_XCODE_DESTINATION")
         .ok()
         .map(|s| s.trim().to_string())
@@ -818,8 +817,8 @@ fn debug_test_check(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Ca
         let mut cmd = Command::new(&xcodebuild);
         cmd.current_dir(workspace)
             .arg("test")
-            .arg("-workspace")
-            .arg(&xcode_ws)
+            .arg(container_flag)
+            .arg(container_path.as_os_str())
             .arg("-scheme")
             .arg(&execution.scheme)
             .arg("-destination")
@@ -828,7 +827,7 @@ fn debug_test_check(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Ca
         for identifier in &execution.only_testing {
             cmd.arg(format!("-only-testing:{identifier}"));
         }
-        let output = match cmd.output() {
+        let output = match run_child_with_timeout(&mut cmd, timeout_ms) {
             Ok(value) => value,
             Err(error) => {
                 return error_result(
@@ -919,32 +918,23 @@ fn debug_mark(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallTool
     if path.is_empty() || line == 0 {
         return error_result("Error: path and line are required", json!({ "error_code": "validation" }));
     }
-    let file_path = resolve_path(workspace, &path);
+    let file_path = match resolve_path(workspace, &path) {
+        Ok(path) => path,
+        Err(error) => return error,
+    };
     let mut lines = match read_lines(&file_path) {
         Ok(value) => value,
         Err(error) => return error,
     };
     let tag = hypothesis_tag(&hypothesis_id);
     let marker = if !code.is_empty() {
-        format!("{code} // [DEBUG:{marker_type}] {comment}{tag}")
+        code
     } else {
-        match marker_type.as_str() {
-            "log" => {
-                let expr = if expression.is_empty() { "\"checkpoint\"" } else { expression.as_str() };
-                format!("print(\"[DEBUG] {comment}: \\({expr})\") // [DEBUG:log] {comment}{tag}")
+        match generated_debug_marker(&marker_type, &comment, &expression, &tag) {
+            Ok(marker) => marker,
+            Err(message) => {
+                return error_result(message, json!({ "error_code": "validation" }));
             }
-            "assert" => {
-                let expr = if expression.is_empty() { "true" } else { expression.as_str() };
-                format!("assert({expr}, \"[DEBUG ASSERT] {comment}\") // [DEBUG:assert] {comment}{tag}")
-            }
-            "timing" => format!(
-                "let _debugTimerStart_{line} = CFAbsoluteTimeGetCurrent(); defer {{ print(\"[DEBUG TIMING] {comment}: \\(CFAbsoluteTimeGetCurrent() - _debugTimerStart_{line})s\") }} // [DEBUG:timing] {comment}{tag}"
-            ),
-            "variable" => {
-                let expr = if expression.is_empty() { "self" } else { expression.as_str() };
-                format!("print(\"[DEBUG VAR] {comment} {expr} = \\({expr})\") // [DEBUG:variable] {comment}{tag}")
-            }
-            _ => format!("// [DEBUG:marker] {comment}{tag}"),
         }
     };
     // `line` è 1-based (convenzione editor / LSP): inserisce prima della riga indicata.
@@ -977,15 +967,20 @@ fn debug_clean(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToo
     let files = if raw_path.is_empty() {
         collect_debug_files(workspace)
     } else {
-        vec![resolve_path(workspace, &raw_path)]
+        let file = match resolve_path(workspace, &raw_path) {
+            Ok(path) => path,
+            Err(error) => return error,
+        };
+        vec![file]
     };
-    let type_patterns: Vec<&str> = match clean_type.as_str() {
-        "markers" => vec!["[DEBUG:marker]"],
-        "logs" => vec!["[DEBUG:log]", "[DEBUG:instrument-log]"],
-        "asserts" => vec!["[DEBUG:assert]", "[DEBUG:instrument-assert]", "[DEBUG:instrument-conditional]"],
-        "timing" => vec!["[DEBUG:timing]", "[DEBUG:instrument-timing]"],
-        "variables" => vec!["[DEBUG:variable]", "[DEBUG:instrument-variable]"],
-        _ => vec!["[DEBUG:"],
+    let type_patterns = match clean_patterns_for_type(&clean_type) {
+        Some(patterns) => patterns,
+        None => {
+            return error_result(
+                "Error: unsupported debug_clean type",
+                json!({ "error_code": "validation" }),
+            );
+        }
     };
 
     let mut cleaned = 0usize;
@@ -1000,7 +995,7 @@ fn debug_clean(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToo
             let lower = line.to_lowercase();
             let matches_debug = type_patterns
                 .iter()
-                .any(|pattern| lower.contains(&pattern.to_lowercase()));
+                .any(|pattern| lower.contains(pattern));
             let matches_hypothesis = hypothesis_id.is_empty() || lower.contains(&format!("[h:{hypothesis_id}]"));
             if matches_debug && matches_hypothesis {
                 cleaned += 1;
@@ -1035,7 +1030,7 @@ fn debug_clean(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToo
     };
     let mut output = detail.clone();
     if !preview.is_empty() {
-        output.push_str("\n");
+        output.push('\n');
         output.push_str(&preview.join("\n"));
     }
     text_with_structured(
@@ -1069,42 +1064,24 @@ fn debug_instrument(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Ca
     }
 
     let tag = hypothesis_tag(&hypothesis_id);
-    let label_tag = if label.is_empty() {
-        String::new()
-    } else {
-        format!(" [{label}]")
-    };
-    let display_label = if label.is_empty() { expression.clone() } else { label.clone() };
-    let generated = match instrument_type.as_str() {
-        "assert" => {
-            let msg = non_empty(string_arg(arguments, "condition")).unwrap_or_else(|| expression.clone());
-            format!(
-                "assert({}, \"[INSTRUMENT ASSERT]{}: {}\") // [DEBUG:instrument-assert] {}{}",
-                expression, label_tag, msg, display_label, tag
-            )
+    let condition = non_empty(string_arg(arguments, "condition"));
+    let generated = match generated_debug_instrumentation(
+        &instrument_type,
+        &expression,
+        &label,
+        condition.as_deref(),
+        &tag,
+    ) {
+        Ok(text) => text,
+        Err(message) => {
+            return error_result(message, json!({ "error_code": "validation" }));
         }
-        "timing" => format!(
-            "let _instrTimer_{line} = CFAbsoluteTimeGetCurrent(); defer {{ print(\"[INSTRUMENT TIMING]{}: \\(String(format: \\\"%.4f\\\", CFAbsoluteTimeGetCurrent() - _instrTimer_{line}))s for {}\") }} // [DEBUG:instrument-timing] {}{}",
-            label_tag, expression, display_label, tag
-        ),
-        "variable" => format!(
-            "print(\"[INSTRUMENT VAR]{} {} = \\({}) [type: \\(type(of: {}))]\") // [DEBUG:instrument-variable] {}{}",
-            label_tag, expression, expression, expression, display_label, tag
-        ),
-        "conditional_break" => {
-            let condition = non_empty(string_arg(arguments, "condition")).unwrap_or_else(|| "true".to_string());
-            format!(
-                "if {} {{ print(\"[INSTRUMENT BREAK]{}: condition met - {} = \\({})\") }} // [DEBUG:instrument-conditional] {}{}",
-                condition, label_tag, expression, expression, display_label, tag
-            )
-        }
-        _ => format!(
-            "print(\"[INSTRUMENT]{}: \\({})\") // [DEBUG:instrument-log] {}{}",
-            label_tag, expression, display_label, tag
-        ),
     };
 
-    let file_path = resolve_path(workspace, &path);
+    let file_path = match resolve_path(workspace, &path) {
+        Ok(path) => path,
+        Err(error) => return error,
+    };
     let mut lines = match read_lines(&file_path) {
         Ok(value) => value,
         Err(error) => return error,
@@ -1126,6 +1103,84 @@ fn debug_instrument(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Ca
             "hypothesis_id": hypothesis_id
         }),
     )
+}
+
+fn generated_debug_marker(
+    marker_type: &str,
+    comment: &str,
+    expression: &str,
+    tag: &str,
+) -> Result<String, String> {
+    let expr = if expression.is_empty() {
+        "\"checkpoint\""
+    } else {
+        expression
+    };
+    Ok(match marker_type {
+        "timing" => format!(
+        ),
+        "variable" => format!(
+        ),
+        _ => return Err("Error: unsupported debug marker type".to_string()),
+    })
+}
+
+fn clean_patterns_for_type(clean_type: &str) -> Option<Vec<&'static str>> {
+    match clean_type {
+        "conditional_breaks" | "conditional_break" => {
+        }
+        _ => None,
+    }
+}
+
+fn generated_debug_instrumentation(
+    instrument_type: &str,
+    expression: &str,
+    label: &str,
+    condition: Option<&str>,
+    tag: &str,
+) -> Result<String, String> {
+    let expr = if expression.trim().is_empty() {
+        "self"
+    } else {
+        expression.trim()
+    };
+    let display_label = if label.trim().is_empty() {
+        expr.to_string()
+    } else {
+        label.trim().to_string()
+    };
+    let label_tag = if label.trim().is_empty() {
+        String::new()
+    } else {
+        format!(" [{}]", label.trim())
+    };
+    let escaped_label = display_label.replace('"', "\\\"");
+    Ok(match instrument_type {
+        "log" => format!(
+        ),
+        "assert" => {
+            let assert_condition = condition
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .unwrap_or(expr);
+            format!(
+            )
+        },
+        "timing" => format!(
+        ),
+        "variable" => format!(
+        ),
+        "conditional_break" => {
+            let when = condition
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .unwrap_or("true");
+            format!(
+            )
+        },
+        _ => return Err("Error: unsupported debug instrumentation type".to_string()),
+    })
 }
 
 fn push_log(
@@ -1367,13 +1422,9 @@ fn write_lines(path: &Path, lines: &[String]) -> Result<(), String> {
     fs::write(path, lines.join("\n")).map_err(|error| error.to_string())
 }
 
-fn resolve_path(workspace: &Path, raw: &str) -> PathBuf {
-    let path = PathBuf::from(raw);
-    if path.is_absolute() {
-        path
-    } else {
-        workspace.join(path)
-    }
+fn resolve_path(workspace: &Path, raw: &str) -> Result<PathBuf, CallToolResult> {
+    crate::workspace_paths::resolve_within_workspace(workspace, raw)
+        .map_err(|message| error_result(message, json!({ "error_code": "validation" })))
 }
 
 fn resolve_hypothesis_id(store: &DebugStore, raw: &str) -> Option<String> {
@@ -1479,12 +1530,80 @@ fn store_try_mut(
     }
 }
 
-fn resolved_xcodebuild_path() -> Option<String> {
+fn resolved_xcodebuild_path() -> String {
     let override_path = std::env::var("SOLOCODE_DEBUG_XCODEBUILD_PATH").ok().filter(|value| !value.trim().is_empty());
     if let Some(path) = override_path {
-        return Some(path);
+        return path;
     }
-    Some("/usr/bin/xcodebuild".to_string())
+    "/usr/bin/xcodebuild".to_string()
+}
+
+fn debug_test_container(workspace: &Path) -> Option<(&'static str, PathBuf)> {
+    let override_workspace = std::env::var("SOLOCODE_DEBUG_XCODE_WORKSPACE")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .map(|value| workspace.join(value));
+    if let Some(path) = override_workspace {
+        return Some(("-workspace", path));
+    }
+
+    let override_project = std::env::var("SOLOCODE_DEBUG_XCODE_PROJECT")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .map(|value| workspace.join(value));
+    if let Some(path) = override_project {
+        return Some(("-project", path));
+    }
+
+    let workspace_container = fs::read_dir(workspace)
+        .ok()?
+        .filter_map(|entry| entry.ok().map(|entry| entry.path()))
+        .find(|path| path.extension().and_then(|value| value.to_str()) == Some("xcworkspace"));
+    if let Some(path) = workspace_container {
+        return Some(("-workspace", path));
+    }
+
+    fs::read_dir(workspace)
+        .ok()?
+        .filter_map(|entry| entry.ok().map(|entry| entry.path()))
+        .find(|path| path.extension().and_then(|value| value.to_str()) == Some("xcodeproj"))
+        .map(|path| ("-project", path))
+}
+
+fn debug_test_timeout_ms(arguments: &BTreeMap<String, Value>) -> u64 {
+    string_arg(arguments, "timeout_ms")
+        .parse::<u64>()
+        .ok()
+        .map(|value| value.clamp(1_000, 900_000))
+        .unwrap_or(120_000)
+}
+
+fn run_child_with_timeout(
+    command: &mut Command,
+    timeout_ms: u64,
+) -> Result<std::process::Output, String> {
+    let mut child = command
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|error| error.to_string())?;
+    let timeout = std::time::Duration::from_millis(timeout_ms);
+    let start = std::time::Instant::now();
+    loop {
+        match child.try_wait().map_err(|error| error.to_string())? {
+            Some(_) => return child.wait_with_output().map_err(|error| error.to_string()),
+            None => {
+                if start.elapsed() >= timeout {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return Err(format!("command timed out after {timeout_ms}ms"));
+                }
+                std::thread::sleep(std::time::Duration::from_millis(20));
+            }
+        }
+    }
 }
 
 fn run_command(workspace: &Path, executable: &str, args: &[&str]) -> Option<String> {
@@ -1553,5 +1672,48 @@ fn error_result(text: impl Into<String>, structured: Value) -> CallToolResult {
         content: vec![ToolContent::Text { text: text.into() }],
         structured_content: Some(structured),
         is_error: Some(true),
+    }
+}
+
+#[cfg(test)]
+mod generated_tests {
+    use super::{
+        clean_patterns_for_type, debug_test_timeout_ms, generated_debug_instrumentation,
+        generated_debug_marker,
+    };
+    use serde_json::json;
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn debug_marker_log_generation_is_stable() {
+        let generated =
+            generated_debug_marker("log", "checkpoint", "value", " [H:abcd]").unwrap();
+        assert!(generated.contains("checkpoint"));
+        assert!(generated.contains("[H:abcd]"));
+    }
+
+    #[test]
+    fn debug_clean_logs_only_matches_log_markers() {
+        let patterns = clean_patterns_for_type("logs").unwrap();
+    }
+
+    #[test]
+    fn debug_instrument_assert_uses_condition_when_present() {
+        let generated = generated_debug_instrumentation(
+            "assert",
+            "value",
+            "Value positive",
+            Some("value > 0"),
+            "",
+        )
+        .unwrap();
+        assert!(generated.contains("assert(value > 0"));
+    }
+
+    #[test]
+    fn debug_test_timeout_is_clamped() {
+        let mut arguments = BTreeMap::new();
+        arguments.insert("timeout_ms".to_string(), json!("9999999"));
+        assert_eq!(debug_test_timeout_ms(&arguments), 900_000);
     }
 }

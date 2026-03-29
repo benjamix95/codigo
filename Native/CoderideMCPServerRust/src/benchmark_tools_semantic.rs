@@ -161,14 +161,16 @@ fn write_benchmark_control(path: &Path, mode: &str, output_json: &Path) {
 }
 
 fn parse_test_duration_ms(output: &str) -> Option<u64> {
-    for line in output.lines() {
+    output.lines().find_map(|line| {
+        if !line.contains(" passed (") {
+            return None;
+        }
         let passed_index = line.find(" passed (")?;
         let tail = &line[passed_index + " passed (".len()..];
         let seconds_str = tail.split(" seconds").next()?.trim();
         let seconds = seconds_str.parse::<f64>().ok()?;
-        return Some((seconds * 1000.0).round() as u64);
-    }
-    None
+        Some((seconds * 1000.0).round() as u64)
+    })
 }
 
 fn ensure_benchmark_artifact(
