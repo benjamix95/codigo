@@ -3,7 +3,10 @@ import XCTest
 
 final class SemanticSearchBenchmarkTests: XCTestCase {
     func testSemanticSearchBenchmarkSynthetic10kFiles() async throws {
-        let isFull = ProcessInfo.processInfo.environment["RUN_SEMANTIC_BENCHMARK"] == "1"
+        let benchmarkControl = loadBenchmarkControl()
+        let isFull =
+            ProcessInfo.processInfo.environment["RUN_SEMANTIC_BENCHMARK"] == "1"
+            || benchmarkControl?.mode == "full"
         let fileCount = isFull ? 10_000 : 200
 
         let workspace = FileManager.default.temporaryDirectory
@@ -49,7 +52,10 @@ final class SemanticSearchBenchmarkTests: XCTestCase {
 
         XCTAssertGreaterThan(durationMs, 0)
 
-        if let outputPath = ProcessInfo.processInfo.environment["SOLOCODE_SEMANTIC_BENCHMARK_OUTPUT"] {
+        let outputPath =
+            ProcessInfo.processInfo.environment["SOLOCODE_SEMANTIC_BENCHMARK_OUTPUT"]
+            ?? benchmarkControl?.outputJSON
+        if let outputPath {
             let summary: [String: Any] = [
                 "mode": isFull ? "full" : "smoke",
                 "file_count": fileCount,
@@ -64,5 +70,48 @@ final class SemanticSearchBenchmarkTests: XCTestCase {
                 NSLog("SEMANTIC_BENCHMARK_RESULT=%@", text)
             }
         }
+    }
+
+    func testBenchmarkControlReadsTempConfigFile() throws {
+        let configURL = SemanticSearchBenchmarkControl.defaultConfigURL
+        defer { try? FileManager.default.removeItem(at: configURL) }
+
+        try FileManager.default.createDirectory(
+            at: configURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        let data = try JSONSerialization.data(
+            withJSONObject: [
+                "mode": "full",
+                "output_json": "/tmp/semantic-benchmark.json",
+            ],
+            options: [.sortedKeys]
+        )
+        try data.write(to: configURL)
+
+        let control = try XCTUnwrap(loadBenchmarkControl())
+        XCTAssertEqual(control.mode, "full")
+        XCTAssertEqual(control.outputJSON, "/tmp/semantic-benchmark.json")
+    }
+
+    private func loadBenchmarkControl() -> SemanticSearchBenchmarkControl? {
+        let configURL = SemanticSearchBenchmarkControl.defaultConfigURL
+        guard let data = try? Data(contentsOf: configURL) else { return nil }
+        return try? JSONDecoder().decode(SemanticSearchBenchmarkControl.self, from: data)
+    }
+}
+
+private struct SemanticSearchBenchmarkControl: Decodable {
+    let mode: String?
+    let outputJSON: String?
+
+    enum CodingKeys: String, CodingKey {
+        case mode
+        case outputJSON = "output_json"
+    }
+
+    static var defaultConfigURL: URL {
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent("solocode-semantic-benchmark-config.json")
     }
 }

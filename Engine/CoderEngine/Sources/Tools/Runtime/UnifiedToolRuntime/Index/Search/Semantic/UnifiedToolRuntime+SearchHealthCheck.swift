@@ -11,6 +11,7 @@ extension UnifiedToolRuntime {
         let vectorEnabled = IndexFeatureFlags.vectorSearchEnabled
         let trigramEnabled = IndexFeatureFlags.trigramIndexEnabled
         let vectorDBAvailable = (try? PostgresPersistenceStore.shared.isVectorSearchAvailable()) ?? false
+        let postgresConfiguration = ManagedPostgresConfiguration.default
 
         var payload: [String: String] = [
             "title": "search_health_check",
@@ -20,6 +21,8 @@ extension UnifiedToolRuntime {
             "vector_enabled": vectorEnabled ? "true" : "false",
             "vector_db_available": vectorDBAvailable ? "true" : "false",
             "trigram_enabled": trigramEnabled ? "true" : "false",
+            "postgres_port": "\(postgresConfiguration.port)",
+            "postgres_root": postgresConfiguration.rootDirectory.path,
         ]
 
         if let codebaseIndex {
@@ -67,6 +70,8 @@ extension UnifiedToolRuntime {
         - vector_db_available: \(vectorDBAvailable ? "yes" : "no")
         - trigram_enabled: \(trigramEnabled ? "yes" : "no")
         - embedding_backend: \(payload["embedding_backend"] ?? "unknown")
+        - postgres_port: \(payload["postgres_port"] ?? "unknown")
+        - postgres_root: \(payload["postgres_root"] ?? "unknown")
         - grep_cache_entries: \(grepFallbackCacheOrder.count)
         - source_usage_ratio: \(payload["source_usage_ratio"] ?? "n/a")
         """

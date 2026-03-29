@@ -44,13 +44,14 @@ public struct ManagedPostgresConfiguration: Sendable, Equatable {
 
     public static var `default`: ManagedPostgresConfiguration {
         let environment = ProcessInfo.processInfo.environment
+        let runningUnderXCTest = environment["XCTestConfigurationFilePath"] != nil
         let root: URL = {
             if let override = environment["SOLOCODE_POSTGRES_ROOT_DIRECTORY"],
                !override.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 return URL(fileURLWithPath: override, isDirectory: true)
             }
-            if environment["XCTestConfigurationFilePath"] != nil,
-               environment["SOLOCODE_ENABLE_POSTGRES_PERSISTENCE_IN_TESTS"] == "1" {
+            if runningUnderXCTest,
+               environment["SOLOCODE_USE_SHARED_POSTGRES_ROOT_IN_TESTS"] != "1" {
                 return FileManager.default.temporaryDirectory
                     .appendingPathComponent(
                         "scpg-\(ProcessInfo.processInfo.processIdentifier)",

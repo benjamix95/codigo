@@ -94,6 +94,23 @@ final class PersistenceSchemaTests: XCTestCase {
         )
     }
 
+    func testDefaultConfigurationStaysIsolatedInXCTestWithoutOptInFlag() {
+        unsetenv("SOLOCODE_ENABLE_POSTGRES_PERSISTENCE_IN_TESTS")
+        unsetenv("SOLOCODE_POSTGRES_ROOT_DIRECTORY")
+        unsetenv("SOLOCODE_POSTGRES_PORT")
+        unsetenv("SOLOCODE_USE_SHARED_POSTGRES_ROOT_IN_TESTS")
+
+        let configuration = ManagedPostgresConfiguration.default
+
+        XCTAssertEqual(
+            configuration.rootDirectory.path,
+            PersistenceTestSupport.temporaryRootDirectory().path
+        )
+        XCTAssertFalse(
+            configuration.rootDirectory.path.contains("Library/Application Support/CoderIDE/postgres")
+        )
+    }
+
     func testReadyStateReuseWindowOnlySkipsImmediateRepeatedBootstrap() {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let recent = now.addingTimeInterval(-0.5)

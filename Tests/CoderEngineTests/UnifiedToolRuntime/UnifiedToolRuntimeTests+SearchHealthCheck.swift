@@ -20,9 +20,13 @@ extension UnifiedToolRuntimeTests {
         XCTAssertNotNil(completed?["vector_db_available"])
         XCTAssertNotNil(completed?["trigram_enabled"])
         XCTAssertNotNil(completed?["embedding_backend"])
+        XCTAssertNotNil(completed?["postgres_port"])
+        XCTAssertNotNil(completed?["postgres_root"])
         XCTAssertTrue(output.contains("vector_enabled"))
         XCTAssertTrue(output.contains("vector_db_available"))
         XCTAssertTrue(output.contains("trigram_enabled"))
         XCTAssertTrue(output.contains("embedding_backend"))
+        XCTAssertTrue(output.contains("postgres_port"))
+        XCTAssertTrue(output.contains("postgres_root"))
     }
 }
