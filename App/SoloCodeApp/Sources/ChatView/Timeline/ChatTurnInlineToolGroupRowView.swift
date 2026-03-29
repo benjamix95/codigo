@@ -6,8 +6,17 @@ struct ChatTurnInlineToolGroupRowView: View {
     let workspaceHints: [String]
     let onOpenFile: (String) -> Void
 
+    @State private var isTerminalExpanded = false
+
     private var presentation: ChatTurnInlineToolGroupRowPresentation {
         ChatTurnInlineToolGroupRowPresentation.make(event: event)
+    }
+
+    private var terminalDetail: ChatTurnInlineTerminalDetail? {
+        ChatTurnInlineTerminalDetail.from(
+            event: event,
+            normalizedTool: MessageToolTraceToolIdentity.normalizedToolName(for: event)
+        )
     }
 
     private var showsRunningChrome: Bool {
@@ -27,50 +36,77 @@ struct ChatTurnInlineToolGroupRowView: View {
     }
 
     var body: some View {
-        HStack(alignment: .center, spacing: 7) {
-            WorkspaceCatalogToolIcon(event: event)
-                .frame(width: 14, alignment: .center)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .center, spacing: 7) {
+                WorkspaceCatalogToolIcon(event: event)
+                    .frame(width: 14, alignment: .center)
 
-            Text(presentation.actionLabel)
-                .font(.system(size: 10.5, weight: .medium))
-                .foregroundStyle(DesignSystem.Colors.textSecondary)
-                .lineLimit(1)
+                Text(presentation.actionLabel)
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    .lineLimit(1)
 
-            Group {
-                if let openPath {
-                    Button {
-                        onOpenFile(openPath)
-                    } label: {
+                Group {
+                    if let openPath {
+                        Button {
+                            onOpenFile(openPath)
+                        } label: {
+                            emphasizedText
+                        }
+                        .buttonStyle(.plain)
+                    } else {
                         emphasizedText
                     }
+                }
+
+                if let detailText = presentation.detailText {
+                    Text(detailText)
+                        .font(.system(size: 10))
+                        .foregroundStyle(DesignSystem.Colors.textTertiary)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 0)
+
+                if let terminalDetail, terminalDetail.hasVisibleDetails {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.16)) {
+                            isTerminalExpanded.toggle()
+                        }
+                    } label: {
+                        Image(systemName: isTerminalExpanded ? "chevron.down" : "chevron.right")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(DesignSystem.Colors.textTertiary)
+                            .frame(width: 12)
+                    }
                     .buttonStyle(.plain)
+                }
+
+                if showsRunningChrome {
+                    ProgressView()
+                        .controlSize(.mini)
+                        .scaleEffect(0.55)
+                        .frame(width: 10, height: 10)
+                } else if MessageToolTraceView.isErrorType(event) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 9))
+                        .foregroundStyle(DesignSystem.Colors.error)
                 } else {
-                    emphasizedText
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 9))
+                        .foregroundStyle(DesignSystem.Colors.success.opacity(0.8))
                 }
             }
 
-            if let detailText = presentation.detailText {
-                Text(detailText)
-                    .font(.system(size: 10))
-                    .foregroundStyle(DesignSystem.Colors.textTertiary)
-                    .lineLimit(1)
-            }
-
-            Spacer(minLength: 0)
-
-            if showsRunningChrome {
-                ProgressView()
-                    .controlSize(.mini)
-                    .scaleEffect(0.55)
-                    .frame(width: 10, height: 10)
-            } else if MessageToolTraceView.isErrorType(event) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 9))
-                    .foregroundStyle(DesignSystem.Colors.error)
-            } else {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 9))
-                    .foregroundStyle(DesignSystem.Colors.success.opacity(0.8))
+            if let terminalDetail, isTerminalExpanded {
+                InlineTerminalView(
+                    command: terminalDetail.command,
+                    output: terminalDetail.output,
+                    stderr: terminalDetail.stderr,
+                    exitCode: terminalDetail.exitCode,
+                    cwd: terminalDetail.cwd,
+                    isRunning: terminalDetail.isRunning && messageIsStreaming
+                )
             }
         }
         .padding(.vertical, 4)
