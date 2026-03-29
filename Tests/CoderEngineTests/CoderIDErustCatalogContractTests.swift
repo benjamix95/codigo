@@ -1,4 +1,5 @@
 import XCTest
+@testable import CoderEngine
 
 #if canImport(CoderIDEMCPServer)
 @testable import CoderIDEMCPServer
@@ -151,6 +152,65 @@ final class CoderIDErustCatalogContractTests: XCTestCase {
                 "\(name): la description in CoderIDETools deve coincidere con tool_descriptions.json (vedi RustSyncedToolDescriptions)"
             )
         }
+    }
+
+    func testEveryRustCatalogToolHasSchemaCoverage() throws {
+        let rust = try Self.rustToolNames()
+        let root = Self.repoRoot(from: #filePath)
+        let schemaURL = root.appendingPathComponent("Native/CoderideMCPServerRust/src/tool_schema.rs")
+        let workflowURL = root.appendingPathComponent("Native/CoderideMCPServerRust/src/tool_schema_verified_workflows.rs")
+        let schemaText = try String(contentsOf: schemaURL, encoding: .utf8)
+        let workflowText = try String(contentsOf: workflowURL, encoding: .utf8)
+
+        let prefixCoveredFamilies = [
+            "coderide_audit_",
+            "coderide_review_",
+            "coderide_security_",
+            "coderide_bughunter_",
+        ]
+
+        for name in rust.sorted() {
+            let coveredByPrefix = prefixCoveredFamilies.contains { name.hasPrefix($0) }
+                || workflowText.contains(#"if name.starts_with("coderide_review_")"#) && name.hasPrefix("coderide_review_")
+                || workflowText.contains(#"if name.starts_with("coderide_security_")"#) && name.hasPrefix("coderide_security_")
+                || workflowText.contains(#"if name.starts_with("coderide_bughunter_")"#) && name.hasPrefix("coderide_bughunter_")
+
+            let coveredByExplicitSchema = schemaText.contains("\"\(name)\"")
+            XCTAssertTrue(
+                coveredByPrefix || coveredByExplicitSchema,
+                "\(name): missing schema coverage in Rust tool_schema files"
+            )
+        }
+    }
+
+    func testProviderAvailableCanonicalToolsAreRecognizedAsWorkspaceTools() throws {
+        let records = CoderIDECanonicalToolRegistry.shared.allRecords.filter {
+            CoderIDECanonicalToolRegistry.shared.isUsable(
+                CoderIDECanonicalToolRegistry.shared.availability(for: $0, on: .providers)
+            )
+        }
+        for record in records {
+            XCTAssertTrue(
+                WorkspaceToolCatalog.isWorkspaceTool(record.mcpName),
+                "\(record.mcpName): provider-available MCP tool should be recognized as workspace tool"
+            )
+            XCTAssertTrue(
+                WorkspaceToolCatalog.isWorkspaceTool(record.runtimeName),
+                "\(record.runtimeName): provider-available runtime tool should be recognized as workspace tool"
+            )
+        }
+    }
+
+    func testRustClaudeFallbackPromptEnforcesCoderideFirstSearchAndRead() throws {
+        let root = Self.repoRoot(from: #filePath)
+        let url = root.appendingPathComponent("Native/RustCore/src/main_chat/providers/cli/claude.rs")
+        let text = try String(contentsOf: url, encoding: .utf8)
+
+        XCTAssertTrue(text.contains("ABSOLUTE TOOL PRECEDENCE"))
+        XCTAssertTrue(text.contains("Do NOT use Claude native search/read/edit tools as first choice"))
+        XCTAssertTrue(text.contains("Do NOT use shell workspace discovery with `grep`, `rg`, `find`, `fd`, `cat`, `ls`, or `tree`."))
+        XCTAssertTrue(text.contains("For natural-language code discovery, use `coderide_semantic_search`."))
+        XCTAssertTrue(text.contains("For exact text or regex search, use `coderide_grep`."))
     }
 }
 #endif

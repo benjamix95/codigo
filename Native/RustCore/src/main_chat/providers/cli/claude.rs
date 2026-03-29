@@ -1004,6 +1004,14 @@ BEFORE any work, call `mcp__coderide__coderide_todo_write` to create your todo l
 - **Explore**: `coderide_file_outline`, `coderide_find_symbol`, `coderide_find_references`, `coderide_list_dir`
 - **Diagnostics**: `coderide_diagnostics`, `coderide_read_lints`
 
+**ABSOLUTE TOOL PRECEDENCE**
+- Use the `coderide_*` tool first when a coderide tool exists for the job.
+- Do NOT use Claude native search/read/edit tools as first choice when an equivalent `coderide_*` tool is available.
+- Do NOT use shell workspace discovery with `grep`, `rg`, `find`, `fd`, `cat`, `ls`, or `tree`.
+- Use shell only for git, builds, tests, and dependency/install commands.
+- For natural-language code discovery, use `coderide_semantic_search`.
+- For exact text or regex search, use `coderide_grep`.
+
 ## 3. Subagents
 - `coderide_subagent_explorer` — investigate codebase
 - `coderide_subagent_coder` — implement changes
