@@ -19,7 +19,7 @@ func loadConversations() {
     if data.count < Self.asyncLoadThreshold {
         // Small dataset – decode synchronously (fast enough, avoids empty-flash).
         if let decoded = try? JSONDecoder().decode([Conversation].self, from: data) {
-            conversations = decoded
+            conversations = normalizeLoadedConversationsForColdStart(decoded)
         }
         isAsyncConversationLoadPending = false
         return
@@ -37,12 +37,13 @@ func loadConversations() {
             }
             guard !self.hasSavedSinceLoad else { return }
             if let decoded, self.conversations.isEmpty {
-                self.conversations = decoded
+                self.conversations = self.normalizeLoadedConversationsForColdStart(decoded)
             } else if let decoded, !decoded.isEmpty {
                 // Merge: keep any in-memory conversations (even if empty)
                 // and prepend disk-only conversations that aren't already loaded.
                 let existingIds = Set(self.conversations.map(\.id))
-                let loaded = decoded.filter { !existingIds.contains($0.id) }
+                let loaded = self.normalizeLoadedConversationsForColdStart(decoded)
+                    .filter { !existingIds.contains($0.id) }
                 if !loaded.isEmpty {
                     self.conversations = loaded + self.conversations
                 }

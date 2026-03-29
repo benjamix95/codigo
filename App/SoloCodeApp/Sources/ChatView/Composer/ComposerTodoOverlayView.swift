@@ -42,6 +42,7 @@ struct ComposerTodoOverlayView: View {
     }
 
     @State var isFileListExpanded = false
+    @State var expandedFileIds: Set<UUID> = []
 
     var latestPreviewableFileChange: ToolTraceFileChange? {
         fileChanges.latestPreviewableChange()

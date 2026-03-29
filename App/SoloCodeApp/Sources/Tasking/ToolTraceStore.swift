@@ -305,6 +305,7 @@ final class ToolTraceStore: ObservableObject {
                   let event = try? decoder.decode(ToolTraceEvent.self, from: lineData) else { continue }
             out.append(event)
         }
+        out = settledLoadedEventsForColdStart(out)
         out.sort { lhs, rhs in
             if lhs.sequence != rhs.sequence { return lhs.sequence < rhs.sequence }
             return lhs.timestamp < rhs.timestamp

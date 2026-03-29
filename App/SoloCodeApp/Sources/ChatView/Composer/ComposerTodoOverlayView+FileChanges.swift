@@ -88,6 +88,17 @@ extension ComposerTodoOverlayView {
                                 .lineLimit(1)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
+                        if file.hasFullPreview {
+                            Button {
+                                toggleExpandedFile(file)
+                            } label: {
+                                Image(systemName: expandedFileIds.contains(file.id) ? "chevron.down" : "chevron.right")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundStyle(.tertiary)
+                                    .frame(width: 12)
+                            }
+                            .buttonStyle(.plain)
+                        }
                         Text("+\(max(0, file.added))")
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(DesignSystem.Colors.success)
@@ -96,12 +107,19 @@ extension ComposerTodoOverlayView {
                             .foregroundStyle(DesignSystem.Colors.error)
                     }
 
-                    ToolTraceFileChangeCompactPreviewView(
-                        change: file,
-                        maxLines: 3,
-                        showsBackground: true,
-                        compactPadding: 10
-                    )
+                    if expandedFileIds.contains(file.id) {
+                        ToolTraceFileChangeExpandedPreviewCardView(
+                            change: file,
+                            maxHeight: 220
+                        )
+                    } else {
+                        ToolTraceFileChangeCompactPreviewView(
+                            change: file,
+                            maxLines: 3,
+                            showsBackground: true,
+                            compactPadding: 10
+                        )
+                    }
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 4)
@@ -109,6 +127,14 @@ extension ComposerTodoOverlayView {
         }
         .padding(.vertical, 6)
         .frame(maxHeight: 260)
+    }
+
+    func toggleExpandedFile(_ change: ToolTraceFileChange) {
+        if expandedFileIds.contains(change.id) {
+            expandedFileIds.remove(change.id)
+        } else {
+            expandedFileIds.insert(change.id)
+        }
     }
 
     func fileIcon(for path: String) -> String {

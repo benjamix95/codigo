@@ -8,6 +8,7 @@ struct ChatTodoExecutionCardView: View {
     let onReviewChanges: () -> Void
 
     @State private var isExpanded = false
+    @State private var expandedFileIds: Set<UUID> = []
 
     private var metrics: ChatTodoExecutionCardMetrics {
         ChatTodoExecutionCardMetrics.build(items: items, fileChanges: fileChanges)
@@ -172,6 +173,24 @@ struct ChatTodoExecutionCardView: View {
                 compactPadding: 14
             )
             .padding(.bottom, 10)
+        }
+    }
+
+    @ViewBuilder
+    private func todoExpandedDiffIfNeeded(for change: ToolTraceFileChange) -> some View {
+        if expandedFileIds.contains(change.id) {
+            ToolTraceFileChangeExpandedPreviewCardView(
+                change: change,
+                maxHeight: 220
+            )
+        }
+    }
+
+    private func toggleExpandedFile(_ change: ToolTraceFileChange) {
+        if expandedFileIds.contains(change.id) {
+            expandedFileIds.remove(change.id)
+        } else {
+            expandedFileIds.insert(change.id)
         }
     }
 

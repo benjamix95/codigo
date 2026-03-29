@@ -68,6 +68,8 @@ final class ToolTraceStoreTests: XCTestCase {
         XCTAssertEqual(reloaded.count, 2)
         XCTAssertEqual(reloaded.map(\.sequence), [1, 2])
         XCTAssertEqual(reloaded.first?.payload["output"], payload)
+        XCTAssertFalse(reloaded.first?.isRunning ?? true)
+        XCTAssertFalse(reloaded.last?.isRunning ?? true)
     }
 
     func testHasTraceReflectsPersistedData() {

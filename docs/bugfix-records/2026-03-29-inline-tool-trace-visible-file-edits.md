@@ -24,5 +24,7 @@
 - **Regressione coperta 2:** i file change dello stesso path non devono piu' apparire due volte nella timeline lineare solo perche' il primo evento era preliminare e il secondo era completato.
 - **Refinement UI 4:** le righe edit inline possono essere espanse e mostrano una card con il delta completo delle modifiche, scrollabile quando il diff e' lungo.
 - **Refinement UI 5:** anche le righe terminal nei gruppi inline possono essere espanse per mostrare output/live activity in una card terminal scrollabile.
+- **Cold-start normalization:** dopo il riavvio dell'app, messaggi assistente e trace persistite non devono piu' riapparire come `streaming/running` se il processo live non esiste piu'.
+- **Refinement UI 6:** anche i file nei blocchi `TODO` e `composer overlay` possono essere espansi nello stesso stile per mostrare il delta completo senza cambiare il layout generale.
 - **Verifica post-fix:** test mirati `ChatTimelineInlineToolGroupingTests` e `InlineToolTraceEventViewDisplayTests`; verifica manuale sulla timeline chat con mix read/edit.
 - **Commit previsto:** `fix(chat): keep edited files visible outside tool groups`
