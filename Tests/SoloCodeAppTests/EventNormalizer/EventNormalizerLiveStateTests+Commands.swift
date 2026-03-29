@@ -108,6 +108,27 @@ extension EventNormalizerLiveStateTests {
         XCTAssertEqual(activity.payload["mcp_tool"], "coderide_semantic_search")
     }
 
+    func testTrustedMCPSemanticSearchUsesSemanticTitleInActivity() {
+        let envelope = EventNormalizer.normalizeEnvelope(
+            sourceProvider: "anthropic",
+            type: "mcp_tool_call",
+            payload: [
+                "mcp_tool": "coderide_semantic_search",
+                "is_mcp": "true",
+                "status": "completed",
+                "query": "where is authentication handled"
+            ]
+        )
+
+        guard case .taskActivity(let activity)? = envelope.events.first else {
+            XCTFail("Missing taskActivity event")
+            return
+        }
+        XCTAssertEqual(activity.type, "mcp_tool_call")
+        XCTAssertEqual(activity.title, "Semantic search")
+        XCTAssertEqual(activity.payload["mcp_tool"], "coderide_semantic_search")
+    }
+
     func testStrReplaceNormalizesToFileChangeEditingPhase() {
         let envelope = EventNormalizer.normalizeEnvelope(
             sourceProvider: "codex-cli",

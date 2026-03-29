@@ -109,6 +109,14 @@ extension ProviderToolEventMapper {
                 .filter { !$0.isEmpty }
             mapped["matchesCount"] = "\(files.count)"
         }
+        if shouldMapSearchEventAsSemantic(
+            normalizedTool: normalized,
+            query: query,
+            payload: payload
+        ) {
+            mapped["tool"] = "semantic_search"
+            return ("semantic_search", mapped)
+        }
         if normalized == "grep" || normalized == "rg" || normalized == "instant_grep" || !query.isEmpty {
             if mapped["query"] == nil {
                 mapped["query"] = "(query)"
@@ -131,6 +139,33 @@ extension ProviderToolEventMapper {
             mapped["output"] = String(output.prefix(6_000))
         }
         return ("semantic_search", mapped)
+    }
+
+    private static func shouldMapSearchEventAsSemantic(
+        normalizedTool: String,
+        query: String,
+        payload: [String: Any]
+    ) -> Bool {
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedQuery.isEmpty else { return false }
+        guard normalizedTool == "search" || normalizedTool == "codebase_search" else { return false }
+        guard queryLooksNaturalLanguageSemantic(trimmedQuery) else { return false }
+        let kind = firstString(in: payload, keys: ["kind"]) ?? ""
+        return kind.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private static func queryLooksNaturalLanguageSemantic(_ query: String) -> Bool {
+        if query.range(of: #"[?*+|()[\]{}^$]"#, options: .regularExpression) != nil {
+            return false
+        }
+        let lower = query.lowercased()
+        let tokens = lower.split(whereSeparator: \.isWhitespace)
+        if tokens.count >= 3 { return true }
+        let intentSignals = [
+            "where", "which", "how", "why", "what", "flow", "logic",
+            "handle", "handled", "responsible", "manage", "used", "called",
+        ]
+        return intentSignals.contains { lower.contains($0) }
     }
 
     static func mapFallback(tool rawTool: String, payload: [String: Any]) -> (type: String, payload: [String: String]) {

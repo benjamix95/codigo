@@ -127,6 +127,17 @@ extension ProviderToolEventMapperTests {
         XCTAssertEqual(mapped?.type, "semantic_search")
     }
 
+    func testGenericSearchWithNaturalLanguageMapsToSemantic() {
+        let mapped = ProviderToolEventMapper.map(
+            toolName: "search",
+            payload: [
+                "query": "where is authentication handled",
+            ]
+        )
+        XCTAssertEqual(mapped?.type, "semantic_search")
+        XCTAssertEqual(mapped?.payload["tool"], "semantic_search")
+    }
+
     // MARK: - Web Tools
 
 }

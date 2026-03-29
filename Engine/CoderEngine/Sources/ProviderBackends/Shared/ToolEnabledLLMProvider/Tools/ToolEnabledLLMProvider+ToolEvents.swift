@@ -13,7 +13,10 @@ extension ToolEnabledLLMProvider {
         onLiveSubagentEvent: (@Sendable (StreamEvent) -> Void)? = nil
     ) async -> [StreamEvent] {
         guard marker.kind == "tool_call" else { return [] }
-        let toolName = inferredToolName(from: marker.payload)
+        let inferredTool = inferredToolName(from: marker.payload)
+        let enforced = enforcedWorkspaceSearchMarker(marker: marker, toolName: inferredTool)
+        let marker = enforced.marker
+        let toolName = enforced.toolName
         guard !toolName.isEmpty else { return [] }
 
         if let legacyInvokeEvents = await executeLegacyInvokeSwarmIfNeeded(

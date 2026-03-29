@@ -41,7 +41,7 @@ extension ToolEnabledLLMProvider {
         }
     }
 
-    private func looksLikeNaturalLanguageSemanticQuery(_ query: String) -> Bool {
+    func looksLikeNaturalLanguageSemanticQuery(_ query: String) -> Bool {
         let lower = query.lowercased()
         let tokens = lower.split(whereSeparator: \.isWhitespace)
         if tokens.count >= 3 { return true }
@@ -53,7 +53,7 @@ extension ToolEnabledLLMProvider {
         return intentSignals.contains { lower.contains($0) }
     }
 
-    private func queryLooksRegexLike(_ query: String) -> Bool {
+    func queryLooksRegexLike(_ query: String) -> Bool {
         let regexSignals = CharacterSet(charactersIn: "*+?|[](){}^$")
         return query.rangeOfCharacter(from: regexSignals) != nil
     }

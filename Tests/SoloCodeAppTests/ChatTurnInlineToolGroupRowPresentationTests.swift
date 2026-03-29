@@ -31,6 +31,20 @@ final class ChatTurnInlineToolGroupRowPresentationTests: XCTestCase {
         XCTAssertEqual(presentation.emphasizedText, "policy ack flow")
     }
 
+    func testCoderideSemanticSearchPresentationUsesDedicatedLabel() {
+        let presentation = ChatTurnInlineToolGroupRowPresentation.make(
+            event: makeEvent(
+                sequence: 1,
+                title: "MCP call • coderide_semantic_search",
+                tool: "coderide_semantic_search",
+                query: "where is authentication handled"
+            )
+        )
+
+        XCTAssertEqual(presentation.actionLabel, "Semantic Search")
+        XCTAssertEqual(presentation.emphasizedText, "where is authentication handled")
+    }
+
     func testCodebaseSearchPresentationUsesDedicatedLabel() {
         let presentation = ChatTurnInlineToolGroupRowPresentation.make(
             event: makeEvent(
