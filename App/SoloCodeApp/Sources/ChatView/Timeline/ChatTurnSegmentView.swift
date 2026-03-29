@@ -52,6 +52,14 @@ struct ChatTurnSegmentView: View {
             )
             .frame(maxWidth: 800, alignment: .leading)
 
+        case .completedSubagentsGroup(_, let group, _):
+            ChatTurnCompletedSubagentsGroupView(
+                group: group,
+                onOpenSubagentPanel: { onAction(.openSubagentPanel($0)) },
+                onStopSubagent: { onAction(.stopSubagent) }
+            )
+                .padding(.horizontal, 2)
+
         case .subagentLiveCard(_, let card, _):
             SubagentChatCardView(
                 card: card,
@@ -59,10 +67,6 @@ struct ChatTurnSegmentView: View {
                 onStop: { onAction(.stopSubagent) }
             )
             .padding(.horizontal, 2)
-
-        case .completedSubagentsGroup(_, let group, _):
-            ChatTurnCompletedSubagentsGroupView(group: group)
-                .padding(.horizontal, 2)
 
         case .subagentSnapshot(_, let snapshot, _):
             SubagentSnapshotCardView(snapshot: snapshot)

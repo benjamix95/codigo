@@ -184,7 +184,17 @@ extension ChatPanelView {
                     cards: visibleSnapshots,
                     sequence: 0
                 )
-                ChatTurnCompletedSubagentsGroupView(group: group)
+                ChatTurnCompletedSubagentsGroupView(
+                    group: group,
+                    onOpenSubagentPanel: {
+                        selectedSwarmId = $0
+                        showSwarmPanel = true
+                    },
+                    onStopSubagent: {
+                        lastTaskEndedByManualStop = true
+                        interruptTask(for: conversationId, source: "legacy_subagent_group_stop")
+                    }
+                )
                     .padding(.horizontal, 2)
             }
         }

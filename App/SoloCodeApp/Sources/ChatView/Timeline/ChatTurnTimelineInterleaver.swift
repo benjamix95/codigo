@@ -18,7 +18,6 @@ enum ChatTurnTimelineInterleaver {
         let visibleLiveCards = liveSubagentCards.filter {
             isVisibleSubagentId(normalizedSubagentId($0.swarmId))
         }
-        let runningLiveCards = visibleLiveCards.filter { $0.status == .running }
 
         for block in blocks {
             switch block.kind {
@@ -58,27 +57,12 @@ enum ChatTurnTimelineInterleaver {
             traceEvents.map(\.sequence).max() ?? 0
         )
 
-        for (index, card) in runningLiveCards.enumerated() {
-            segments.append(
-                .subagentLiveCard(
-                    id: card.swarmId.lowercased(),
-                    card: card,
-                    sequence: sequenceForSubagentCard(
-                        swarmId: card.swarmId,
-                        traceEvents: traceEvents,
-                        fallbackBase: baseSequence,
-                        offset: index
-                    )
-                )
-            )
-        }
-
         for completedGroup in completedSubagentGroups(
             traceEvents: traceEvents,
             blocks: blocks,
             liveSubagentCards: visibleLiveCards,
             subagentSnapshots: subagentSnapshots,
-            fallbackBase: baseSequence + runningLiveCards.count
+            fallbackBase: baseSequence
         ) {
             segments.append(
                 .completedSubagentsGroup(
@@ -125,8 +109,7 @@ enum ChatTurnTimelineInterleaver {
         case .reasoning: return 0
         case .text: return 1
         case .toolEvent, .toolGroup: return 2
-        case .subagentLiveCard: return 3
-        case .completedSubagentsGroup: return 4
+        case .subagentLiveCard, .completedSubagentsGroup: return 3
         case .subagentSnapshot: return 5
         case .artifact: return 6
         }

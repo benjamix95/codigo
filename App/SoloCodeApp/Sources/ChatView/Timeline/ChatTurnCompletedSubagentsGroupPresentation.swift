@@ -2,9 +2,16 @@ import Foundation
 
 struct ChatTurnCompletedSubagentsGroupExpansionState: Equatable {
     var isExpanded: Bool
+    var didAutoCollapseAfterCompletion: Bool
 
-    static func initial(hasCards: Bool) -> Self {
-        Self(isExpanded: false)
+    static func initial(
+        hasEntries: Bool,
+        hasRunningEntries: Bool
+    ) -> Self {
+        Self(
+            isExpanded: hasRunningEntries,
+            didAutoCollapseAfterCompletion: hasEntries && !hasRunningEntries
+        )
     }
 
     mutating func toggle() {
@@ -18,10 +25,11 @@ struct ChatTurnCompletedSubagentsGroupPresentation: Equatable {
     let subtitle: String
 
     static func make(group: ChatTurnCompletedSubagentsGroup) -> Self {
-        let totalCount = group.cards.count
-        let title = totalCount == 1 ? "Sub-agent utilizzato" : "Sub-agent utilizzati"
+        let totalCount = group.entries.count
+        let title = "sub-agents"
         let badgeText = "\(totalCount)"
         let subtitle = statusSummary(
+            runningCount: group.runningCount,
             completedCount: group.completedCount,
             failedCount: group.failedCount
         )
@@ -33,10 +41,14 @@ struct ChatTurnCompletedSubagentsGroupPresentation: Equatable {
     }
 
     private static func statusSummary(
+        runningCount: Int,
         completedCount: Int,
         failedCount: Int
     ) -> String {
         var parts: [String] = []
+        if runningCount > 0 {
+            parts.append("\(runningCount) in esecuzione")
+        }
         if completedCount > 0 {
             let label = completedCount == 1 ? "completato" : "completati"
             parts.append("\(completedCount) \(label)")
@@ -49,5 +61,26 @@ struct ChatTurnCompletedSubagentsGroupPresentation: Equatable {
             return "Nessun sub-agent completato"
         }
         return parts.joined(separator: " · ")
+    }
+
+    static func reconcile(
+        current: ChatTurnCompletedSubagentsGroupExpansionState,
+        hasEntries: Bool,
+        hasRunningEntries: Bool
+    ) -> ChatTurnCompletedSubagentsGroupExpansionState {
+        if hasRunningEntries {
+            var updated = current
+            updated.didAutoCollapseAfterCompletion = false
+            return updated
+        }
+
+        guard hasEntries, !current.didAutoCollapseAfterCompletion else {
+            return current
+        }
+
+        return ChatTurnCompletedSubagentsGroupExpansionState(
+            isExpanded: false,
+            didAutoCollapseAfterCompletion: true
+        )
     }
 }

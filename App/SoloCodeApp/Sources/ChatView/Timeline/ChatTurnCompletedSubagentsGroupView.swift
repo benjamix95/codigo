@@ -2,14 +2,23 @@ import SwiftUI
 
 struct ChatTurnCompletedSubagentsGroupView: View {
     let group: ChatTurnCompletedSubagentsGroup
+    let onOpenSubagentPanel: (String) -> Void
+    let onStopSubagent: () -> Void
 
     @State private var expansionState: ChatTurnCompletedSubagentsGroupExpansionState
 
-    init(group: ChatTurnCompletedSubagentsGroup) {
+    init(
+        group: ChatTurnCompletedSubagentsGroup,
+        onOpenSubagentPanel: @escaping (String) -> Void,
+        onStopSubagent: @escaping () -> Void
+    ) {
         self.group = group
+        self.onOpenSubagentPanel = onOpenSubagentPanel
+        self.onStopSubagent = onStopSubagent
         _expansionState = State(
             initialValue: ChatTurnCompletedSubagentsGroupExpansionState.initial(
-                hasCards: !group.cards.isEmpty
+                hasEntries: !group.entries.isEmpty,
+                hasRunningEntries: group.hasRunningEntries
             )
         )
     }
@@ -70,12 +79,42 @@ struct ChatTurnCompletedSubagentsGroupView: View {
                         .foregroundStyle(DesignSystem.Colors.textTertiary)
                         .padding(.leading, 2)
 
-                    ForEach(group.cards) { snapshot in
-                        SubagentSnapshotCardView(snapshot: snapshot)
+                    ForEach(group.entries) { entry in
+                        if entry.isRunning, let liveCard = entry.liveCard {
+                            SubagentChatCardView(
+                                card: liveCard,
+                                onOpenInPanel: { onOpenSubagentPanel(liveCard.swarmId) },
+                                onStop: onStopSubagent
+                            )
+                        } else {
+                            SubagentSnapshotCardView(snapshot: entry.snapshot)
+                        }
                     }
                 }
                 .padding(.leading, 2)
             }
+        }
+        .onAppear(perform: syncExpansionState)
+        .onChange(of: lifecycleToken) { _ in
+            syncExpansionState()
+        }
+    }
+
+    private var lifecycleToken: String {
+        group.entries.map {
+            "\($0.id):\($0.status.rawValue)"
+        }.joined(separator: "|")
+    }
+
+    private func syncExpansionState() {
+        let next = ChatTurnCompletedSubagentsGroupPresentation.reconcile(
+            current: expansionState,
+            hasEntries: !group.entries.isEmpty,
+            hasRunningEntries: group.hasRunningEntries
+        )
+        guard next != expansionState else { return }
+        withAnimation(.easeOut(duration: 0.15)) {
+            expansionState = next
         }
     }
 }

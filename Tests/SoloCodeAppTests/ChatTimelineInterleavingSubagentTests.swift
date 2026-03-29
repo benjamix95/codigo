@@ -2,7 +2,7 @@ import XCTest
 @testable import CoderIDE
 
 final class ChatTimelineInterleavingSubagentTests: ChatTimelineInterleavingTestCase {
-    func testInterleaverPlacesLiveSubagentCardInlineUsingMatchingSwarmSequence() {
+    func testInterleaverPlacesLiveSubagentIntoAnchoredSectionUsingMatchingSwarmSequence() {
         let blocks = [
             makeBlock(id: "text-0", kind: .primaryText, text: "Hi", sequence: 0),
             makeBlock(id: "text-1", kind: .primaryText, text: "Bye", sequence: 4),
@@ -26,14 +26,15 @@ final class ChatTimelineInterleavingSubagentTests: ChatTimelineInterleavingTestC
             liveSubagentCards: liveCards
         )
 
-        let liveCardSequences = segments.compactMap { segment -> Int? in
-            if case .subagentLiveCard(_, let card, let sequence) = segment, card.swarmId == "sa-review" {
+        let liveGroupSequences = segments.compactMap { segment -> Int? in
+            if case .completedSubagentsGroup(_, let group, let sequence) = segment,
+               group.entries.contains(where: { $0.id == "sa-review" && $0.isRunning }) {
                 return sequence
             }
             return nil
         }
 
-        XCTAssertEqual(liveCardSequences, [2])
+        XCTAssertEqual(liveGroupSequences, [2])
     }
 
     func testInterleaverKeepsTrailingCompletedSubagentGroupAtChronologicalEndWithoutTraceAnchor() {
@@ -189,7 +190,7 @@ final class ChatTimelineInterleavingSubagentTests: ChatTimelineInterleavingTestC
         XCTAssertEqual(groups[0].sequence, 1)
     }
 
-    func testInterleaverKeepsRunningCardsInlineAndMovesCompletedCardsIntoGroup() {
+    func testInterleaverAnchorsRunningAndCompletedCardsInsideSections() {
         let blocks = [
             makeBlock(id: "text-0", kind: .primaryText, text: "Start", sequence: 0),
             makeBlock(id: "text-1", kind: .primaryText, text: "End", sequence: 5),
@@ -223,21 +224,18 @@ final class ChatTimelineInterleavingSubagentTests: ChatTimelineInterleavingTestC
             subagentSnapshots: snapshots
         )
 
-        let runningIds = segments.compactMap { segment -> String? in
-            if case .subagentLiveCard(_, let card, _) = segment {
-                return card.swarmId
-            }
-            return nil
-        }
-        let group = try! XCTUnwrap(segments.compactMap { segment -> ChatTurnCompletedSubagentsGroup? in
+        let groups = segments.compactMap { segment -> ChatTurnCompletedSubagentsGroup? in
             if case .completedSubagentsGroup(_, let group, _) = segment {
                 return group
             }
             return nil
-        }.first)
+        }
 
-        XCTAssertEqual(runningIds, ["sa-review"])
-        XCTAssertEqual(group.cards.map(\.swarmId), ["sa-explorer"])
+        XCTAssertEqual(groups.count, 2)
+        XCTAssertEqual(groups[0].cards.map(\.swarmId), ["sa-explorer"])
+        XCTAssertFalse(groups[0].hasRunningEntries)
+        XCTAssertEqual(groups[1].cards.map(\.swarmId), ["sa-review"])
+        XCTAssertTrue(groups[1].hasRunningEntries)
         XCTAssertEqual(segments.map(\.sequence), [0, 1, 1, 3, 3, 5])
     }
 

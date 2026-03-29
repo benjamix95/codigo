@@ -3,10 +3,11 @@ import Foundation
 extension ChatTurnTimelineInterleaver {
     struct CompletedSubagentCandidate {
         let snapshot: SubagentCardSnapshot
+        let liveCard: SwarmLiveCardState?
         let sequence: Int
     }
 
-    private static let completedSubagentLaunchGapThreshold = 2
+    private static let completedSubagentLaunchGapThreshold = 1
 
     static func completedSubagentGroups(
         traceEvents: [ToolTraceEvent],
@@ -17,17 +18,21 @@ extension ChatTurnTimelineInterleaver {
     ) -> [ChatTurnCompletedSubagentsGroup] {
         var orderedIds: [String] = []
         var candidates: [String: CompletedSubagentCandidate] = [:]
-        let activeLiveIds = Set(
+        let liveIds = Set(
             liveSubagentCards
-                .filter { $0.status == .running }
                 .map { normalizedSubagentId($0.swarmId) }
         )
 
-        func upsert(snapshot: SubagentCardSnapshot, forceOverride: Bool) {
+        func upsert(
+            snapshot: SubagentCardSnapshot,
+            liveCard: SwarmLiveCardState?,
+            forceOverride: Bool
+        ) {
             let normalizedId = normalizedSubagentId(snapshot.swarmId)
-            guard isVisibleSubagentId(normalizedId), isTerminal(snapshot.status) else { return }
+            guard isVisibleSubagentId(normalizedId) else { return }
             let next = CompletedSubagentCandidate(
                 snapshot: snapshot,
+                liveCard: liveCard,
                 sequence: sequenceForSubagentCard(
                     swarmId: snapshot.swarmId,
                     traceEvents: traceEvents,
@@ -43,11 +48,15 @@ extension ChatTurnTimelineInterleaver {
             }
         }
 
-        for snapshot in subagentSnapshots where !activeLiveIds.contains(normalizedSubagentId(snapshot.swarmId)) {
-            upsert(snapshot: snapshot, forceOverride: false)
+        for snapshot in subagentSnapshots where !liveIds.contains(normalizedSubagentId(snapshot.swarmId)) {
+            upsert(snapshot: snapshot, liveCard: nil, forceOverride: false)
         }
-        for card in liveSubagentCards where isTerminal(card.status) {
-            upsert(snapshot: SubagentCardSnapshot(from: card), forceOverride: true)
+        for card in liveSubagentCards {
+            upsert(
+                snapshot: SubagentCardSnapshot(from: card),
+                liveCard: card,
+                forceOverride: true
+            )
         }
 
         let orderedCandidates = orderedIds.compactMap { candidates[$0] }
@@ -66,7 +75,12 @@ extension ChatTurnTimelineInterleaver {
             guard let first = cohort.first else { return nil }
             return ChatTurnCompletedSubagentsGroup(
                 id: "completed-subagents-\(first.sequence)-\(index)",
-                cards: cohort.map(\.snapshot),
+                entries: cohort.map {
+                    ChatTurnCompletedSubagentsGroupEntry(
+                        snapshot: $0.snapshot,
+                        liveCard: $0.liveCard
+                    )
+                },
                 sequence: first.sequence
             )
         }
