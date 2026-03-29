@@ -17,7 +17,21 @@ final class ChatTurnInlineToolGroupRowPresentationTests: XCTestCase {
         XCTAssertFalse(presentation.usesMonospacedEmphasis)
     }
 
-    func testSearchPresentationUsesRicercaLabel() {
+    func testSemanticSearchPresentationUsesDedicatedLabel() {
+        let presentation = ChatTurnInlineToolGroupRowPresentation.make(
+            event: makeEvent(
+                sequence: 1,
+                title: "Search symbol",
+                tool: "semantic_search",
+                query: "policy ack flow"
+            )
+        )
+
+        XCTAssertEqual(presentation.actionLabel, "Semantic Search")
+        XCTAssertEqual(presentation.emphasizedText, "policy ack flow")
+    }
+
+    func testCodebaseSearchPresentationUsesDedicatedLabel() {
         let presentation = ChatTurnInlineToolGroupRowPresentation.make(
             event: makeEvent(
                 sequence: 1,
@@ -27,7 +41,21 @@ final class ChatTurnInlineToolGroupRowPresentationTests: XCTestCase {
             )
         )
 
-        XCTAssertEqual(presentation.actionLabel, "Ricerca")
+        XCTAssertEqual(presentation.actionLabel, "Codebase Search")
+        XCTAssertEqual(presentation.emphasizedText, "MessageToolTraceView")
+    }
+
+    func testGrepPresentationUsesInstantGrepLabel() {
+        let presentation = ChatTurnInlineToolGroupRowPresentation.make(
+            event: makeEvent(
+                sequence: 1,
+                title: "Search text",
+                tool: "grep",
+                query: "MessageToolTraceView"
+            )
+        )
+
+        XCTAssertEqual(presentation.actionLabel, "Instant Grep")
         XCTAssertEqual(presentation.emphasizedText, "MessageToolTraceView")
     }
 

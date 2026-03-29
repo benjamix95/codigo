@@ -174,9 +174,41 @@ struct ChatTurnInlineToolGroupRowPresentation: Equatable {
                 usesMonospacedEmphasis: false,
                 accentColor: DesignSystem.Colors.browserColor
             )
-        case "grep", "search", "semantic_search", "codebase_search", "find_symbol", "find_references":
+        case "semantic_search":
             return .init(
-                actionLabel: "Ricerca",
+                actionLabel: "Semantic Search",
+                emphasizedText: fallbackEmphasis(target: target, eventTitle: event.title),
+                detailText: nil,
+                usesMonospacedEmphasis: false,
+                accentColor: DesignSystem.Colors.reviewColor
+            )
+        case "grep", "instant_grep", "search":
+            return .init(
+                actionLabel: "Instant Grep",
+                emphasizedText: fallbackEmphasis(target: target, eventTitle: event.title),
+                detailText: nil,
+                usesMonospacedEmphasis: false,
+                accentColor: DesignSystem.Colors.reviewColor
+            )
+        case "codebase_search":
+            return .init(
+                actionLabel: "Codebase Search",
+                emphasizedText: fallbackEmphasis(target: target, eventTitle: event.title),
+                detailText: nil,
+                usesMonospacedEmphasis: false,
+                accentColor: DesignSystem.Colors.reviewColor
+            )
+        case "find_symbol":
+            return .init(
+                actionLabel: "Find Symbol",
+                emphasizedText: fallbackEmphasis(target: target, eventTitle: event.title),
+                detailText: nil,
+                usesMonospacedEmphasis: false,
+                accentColor: DesignSystem.Colors.reviewColor
+            )
+        case "find_references":
+            return .init(
+                actionLabel: "Find References",
                 emphasizedText: fallbackEmphasis(target: target, eventTitle: event.title),
                 detailText: nil,
                 usesMonospacedEmphasis: false,

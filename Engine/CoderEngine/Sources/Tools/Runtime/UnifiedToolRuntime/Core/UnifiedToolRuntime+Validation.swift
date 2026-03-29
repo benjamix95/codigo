@@ -73,6 +73,7 @@ extension UnifiedToolRuntime {
             if command.isEmpty {
                 throw ToolRuntimeError.validation("command is required")
             }
+            try validateWorkspaceDiscoveryShellUsage(command: command)
         case "mcp_reconnect", "mcp_restart_server":
             let server = resolveMCPServerArg(from: call.args)
             if server.isEmpty {

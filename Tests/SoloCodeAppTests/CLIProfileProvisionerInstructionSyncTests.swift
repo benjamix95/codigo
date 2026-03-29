@@ -80,6 +80,9 @@ final class CLIProfileProvisionerInstructionSyncTests: XCTestCase {
         let template = CLIProfileProvisioner.codexInstructionsTemplate
 
         XCTAssertTrue(template.contains("TODO WORKFLOW (USE ONLY WHEN TRULY NEEDED)"))
+        XCTAssertTrue(template.contains("`coderide_semantic_search`"))
+        XCTAssertTrue(template.contains("`coderide_grep`"))
+        XCTAssertTrue(template.contains("Never use shell `grep`, `rg`, `find`, `fd`, `cat`, `ls`, or `tree`"))
         XCTAssertTrue(template.contains("If the task is simple (single action or <=2 concrete operations), do NOT emit todo markers."))
         XCTAssertTrue(template.contains("never placeholder items like \"Task\", \"Analysis\", \"Step 1\", or \"Todo update\""))
         XCTAssertTrue(template.contains("Emit the first `coderide_todo_write` update BEFORE the first command/edit/tool action"))

@@ -22,7 +22,8 @@ enum PromptToolsPolicy {
     - ALWAYS read a file before editing it — never edit blind.
     - If the tool schema exposes prefixed aliases (for example `coderide_read`, `coderide_grep`, `coderide_semantic_search`), those are the canonical workspace tools for this session. Use the exact alias shown by the session, not a guessed variant.
     - **CoderIDE MCP (server Rust):** when connected, the function-calling schema lists tools as `coderide_*` (for example `\(canonicalToolName("read"))`, `\(canonicalToolName("plan_create"))`, `\(canonicalToolName("review_start"))`). Use those exact names from the live tool list for this session. If both generic and `coderide_*` forms appear, choose the `coderide_*` tool and treat the generic form as a compatibility alias only.
-    - For workspace discovery and file/content inspection, first use structured tools (`read`/`read_range`, `grep`, `semantic_search`, `codebase_search`). Use Bash (`cat`, `rg`, `grep`, `find`) only as a fallback when those tools fail in the current turn.
+    - For workspace discovery and file/content inspection, first use structured tools (`read`/`read_range`, `grep`, `semantic_search`, `codebase_search`, `find_symbol`, `find_files`, `glob`, `list_dir`).
+    - If the live schema exposes `coderide_*` workspace tools, shell discovery commands (`grep`, `rg`, `find`, `fd`, `cat`, `ls`, `tree`) are forbidden unless the corresponding structured tool already failed in the current turn.
     - For macOS app/UI work, use native verification tools proactively whenever they materially reduce uncertainty. Do NOT wait for the user to explicitly ask if you are:
       • debugging a visual/UI bug;
       • validating that a UI change actually works;
@@ -34,11 +35,11 @@ enum PromptToolsPolicy {
       • capture screenshots before claiming the UI is correct, and base conclusions on visible evidence rather than assumptions.
     - When the runtime can display screenshots inline (for example image-returning browser tools), use that path so screenshots stay large and readable in chat. When using shell-native screenshots, save a PNG and reference the concrete path/output in the response.
     - Use `str_replace` for all file edits. Only use `write` for brand new files or complete rewrites.
-    - Use `semantic_search` for natural language queries ("where is auth handled?", "error handling flow"). It combines index, grep, and file name matching with semantic scoring.
+    - Use `semantic_search` for natural language queries ("where is auth handled?", "error handling flow"). Prefer the canonical alias `coderide_semantic_search` when it is exposed.
     - Use `codebase_search` and `find_symbol` over `grep` when searching for symbol definitions (classes, functions, structs). They use the codebase index and are faster and more precise.
     - Use `find_references` before refactoring to understand all usages of a symbol.
     - Use `file_outline` to understand a file's structure before reading it entirely.
-    - Use `grep` with `fileType` for text/regex search. Use `glob` or `find_files` to find files by name pattern.
+    - Use `grep` with `fileType` for text/regex search. Prefer the canonical alias `coderide_grep` when it is exposed. Treat it as instant grep for workspace search; do not replace it with shell `rg`/`grep`.
     - After each tool batch, integrate results and continue toward the solution.
     - Do not cycle on the same tools without new information or a different approach.
     - If a tool fails, explain the likely cause and apply a concrete fallback.

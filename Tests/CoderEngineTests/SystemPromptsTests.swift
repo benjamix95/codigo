@@ -49,6 +49,7 @@ final class SystemPromptsTests: XCTestCase {
         XCTAssertTrue(prompt.contains("coderide_grep"))
         XCTAssertTrue(prompt.contains("coderide_semantic_search"))
         XCTAssertTrue(prompt.contains("choose the `coderide_*` tool"))
+        XCTAssertTrue(prompt.contains("shell discovery commands (`grep`, `rg`, `find`, `fd`, `cat`, `ls`, `tree`) are forbidden"))
     }
 
     func testTaskCompletionStrictMentionsDiagnosticsFamilyAndBenchmarks() {
