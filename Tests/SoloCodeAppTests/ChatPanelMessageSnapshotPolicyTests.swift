@@ -153,4 +153,56 @@ final class ChatPanelMessageSnapshotPolicyTests: XCTestCase {
             )
         )
     }
+
+    /// Store vuoto transiente molti secondi dopo fine task (debug `2fa5b8`, ~22s).
+    func testDefaultGracePreservesLongDelayedEmptyStoreAfterBusy() {
+        let conversationId = UUID()
+        let now = Date(timeIntervalSince1970: 200)
+
+        XCTAssertTrue(
+            shouldPreserveSnapshotAgainstTransientEmptyStore(
+                freshConversationId: conversationId,
+                freshMessageCount: 0,
+                previousSnapshotConversationId: conversationId,
+                previousSnapshotMessageCount: 2,
+                chromeBusy: false,
+                lastBusyAt: now.addingTimeInterval(-22),
+                now: now
+            )
+        )
+    }
+
+    func testDefaultGraceStopsPreservingAfterThirtySeconds() {
+        let conversationId = UUID()
+        let now = Date(timeIntervalSince1970: 300)
+
+        XCTAssertFalse(
+            shouldPreserveSnapshotAgainstTransientEmptyStore(
+                freshConversationId: conversationId,
+                freshMessageCount: 0,
+                previousSnapshotConversationId: conversationId,
+                previousSnapshotMessageCount: 2,
+                chromeBusy: false,
+                lastBusyAt: now.addingTimeInterval(-35),
+                now: now
+            )
+        )
+    }
+
+    func testDefaultGraceDoesNotPreserveLongDelayedPartialLossAfterBusy() {
+        let conversationId = UUID()
+        let now = Date(timeIntervalSince1970: 320)
+
+        XCTAssertFalse(
+            shouldPreserveSnapshotAgainstTransientEmptyStore(
+                freshConversationId: conversationId,
+                freshMessageCount: 1,
+                previousSnapshotConversationId: conversationId,
+                previousSnapshotMessageCount: 2,
+                chromeBusy: false,
+                lastBusyAt: now.addingTimeInterval(-22),
+                now: now
+            )
+        )
+    }
 }
