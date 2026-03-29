@@ -73,6 +73,48 @@ extension ToolEnabledLLMProviderPolicyAckTests {
         }
     }
 
+    final class PromptCapturingRoundSequencedProvider: LLMProvider, @unchecked Sendable {
+        let id = "policy-ack-round-capturing"
+        let displayName = "Policy Ack Round Capturing"
+
+        private let rounds: [[StreamEvent]]
+        private var cursor = 0
+        private let lock = NSLock()
+        private var _prompts: [String] = []
+
+        init(rounds: [[StreamEvent]]) {
+            self.rounds = rounds
+        }
+
+        var prompts: [String] {
+            lock.withLock { _prompts }
+        }
+
+        func isAuthenticated() -> Bool { true }
+
+        func send(
+            prompt: String,
+            context _: WorkspaceContext,
+            imageURLs _: [URL]?
+        ) async throws -> AsyncThrowingStream<StreamEvent, Error> {
+            let roundEvents: [StreamEvent] = lock.withLock {
+                _prompts.append(prompt)
+                guard !rounds.isEmpty else { return [] }
+                let index = min(cursor, rounds.count - 1)
+                cursor += 1
+                return rounds[index]
+            }
+            return AsyncThrowingStream { continuation in
+                continuation.yield(.started)
+                for event in roundEvents {
+                    continuation.yield(event)
+                }
+                continuation.yield(.completed)
+                continuation.finish()
+            }
+        }
+    }
+
     final class TextOnlyProvider: LLMProvider, @unchecked Sendable {
         let id = "subagent-text-only"
         let displayName = "Subagent Text Only"
