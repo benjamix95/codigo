@@ -10,6 +10,10 @@ struct ChatTurnInlineFileChangeRowView: View {
 
     @State private var isDiffExpanded = false
 
+    private var previewMode: ChatTurnInlineFileChangePreviewMode {
+        ChatTurnInlineFileChangePreviewPolicy.mode(for: change)
+    }
+
     private var actionLabel: String {
         switch change.kind {
         case .created:
@@ -101,17 +105,10 @@ struct ChatTurnInlineFileChangeRowView: View {
                 }
             }
 
-            if isDiffExpanded {
+            if isDiffExpanded, previewMode == .expandedOnly {
                 ToolTraceFileChangeExpandedPreviewCardView(
                     change: change,
                     maxHeight: 240
-                )
-            } else {
-                ToolTraceFileChangeCompactPreviewView(
-                    change: change,
-                    maxLines: showsRunningChrome ? 4 : 3,
-                    showsBackground: true,
-                    compactPadding: 8
                 )
             }
         }
