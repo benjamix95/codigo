@@ -16,6 +16,10 @@ struct SubagentChatView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 10) {
+                    if let contextDescriptor {
+                        contextHeader(contextDescriptor)
+                    }
+
                     ForEach(segments) { segment in
                         segmentView(segment)
                             .id(segment.id)
@@ -43,6 +47,10 @@ struct SubagentChatView: View {
         }
     }
 
+    private var contextDescriptor: SubagentContextDescriptor? {
+        SubagentContextDescriptor.from(card: card)
+    }
+
     // MARK: - Segment Rendering
 
     @ViewBuilder
@@ -67,11 +75,12 @@ struct SubagentChatView: View {
                 isStreaming: isStreaming
             )
 
-        case .toolTrace(_, let events):
+        case .toolTrace(_, let events, let isTraceStreaming):
             MessageToolTraceView(
                 events: events,
                 workspaceHints: [],
-                onOpenFile: { _ in }
+                onOpenFile: { _ in },
+                messageIsStreaming: isTraceStreaming
             )
 
         case .result(_, let text, let timestamp):
@@ -94,6 +103,29 @@ struct SubagentChatView: View {
                 .textShimmer(active: true)
         }
         .padding(.vertical, 4)
+    }
+
+    @ViewBuilder
+    private func contextHeader(_ descriptor: SubagentContextDescriptor) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(descriptor.primaryLabel)
+                .font(.system(size: 10.5, weight: .semibold))
+                .foregroundStyle(.secondary.opacity(0.85))
+                .lineLimit(1)
+
+            if let secondaryLabel = descriptor.secondaryLabel {
+                Text(secondaryLabel)
+                    .font(.system(size: 10, weight: .regular))
+                    .foregroundStyle(.tertiary.opacity(0.9))
+                    .lineLimit(1)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.primary.opacity(0.04))
+        )
     }
 
     // MARK: - Scroll

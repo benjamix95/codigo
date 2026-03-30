@@ -1,6 +1,16 @@
 import Foundation
 
 extension CodexCLIProvider {
+    private static func isSubagentLaunchAcknowledgement(_ text: String) -> Bool {
+        let normalized = text
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        guard !normalized.isEmpty else { return false }
+        return normalized.hasPrefix("ok — subagent")
+            || normalized.hasPrefix("ok - subagent")
+            || (normalized.contains("subagent") && normalized.contains("launched"))
+    }
+
     /// When an MCP tool call targets an IDE-state tool (todo/plan), produce
     /// synthetic events that feed the existing EventNormalizer → Store pipeline.
     /// The original `mcp_tool_call` event is kept for activity-panel display.
@@ -68,7 +78,11 @@ extension CodexCLIProvider {
             }()
             var events: [(type: String, payload: [String: String])] = []
             let output = firstString(in: arguments, keys: ["output"]) ?? payload["output"] ?? ""
+            let isLaunchAck = isSubagentLaunchAcknowledgement(output)
             if isTerminalStatus {
+                if isLaunchAck && !isFailureStatus {
+                    return []
+                }
                 let detail = !output.isEmpty ? output : identity.taskSummary
                 events.append(wrapped("agent", [
                     "swarm_id": subagentId,

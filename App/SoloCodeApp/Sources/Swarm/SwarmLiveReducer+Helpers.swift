@@ -43,6 +43,9 @@ extension SwarmLiveReducer {
     }
 
     static func transcriptEntry(for activity: TaskActivity) -> SubagentTranscriptEntry? {
+        if SubagentLaunchAcknowledgement.isLaunchAck(activity: activity) {
+            return nil
+        }
         if activity.type == "subagent_text" || activity.type == "reasoning" {
             let source = (activity.payload["source"] ?? "").lowercased()
             if let text = activity.payload["text"] {
@@ -71,6 +74,9 @@ extension SwarmLiveReducer {
         for activity: TaskActivity,
         displayName: String
     ) -> String? {
+        if SubagentLaunchAcknowledgement.isLaunchAck(activity: activity) {
+            return launchDetailForActivity(activity)
+        }
         let candidates = [
             activity.detail,
             activity.payload["detail"],
@@ -92,6 +98,10 @@ extension SwarmLiveReducer {
             }
         }
         return nil
+    }
+
+    private static func launchDetailForActivity(_ activity: TaskActivity) -> String {
+        SubagentLaunchAcknowledgement.launchDetail(activity: activity)
     }
 
     static func bestDisplayName(for activity: TaskActivity) -> String? {

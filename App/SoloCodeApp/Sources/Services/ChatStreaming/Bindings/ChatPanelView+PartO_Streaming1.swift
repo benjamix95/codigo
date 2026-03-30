@@ -139,7 +139,7 @@ extension ChatPanelView {
                     8. If MCP is available and external/domain capabilities are needed, call native MCP tools directly by name. Use `mcp_call` only as a fallback for tools not registered natively.
                     9. When MCP is used, explicitly report which MCP servers and MCP tools were used.
                     10. If context contains a required marker `[CODERIDE:policy_ack|hash=...]`, emit it once before any operational tool action.
-                    11. If subagent tools are available, first send a short user-facing response, then start the first operational tool round. For independent workstreams, prefer 2-5 `subagent_*` calls in the same round.
+                    11. If provider-native subagent/task capability is available, first send a short user-facing response, then start the first operational tool round. Prefer the provider-native delegation path over `coderide_subagent_*` launch shims. For independent workstreams, prefer 2-5 `subagent_*` or native provider subagent calls in the same round.
                     12. For implementation tasks, always run `subagent_reviewer` + `subagent_testWriter` before finalizing.
                     13. Do NOT auto-open the swarm/subagent panel. Emit \(CoderIDEMarkers.showSwarmPanel) only when the user explicitly asks to open/focus that panel.
                     14. For local code discovery/inspection, prefer dedicated tools (`read`/`grep`/`semantic_search` or aliases like `coderide_read`/`coderide_grep`/`coderide_semantic_search`) and avoid `bash` commands such as `cat`, `rg`, `grep`, `find` unless those dedicated tools fail first.

@@ -9,6 +9,9 @@ extension SwarmLiveReducer {
     }
 
     static func normalizedLifecycleStatus(_ activity: TaskActivity) -> NormalizedLifecycleStatus {
+        if SubagentLaunchAcknowledgement.isLaunchAck(activity: activity) {
+            return .running
+        }
         let candidates = [
             activity.payload["status"],
             activity.detail,

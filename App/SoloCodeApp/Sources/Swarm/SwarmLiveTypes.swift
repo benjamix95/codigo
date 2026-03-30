@@ -87,6 +87,9 @@ struct SubagentTranscriptEntry: Codable, Equatable, Identifiable, Sendable {
     /// Creates an activity entry from a TaskActivity event.
     /// Filters out raw swarm IDs and technical strings from titles.
     static func activity(_ activity: TaskActivity) -> SubagentTranscriptEntry? {
+        if SubagentLaunchAcknowledgement.isLaunchAck(activity: activity) {
+            return nil
+        }
         var title = activity.title.trimmingCharacters(in: .whitespacesAndNewlines)
         let detail = (activity.detail ?? activity.payload["detail"] ?? "")
             .trimmingCharacters(in: .whitespacesAndNewlines)

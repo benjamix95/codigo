@@ -1013,12 +1013,9 @@ BEFORE any work, call `mcp__coderide__coderide_todo_write` to create your todo l
 - For exact text or regex search, use `coderide_grep`.
 
 ## 3. Subagents
-- `coderide_subagent_explorer` — investigate codebase
-- `coderide_subagent_coder` — implement changes
-- `coderide_subagent_testWriter` — write tests
-- `coderide_subagent_reviewer` — review code
-- `coderide_subagent_bugHunter` — find bugs
-- `coderide_subagent_securityAuditor` — security audit
+- For real delegation, use Claude's native Task/subagent capability.
+- Give each Task a clear role in the prompt (explorer, coder, reviewer, test writer, security auditor, bug hunter) and let Claude manage the child context natively.
+- Do NOT use `coderide_subagent_*` MCP tools as a proxy for real subagent execution in main chat; those are launch shims and do not represent the child lifecycle.
 
 ## 4. Plans
 For complex tasks, create a plan with `coderide_plan_create` after the todo.
@@ -1181,6 +1178,13 @@ mod tests {
     fn readable_name_falls_back_when_empty_task() {
         let name = subagent_readable_name("", "Explorer");
         assert_eq!(name, "Explorer");
+    }
+
+    #[test]
+    fn coderide_system_prompt_prefers_native_task_tool_for_subagents() {
+        let prompt = coderide_system_prompt();
+        assert!(prompt.contains("native Task/subagent capability"));
+        assert!(prompt.contains("Do NOT use `coderide_subagent_*` MCP tools"));
     }
 
     #[test]

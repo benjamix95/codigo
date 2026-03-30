@@ -3,6 +3,7 @@ use super::codex_app_server_mcp_status::{
     codex_mcp_startup_status_payload, codex_required_mcp_startup_failure,
     parse_codex_mcp_startup_status,
 };
+use super::codex_app_server_subagent_lifecycle::is_subagent_launch_ack_payload;
 use super::codex_app_server_support::{
     enrich_codex_process_error, first_result_text, flatten_app_server_params_to_payload,
     is_turn_completed, json_rpc_id, normalize_status, raw_string_field, send_error,
@@ -775,6 +776,11 @@ fn emit_mcp_events(session_id: &str, method: &str, item: &Value) {
     // Detect coderide subagent tools and emit an `agent` event so the
     // SwarmLiveReducer creates visible subagent cards in the chat.
     if tool.contains("subagent_") {
+        if payload.get("status").map(String::as_str) == Some("completed")
+            && is_subagent_launch_ack_payload(&payload)
+        {
+            return;
+        }
         let agent_label = tool
             .strip_prefix("coderide_subagent_")
             .unwrap_or(&tool)
