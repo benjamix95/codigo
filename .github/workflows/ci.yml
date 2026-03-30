@@ -21,14 +21,32 @@ jobs:
     name: macOS — Xcode (ciFull)
     runs-on: macos-latest
     timeout-minutes: 120
+    env:
+      CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 2
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
       - uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: latest-stable
+
+      - name: Installa Codex CLI per suite wire-level
+        if: env.CODEX_AUTH_JSON != ''
+        run: npm install -g @openai/codex@0.117.0
+
+      - name: Seeda auth Codex per test wire-level
+        if: env.CODEX_AUTH_JSON != ''
+        run: |
+          mkdir -p "$HOME/.codex"
+          cat > "$HOME/.codex/auth.json" <<'EOF'
+          ${{ secrets.CODEX_AUTH_JSON }}
+          EOF
 
       - name: Permessi script di validazione
         run: chmod +x scripts/solocode-validate scripts/validate_rust_cutover_boundary.sh

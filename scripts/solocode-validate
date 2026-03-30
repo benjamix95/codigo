@@ -127,6 +127,21 @@ for file in "${FILES[@]-}"; do
   esac
 
   case "$file" in
+    Native/RustCore/src/main_chat/providers/cli/codex_app_server.rs|Native/RustCore/src/main_chat/providers/cli/codex_app_server_mcp_status.rs|Native/RustCore/src/main_chat/providers/cli/codex_app_server_support.rs|Native/RustCore/src/main_chat/providers/cli/codex_app_server_tool_search.rs|Native/RustCore/src/main_chat/providers/cli/codex_app_server_prompt.rs)
+      TEST_ARGS+=(
+        "-only-testing:CoderEngineTests/CodexAppServerMCPWireIntegrationTests"
+        "-only-testing:CoderEngineTests/CodexCLIProviderRealisticSequenceTests"
+        "-only-testing:CoderEngineTests/CodexCLINativeToolInterleavingRegressionTests"
+        "-only-testing:CoderEngineTests/ToolEnabledLLMProviderMCPWarmupTests"
+      )
+      ;;
+    Engine/CoderEngine/Sources/Infrastructure/MCP/Config/Parsing/MCPConfigLoader+CodexParsing.swift|Engine/CoderEngine/Sources/ProviderBackends/CodexCLI/*)
+      TEST_ARGS+=(
+        "-only-testing:CoderEngineTests/MCPConfigLoaderParsingTests"
+        "-only-testing:CoderEngineTests/CodexCLIProviderInvocationTests"
+        "-only-testing:CoderEngineTests/CodexAppServerMCPWireIntegrationTests"
+      )
+      ;;
     Engine/CoderEngine/Sources/Validation/*)
       TEST_ARGS+=(
         "-only-testing:CoderEngineTests/ValidationProfileResolverTests"
