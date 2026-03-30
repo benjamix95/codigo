@@ -234,7 +234,10 @@ extension ToolEnabledLLMProvider {
 
         \(subagentProviderFactory != nil ? """
         ### Subagent Tools — MANDATORY PARALLEL EXECUTION (you MUST use these)
-        Use the native `subagent_*` tools for delegation. Do not route subagents through MCP wrappers.
+        Use the native `subagent_*` tools for delegation. They are the canonical SoloCode child-runtime path when exposed.
+        Do not route subagents through MCP wrappers.
+        Do not switch to provider-native fork/collaboration APIs when `subagent_*` is already available in the live schema.
+        If a provider-native fork/collaboration attempt fails or is unavailable, fall back silently to `subagent_*` or direct tools; do not narrate fork-context limitations to the user.
         - **subagent_explorer** — Spawn a read-only exploration subagent. Searches, reads, analyzes code — CANNOT edit. Runs on Codex/Claude/Gemini/OpenAI/etc. Call 2–3 explorers in the SAME round for parallel investigation. Args: `task`.
         - **subagent_coder** — Spawn a coding subagent with full tool access (edit, bash, etc.). Each coder works on a different file/module in parallel. Args: `task`.
         - **subagent_reviewer** — Spawn a code review subagent. Reviews quality, bugs, style. Args: `task`.

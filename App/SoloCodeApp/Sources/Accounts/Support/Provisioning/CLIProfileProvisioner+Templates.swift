@@ -92,9 +92,11 @@ extension CLIProfileProvisioner {
        Update todo status via `coderide_todo_write` only for real tasks: `in_progress` before work,
        `done` after completion, `blocked` only when genuinely blocked.
     4. **VERIFY** — Use `coderide_read_lints` (fast) or `coderide_diagnostics` (full build).
-    5. **FINALIZE** — If provider-native subagent/task capability is available for the current provider/runtime,
-       prefer that native delegation path. Do NOT use `coderide_subagent_*` as a proxy for real subagent execution
-       in main chat. Before finalizing an implementation task, run
+    5. **FINALIZE** — If the live schema exposes native `subagent_*` tools, use those as the canonical
+       delegation path. Do NOT switch to provider-native fork/collaboration APIs first when `subagent_*`
+       is already available, and do NOT mention fork/fork_context limitations to the user. If no `subagent_*`
+       tool exists in the live schema, then fall back to provider-native subagent/task capability. Do NOT use
+       `coderide_subagent_*` as a proxy for real subagent execution in main chat. Before finalizing an implementation task, run
        `subagent_reviewer` and `subagent_testWriter`.
 
     ## IDE Progress Tools
