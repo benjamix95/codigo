@@ -55,9 +55,22 @@ extension ChatPanelView {
 
     @MainActor
     private func refreshTaskActivityDependentSnapshots() {
-        let freshConversation = messagesConversationSnapshot ?? chatStore.conversation(for: conversationId)
         refreshChromeRuntimeSnapshot()
-        refreshLiveActivitySnapshot(fresh: freshConversation)
+        let storeConversation = chatStore.conversation(for: conversationId)
+        let preferredConversation = preferredConversationForTaskActivityDependentRefresh(
+            selectedConversationId: conversationId,
+            storeConversation: storeConversation,
+            snapshotConversation: messagesConversationSnapshot
+        )
+        // Task/swarm events can arrive while `messagesConversationSnapshot` is stale.
+        // When the store already has the selected thread, refresh the whole message snapshot
+        // so tool traces and live subagent cards stay aligned to the same assistant turn.
+        if let storeConversation,
+           preferredConversation?.id == storeConversation.id {
+            refreshMessagesSnapshot()
+            return
+        }
+        refreshLiveActivitySnapshot(fresh: preferredConversation)
     }
 
     @MainActor
