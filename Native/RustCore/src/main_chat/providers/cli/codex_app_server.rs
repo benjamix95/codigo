@@ -1,4 +1,8 @@
 use super::codex_app_server_prompt::merged_codex_base_instructions;
+use super::codex_app_server_mcp_status::{
+    codex_mcp_startup_status_payload, codex_required_mcp_startup_failure,
+    parse_codex_mcp_startup_status,
+};
 use super::codex_app_server_support::{
     enrich_codex_process_error, first_result_text, flatten_app_server_params_to_payload,
     is_turn_completed, json_rpc_id, normalize_status, raw_string_field, send_error,
@@ -433,6 +437,19 @@ fn handle_notification(
             m.entry("title".to_string())
                 .or_insert_with(|| "Rate limits".to_string());
             emit_raw(session_id, "codex_rate_limits_updated", m);
+        }
+        "mcpServer/startupStatus/updated" => {
+            if let Some(status) = parse_codex_mcp_startup_status(&payload) {
+                emit_raw(
+                    session_id,
+                    "codex_mcp_server_status",
+                    codex_mcp_startup_status_payload(&status),
+                );
+                if let Some(message) = codex_required_mcp_startup_failure(&status) {
+                    emit_error(session_id, &message);
+                    return Err(message);
+                }
+            }
         }
         "turn/diff/updated" => {
             let mut m = flatten_app_server_params_to_payload(&payload, 24_000);

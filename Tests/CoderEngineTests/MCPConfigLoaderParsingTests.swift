@@ -33,6 +33,23 @@ final class MCPConfigLoaderParsingTests: XCTestCase {
         }
     }
 
+    func testStrictParserAcceptsRequiredAndTimeoutKeysWithoutRejectingSection() throws {
+        let toml = """
+        [mcp_servers.coderide]
+        command = "/usr/local/bin/coderide-mcp-server-rust"
+        args = ["--workspace", "."]
+        required = true
+        tool_timeout_sec = 30
+        enabled = true
+        """
+
+        let servers = try MCPConfigLoader.parseCodexMCPConfigForTests(toml)
+        XCTAssertEqual(servers.count, 1)
+        XCTAssertEqual(servers.first?.name, "coderide")
+        XCTAssertEqual(servers.first?.command, "/usr/local/bin/coderide-mcp-server-rust")
+        XCTAssertEqual(servers.first?.args, ["--workspace", "."])
+    }
+
     func testDeduplicateKeepsSameNameAcrossDifferentSources() {
         let one = makeServer(source: "codex", origin: "toml", path: "/Users/dev/.codex/config.toml", name: "shared")
         let two = makeServer(source: "cursor", origin: "json", path: "/Users/dev/.cursor/mcp.json", name: "shared")

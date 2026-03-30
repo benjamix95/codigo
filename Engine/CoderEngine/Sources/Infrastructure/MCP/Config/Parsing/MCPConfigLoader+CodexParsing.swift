@@ -130,6 +130,8 @@ extension MCPConfigLoader {
                 section.args = try parseStringArrayStrict(rawValue, line: lineNumber, key: key)
             case "env":
                 section.env = try parseInlineTableStrict(rawValue, line: lineNumber, key: key)
+            case "enabled", "required", "tool_timeout_sec":
+                break
             default:
                 print("[MCPConfigLoader] ℹ️ Ignoring unsupported key '\(key)' in [mcp_servers.\(section.name)] at line \(lineNumber)")
             }

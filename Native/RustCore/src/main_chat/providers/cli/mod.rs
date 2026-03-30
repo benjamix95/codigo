@@ -1,6 +1,7 @@
 pub(crate) mod claude;
 pub(crate) mod codex;
 pub(crate) mod codex_app_server;
+pub(crate) mod codex_app_server_mcp_status;
 pub(crate) mod codex_app_server_prompt;
 pub(crate) mod codex_app_server_support;
 pub(crate) mod codex_app_server_tool_search;

@@ -85,4 +85,21 @@ final class CodexCLIProviderInvocationTests: XCTestCase {
 
         XCTAssertEqual(repaired, original)
     }
+
+    func testRepairedCodexConfigContentPreservesRequiredMCPFlag() {
+        let original = """
+        model = "gpt-5.4"
+
+        [mcp_servers.coderide]
+        command = "/tmp/coderide-mcp-server-rust"
+        args = [ "--workspace", "." ]
+        required = true
+        """
+
+        let repaired = CodexCLIProvider.repairedCodexConfigContentIfNeeded(original)
+
+        XCTAssertTrue(repaired.contains("required = true"))
+        XCTAssertTrue(repaired.contains("[mcp_servers.coderide]"))
+        XCTAssertTrue(repaired.contains("command = \"/tmp/coderide-mcp-server-rust\""))
+    }
 }
