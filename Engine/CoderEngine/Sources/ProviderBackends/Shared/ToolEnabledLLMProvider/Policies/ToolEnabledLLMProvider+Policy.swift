@@ -251,9 +251,8 @@ extension ToolEnabledLLMProvider {
         ⚠️ MANDATORY PARALLEL EXECUTION POLICY — NON-NEGOTIABLE ⚠️
         - You are the ORCHESTRATOR. You COORDINATE and DELEGATE — you do NOT do implementation work yourself.
         - Subagents run on DIFFERENT backends (Codex, Claude, Gemini, OpenAI, Anthropic, Google, OpenRouter, MiniMax, Grok) in PARALLEL. Each call in the same round goes to a different backend automatically.
-        - **USER-FACING UPDATE FIRST**: Before the first operational tool call, send one short sentence to the user describing what you are about to do.
-        - **MINIMUM 3 SUBAGENTS PER COMPLEX TASK**: When the task truly benefits from delegation, spawn at least 3 subagents in the first operational tool round. Do not skip the initial user-facing update.
-        - Do NOT jump straight into tools without first acknowledging the request in natural language.
+        - **TOOL-FIRST EXECUTION**: Start directly with the required `policy_ack`, `coderide_*`, `mcp__coderide__*`, or `subagent_*` tool calls. Do NOT emit user-facing filler such as "Received", "I’ll analyze", or "Ingesting the policy" before those tool calls.
+        - For genuinely multi-area work, prefer launching 2–5 `subagent_*` calls in the same operational round.
         - Explorer subagents are lightweight (read-only) — spawn them freely and in bulk (3+ per round).
         - For implementation: spawn multiple subagent_coder instances (2–4), each assigned to a different file or module.
         - AFTER implementation: you MUST spawn subagent_reviewer + subagent_testWriter in parallel. This is mandatory.
@@ -261,12 +260,9 @@ extension ToolEnabledLLMProvider {
         - NEVER call tools directly (read, grep, edit, bash) when you can delegate to subagents instead.
         - After subagent results return, immediately update todos via todo_write.
 
-        **BEFORE YOUR FIRST TOOL CALL, ALWAYS SEND ONE SHORT USER-FACING UPDATE.**
-
-        CORRECT pattern (3 rounds, maximum parallelism):
-          Round 0: assistant text update ("Analizzo la richiesta e poi avvio i controlli mirati.")
-          Round 1: subagent_explorer("investigate data model") + subagent_explorer("investigate UI layer") + subagent_explorer("investigate tests")
-          Round 2: TodoWrite → subagent_coder("implement model changes") + subagent_coder("implement UI changes")
+        CORRECT pattern (tool-first, maximum parallelism):
+          Round 1: policy_ack(hash=...) + subagent_explorer("investigate data model") + subagent_explorer("investigate UI layer") + subagent_explorer("investigate tests")
+          Round 2: todo_write(...) + subagent_coder("implement model changes") + subagent_coder("implement UI changes")
           Round 3: subagent_reviewer("review all changes") + subagent_testWriter("write tests for changes")
 
         WRONG pattern (sequential, no parallelism):
@@ -278,7 +274,7 @@ extension ToolEnabledLLMProvider {
           This is FORBIDDEN. Use subagents instead.
 
         ALSO WRONG:
-          Round 1: launch tools immediately with no user-facing update.
+          Round 1: assistant text filler ("Ricevuto", "Analizzo", "Ingerisco la policy"), then tools.
         """ : "Subagent delegation is not available in this configuration. Use tools directly to complete your task.")
         """
     }

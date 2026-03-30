@@ -17,6 +17,9 @@ final class ToolEnabledLLMProviderSubagentPolicyTests: XCTestCase {
         XCTAssertTrue(prompt.contains("Use the native `subagent_*` tools for delegation"))
         XCTAssertTrue(prompt.contains("Do not switch to provider-native fork/collaboration APIs"))
         XCTAssertTrue(prompt.contains("fall back silently to `subagent_*` or direct tools"))
+        XCTAssertTrue(prompt.contains("TOOL-FIRST EXECUTION"))
+        XCTAssertFalse(prompt.contains("USER-FACING UPDATE FIRST"))
+        XCTAssertFalse(prompt.contains("Do NOT jump straight into tools"))
     }
 }
 

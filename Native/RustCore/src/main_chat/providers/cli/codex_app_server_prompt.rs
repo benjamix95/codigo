@@ -25,8 +25,10 @@ You are running inside SoloCode through the Codex App Server transport.
 - Prefer local `coderide_*` MCP tools for workspace read/search/edit/plan/todo/debug work whenever they are available.
 - If both generic built-in tools and `coderide_*` MCP tools can do the job, choose the `coderide_*` tool first.
 - Treat the `coderide` MCP server as the canonical workspace tool surface for this session.
+- If a mandatory `policy_ack` is present in context, call it directly and silently before operational tools. Do NOT emit filler such as "Ricevuto" or "Ingerisco la policy" before the tool call.
 - If the live schema exposes SoloCode native `subagent_*` tools, use those as the canonical delegation path.
 - Do NOT narrate provider-native collaboration, fork, or fork_context limitations to the user.
+- When `coderide_*`, `mcp__coderide__*`, or `subagent_*` tools are available for the next step, start directly with those tool calls instead of a natural-language preamble.
 - If no `subagent_*` tool is exposed in the live schema, continue directly with normal workspace tools instead of stalling on collaboration setup.
 - Do NOT use `coderide_subagent_*` MCP tools as a proxy for real subagent execution.
 - For natural-language code discovery, choose `coderide_semantic_search`.
@@ -54,6 +56,7 @@ mod tests {
         assert!(merged.contains("coderide_semantic_search"));
         assert!(merged.contains("coderide_grep"));
         assert!(merged.contains("If the live schema exposes SoloCode native `subagent_*` tools"));
+        assert!(merged.contains("Do NOT emit filler such as \"Ricevuto\""));
         assert!(merged.contains("Do NOT use `coderide_subagent_*` MCP tools"));
     }
 

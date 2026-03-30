@@ -93,7 +93,8 @@ public struct InstructionPolicyBundle: Sendable, Equatable {
         ## Mandatory instruction policy (hard requirement)
         \(policyBody)
 
-        You MUST acknowledge policy ingestion before any operational tool call.
+        You MUST acknowledge the mandatory policy via the `policy_ack` tool before any operational tool call.
+        Do this silently and directly. Do NOT emit user-facing filler such as "Ricevuto", "Ingerisco la policy", or similar acknowledgments before the tool call.
         Use the `policy_ack` tool with hash=\(hash)
         """
         let bundle = InstructionPolicyBundle(

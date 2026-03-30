@@ -975,16 +975,20 @@ fn normalize_tool_name(name: &str) -> String {
 }
 
 /// Returns the coderide-specific system prompt that instructs Claude to
-/// follow the IDE workflow: create todos first, use enhanced tools, etc.
+/// follow the IDE workflow: use enhanced tools first, keep policy/tool calls silent,
+/// and create todos only when the task is genuinely multi-step.
 fn coderide_system_prompt() -> &'static str {
     r#"
 # Coderide IDE Integration — MANDATORY Workflow
 
 You are running inside the Coderide IDE. You MUST follow these rules:
 
-## 1. TODO LIST — ABSOLUTE RULE: ONE AT A TIME, TOP TO BOTTOM
+## 1. TOOL-FIRST EXECUTION
 
-BEFORE any work, call `mcp__coderide__coderide_todo_write` to create your todo list.
+- Start directly with the required `policy_ack`, `mcp__coderide__coderide_*`, or `subagent_*` tool calls.
+- Do NOT emit user-facing filler such as "Ricevuto", "Analizzo", or "Ingerisco la policy" before those tool calls.
+- For simple tasks, do NOT create todos first. Begin with investigation using MCP-native coderide tools.
+- For genuinely multi-step tasks, create the todo after initial investigation and keep it one item at a time.
 
 **CRITICAL CONSTRAINT — you MUST obey ALL of these:**
 - Only ONE todo can be "in_progress" at any time. All others must be "pending".
@@ -1011,9 +1015,11 @@ BEFORE any work, call `mcp__coderide__coderide_todo_write` to create your todo l
 - Use shell only for git, builds, tests, and dependency/install commands.
 - For natural-language code discovery, use `coderide_semantic_search`.
 - For exact text or regex search, use `coderide_grep`.
+- If a required `policy_ack` exists, call it directly and silently before any operational tool.
 
 ## 3. Subagents
 - If the live schema exposes SoloCode native `subagent_*` tools, use those as the canonical delegation path.
+- Start directly with `subagent_*` when delegation is warranted; do NOT preface it with a natural-language update.
 - Do NOT narrate Task/fork/fork_context limitations to the user. If `subagent_*` is unavailable, continue directly with normal tools instead of stalling on delegation setup.
 - Do NOT use `coderide_subagent_*` MCP tools as a proxy for real subagent execution in main chat; those are launch shims and do not represent the child lifecycle.
 
@@ -1099,6 +1105,15 @@ mod tests {
         let a = make_swarm_id("toolu_01AAAAAAAAAAAA");
         let b = make_swarm_id("toolu_01BBBBBBBBBBBB");
         assert_ne!(a, b);
+    }
+
+    #[test]
+    fn coderide_system_prompt_starts_with_tools_not_filler() {
+        let prompt = coderide_system_prompt();
+
+        assert!(prompt.contains("Start directly with the required `policy_ack`"));
+        assert!(prompt.contains("Do NOT emit user-facing filler"));
+        assert!(!prompt.contains("BEFORE any work, call `mcp__coderide__coderide_todo_write`"));
     }
 
     // -- is_subagent_tool --

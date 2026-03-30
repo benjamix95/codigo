@@ -98,6 +98,7 @@ extension CLIProfileProvisioner {
        tool exists in the live schema, then fall back to provider-native subagent/task capability. Do NOT use
        `coderide_subagent_*` as a proxy for real subagent execution in main chat. Before finalizing an implementation task, run
        `subagent_reviewer` and `subagent_testWriter`.
+    6. **NO FILLER BEFORE TOOLS** — Start directly with `coderide_*`, `mcp__coderide__*`, `policy_ack`, or `subagent_*` tool calls when they are needed. Do NOT emit preambles like "Ricevuto", "Analizzo", or "Ingerisco la policy" before the first operational tool call.
 
     ## IDE Progress Tools
 

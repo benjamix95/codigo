@@ -11,6 +11,8 @@ final class CLIProfileProvisionerInstructionSyncSubagentRoutingTests: XCTestCase
         XCTAssertTrue(normalized.contains("do not mention fork/fork_context limitations"))
         XCTAssertTrue(normalized.contains("coderide_subagent_*"))
         XCTAssertTrue(normalized.contains("proxy for real subagent execution"))
+        XCTAssertTrue(normalized.contains("no filler before tools"))
+        XCTAssertTrue(normalized.contains("do not emit preambles like \"ricevuto\""))
         XCTAssertTrue(template.contains("`subagent_reviewer`"))
         XCTAssertTrue(template.contains("`subagent_testWriter`"))
     }

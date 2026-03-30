@@ -37,6 +37,7 @@ final class InstructionPolicyBundleTests: XCTestCase {
         XCTAssertFalse(bundle.policyHash.isEmpty)
         XCTAssertEqual(bundle.requiredAckMarker, "policy_ack hash=\(bundle.policyHash)")
         XCTAssertTrue(bundle.policyText.contains("policy_ack"))
+        XCTAssertTrue(bundle.policyText.contains("Do this silently and directly"))
     }
 
     func testLoadUsesCodexHomeOverrideForGlobalAgentsPath() throws {
