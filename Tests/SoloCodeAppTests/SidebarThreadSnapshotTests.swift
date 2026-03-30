@@ -248,6 +248,117 @@ final class SidebarThreadSnapshotTests: XCTestCase {
         XCTAssertNil(renderState.statusText)
     }
 
+    func testBuildRenderStatesTreatsPendingConcreteActivityAsActive() throws {
+        let defaults = UserDefaults(suiteName: #filePath + ".\(UUID().uuidString)") ?? .standard
+        let chatStore = ChatStore(userDefaults: defaults)
+        let todoStore = TodoStore(
+            storageKey: "SidebarThreadSnapshotTests.pending-activity.todos",
+            userDefaults: defaults
+        )
+        let toolTraceStore = ToolTraceStore()
+        let taskActivityStore = TaskActivityStore()
+        let conversationId = UUID()
+
+        chatStore.conversations = [
+            Conversation(
+                id: conversationId,
+                title: "Pending Activity Thread",
+                messages: [
+                    ChatMessage(role: .assistant, content: "Streaming", isStreaming: true),
+                ]
+            )
+        ]
+        chatStore.taskStatusTexts[conversationId] = "Applying patch"
+        taskActivityStore.pendingActivities = [
+            TaskActivity(
+                type: "command_execution",
+                title: "Applying patch",
+                payload: ["conversation_id": conversationId.uuidString.lowercased()],
+                phase: .executing,
+                isRunning: true
+            )
+        ]
+
+        let renderStates = SidebarThreadSnapshotBuilder.buildRenderStates(
+            conversations: chatStore.conversations,
+            chatStore: chatStore,
+            taskActivityStore: taskActivityStore,
+            todoStore: todoStore,
+            toolTraceStore: toolTraceStore
+        )
+
+        let renderState = try XCTUnwrap(renderStates[conversationId])
+        XCTAssertTrue(renderState.isActive)
+        XCTAssertTrue(renderState.isStreaming)
+        XCTAssertEqual(renderState.statusText, "Applying patch")
+    }
+
+    func testBuildRenderStatesIgnoresSwarmOnlyActivityWhenComputingActiveThreads() throws {
+        let defaults = UserDefaults(suiteName: #filePath + ".\(UUID().uuidString)") ?? .standard
+        let chatStore = ChatStore(userDefaults: defaults)
+        let todoStore = TodoStore(
+            storageKey: "SidebarThreadSnapshotTests.swarm-only.todos",
+            userDefaults: defaults
+        )
+        let toolTraceStore = ToolTraceStore()
+        let taskActivityStore = TaskActivityStore()
+        let activeConversationId = UUID()
+        let swarmOnlyConversationId = UUID()
+
+        chatStore.conversations = [
+            Conversation(
+                id: activeConversationId,
+                title: "Main Thread",
+                messages: [ChatMessage(role: .assistant, content: "Streaming", isStreaming: true)]
+            ),
+            Conversation(
+                id: swarmOnlyConversationId,
+                title: "Swarm Thread",
+                messages: [ChatMessage(role: .assistant, content: "Streaming", isStreaming: true)]
+            )
+        ]
+        chatStore.taskStatusTexts[activeConversationId] = "Reading files"
+        chatStore.taskStatusTexts[swarmOnlyConversationId] = "Subagent running"
+        taskActivityStore.addActivity(
+            TaskActivity(
+                type: "command_execution",
+                title: "Reading files",
+                payload: ["conversation_id": activeConversationId.uuidString.lowercased()],
+                phase: .executing,
+                isRunning: true
+            )
+        )
+        taskActivityStore.addActivity(
+            TaskActivity(
+                type: "command_execution",
+                title: "Subagent running",
+                payload: [
+                    "conversation_id": swarmOnlyConversationId.uuidString.lowercased(),
+                    "swarm_id": "child-1",
+                ],
+                phase: .executing,
+                isRunning: true
+            )
+        )
+
+        let renderStates = SidebarThreadSnapshotBuilder.buildRenderStates(
+            conversations: chatStore.conversations,
+            chatStore: chatStore,
+            taskActivityStore: taskActivityStore,
+            todoStore: todoStore,
+            toolTraceStore: toolTraceStore
+        )
+
+        let activeState = try XCTUnwrap(renderStates[activeConversationId])
+        XCTAssertTrue(activeState.isActive)
+        XCTAssertEqual(activeState.statusText, "Reading files")
+
+        let swarmOnlyState = try XCTUnwrap(renderStates[swarmOnlyConversationId])
+        XCTAssertFalse(swarmOnlyState.isActive)
+        XCTAssertFalse(swarmOnlyState.isStreaming)
+        XCTAssertNil(swarmOnlyState.statusText)
+    }
+
     func testSnapshotFingerprintIgnoresMessageContentOnlyMutations() {
         let defaults = UserDefaults(suiteName: #filePath + ".\(UUID().uuidString)") ?? .standard
         let chatStore = ChatStore(userDefaults: defaults)

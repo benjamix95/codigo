@@ -39,6 +39,15 @@ extension SidebarThreadSnapshotBuilder {
         let fingerprint: SidebarThreadRenderFingerprint
     }
 
+    private struct RenderComputationContext {
+        let activeConversationScopes: Set<String>
+
+        @inline(__always)
+        func hasVisibleTaskActivity(for conversationId: UUID) -> Bool {
+            activeConversationScopes.contains(conversationId.uuidString.lowercased())
+        }
+    }
+
     @MainActor
     static func buildRenderStates(
         conversations: [Conversation],
@@ -94,27 +103,21 @@ extension SidebarThreadSnapshotBuilder {
     @MainActor
     private static func buildRenderState(
         for conversation: Conversation,
+        renderContext: RenderComputationContext,
         chatStore: ChatStore,
-        taskActivityStore: TaskActivityStore,
         todoStore: TodoStore,
         toolTraceStore: ToolTraceStore
     ) -> SidebarThreadRenderState {
         let hasDraft = !(chatStore.draftTexts[conversation.id]?
             .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
-        let hasVisibleTaskActivity = !taskActivityStore.activitiesIncludingPending(
-            for: conversation.id
-        ).filter { activity in
-            TaskActivityStore.isConcreteVisibleEvent(activity)
-                && !SwarmMetadata.isSwarmEvent(activity.payload)
-        }.isEmpty
-        let isActive = hasVisibleTaskActivity
+        let hasVisibleTaskActivity = renderContext.hasVisibleTaskActivity(for: conversation.id)
         let isStreaming = chatStore.isAssistantStreaming(in: conversation.id)
             && hasVisibleTaskActivity
         let statusText = hasVisibleTaskActivity ? chatStore.taskStatusTexts[conversation.id] : nil
         let chatTodos = todoStore.displayTodosForChat(for: conversation.id)
         return SidebarThreadRenderState(
             hasDraft: hasDraft,
-            isActive: isActive,
+            isActive: hasVisibleTaskActivity,
             isStreaming: isStreaming,
             statusText: statusText,
             todoProgressLabel: SidebarThreadTodoCaption.progressLabel(displayTodos: chatTodos),
@@ -133,6 +136,9 @@ extension SidebarThreadSnapshotBuilder {
         todoStore: TodoStore,
         toolTraceStore: ToolTraceStore
     ) -> RenderStateUpdate {
+        let renderContext = RenderComputationContext(
+            activeConversationScopes: taskActivityStore.concreteNonSwarmConversationScopesIncludingPending()
+        )
         var renderStates: [UUID: SidebarThreadRenderState] = [:]
         renderStates.reserveCapacity(conversations.count)
         var threads: [SidebarThreadRenderFingerprint.Thread] = []
@@ -141,8 +147,8 @@ extension SidebarThreadSnapshotBuilder {
         for conversation in conversations {
             let renderState = buildRenderState(
                 for: conversation,
+                renderContext: renderContext,
                 chatStore: chatStore,
-                taskActivityStore: taskActivityStore,
                 todoStore: todoStore,
                 toolTraceStore: toolTraceStore
             )

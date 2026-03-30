@@ -27,6 +27,26 @@ extension TaskActivityStore {
         nonSwarmActivities(for: conversationId).filter { TaskActivityStore.isConcreteVisibleEvent($0) }
     }
 
+    func concreteNonSwarmConversationScopesIncludingPending() -> Set<String> {
+        let merged = activities + pendingActivities
+        guard !merged.isEmpty else { return [] }
+
+        var scopes: Set<String> = []
+        scopes.reserveCapacity(merged.count)
+        for activity in merged {
+            guard TaskActivityStore.isConcreteVisibleEvent(activity),
+                  !SwarmMetadata.isSwarmEvent(activity.payload) else {
+                continue
+            }
+            guard let scope = canonicalConversationScope(from: activity.payload),
+                  !scope.isEmpty else {
+                continue
+            }
+            scopes.insert(scope)
+        }
+        return scopes
+    }
+
     func planRelevantRecentActivities(limit: Int = 60, conversationId: UUID?) -> [TaskActivity] {
         guard let conversationId else { return planRelevantRecentActivities(limit: limit) }
         let scoped = activitiesIncludingPending(for: conversationId)
