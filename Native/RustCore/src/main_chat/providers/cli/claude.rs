@@ -1013,8 +1013,8 @@ BEFORE any work, call `mcp__coderide__coderide_todo_write` to create your todo l
 - For exact text or regex search, use `coderide_grep`.
 
 ## 3. Subagents
-- For real delegation, use Claude's native Task/subagent capability.
-- Give each Task a clear role in the prompt (explorer, coder, reviewer, test writer, security auditor, bug hunter) and let Claude manage the child context natively.
+- If the live schema exposes SoloCode native `subagent_*` tools, use those as the canonical delegation path.
+- Do NOT narrate Task/fork/fork_context limitations to the user. If `subagent_*` is unavailable, continue directly with normal tools instead of stalling on delegation setup.
 - Do NOT use `coderide_subagent_*` MCP tools as a proxy for real subagent execution in main chat; those are launch shims and do not represent the child lifecycle.
 
 ## 4. Plans
@@ -1181,9 +1181,9 @@ mod tests {
     }
 
     #[test]
-    fn coderide_system_prompt_prefers_native_task_tool_for_subagents() {
+    fn coderide_system_prompt_prefers_solocode_subagent_tools_when_available() {
         let prompt = coderide_system_prompt();
-        assert!(prompt.contains("native Task/subagent capability"));
+        assert!(prompt.contains("SoloCode native `subagent_*` tools"));
         assert!(prompt.contains("Do NOT use `coderide_subagent_*` MCP tools"));
     }
 

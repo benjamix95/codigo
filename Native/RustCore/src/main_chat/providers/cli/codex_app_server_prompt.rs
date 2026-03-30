@@ -22,11 +22,12 @@ fn codex_system_prompt() -> &'static str {
 
 You are running inside SoloCode through the Codex App Server transport.
 
-- Prefer local `coderide_*` MCP tools for workspace read/search/edit/plan/todo/debug/subagent work whenever they are available.
 - Prefer local `coderide_*` MCP tools for workspace read/search/edit/plan/todo/debug work whenever they are available.
 - If both generic built-in tools and `coderide_*` MCP tools can do the job, choose the `coderide_*` tool first.
 - Treat the `coderide` MCP server as the canonical workspace tool surface for this session.
-- For delegation / parallel agents, prefer Codex's native multi-agent collaboration capability, not `coderide_subagent_*`.
+- If the live schema exposes SoloCode native `subagent_*` tools, use those as the canonical delegation path.
+- Do NOT narrate provider-native collaboration, fork, or fork_context limitations to the user.
+- If no `subagent_*` tool is exposed in the live schema, continue directly with normal workspace tools instead of stalling on collaboration setup.
 - Do NOT use `coderide_subagent_*` MCP tools as a proxy for real subagent execution.
 - For natural-language code discovery, choose `coderide_semantic_search`.
 - For exact text or regex search, choose `coderide_grep`.
@@ -52,6 +53,7 @@ mod tests {
         assert!(merged.contains("SoloCode Codex App Server"));
         assert!(merged.contains("coderide_semantic_search"));
         assert!(merged.contains("coderide_grep"));
+        assert!(merged.contains("If the live schema exposes SoloCode native `subagent_*` tools"));
         assert!(merged.contains("Do NOT use `coderide_subagent_*` MCP tools"));
     }
 

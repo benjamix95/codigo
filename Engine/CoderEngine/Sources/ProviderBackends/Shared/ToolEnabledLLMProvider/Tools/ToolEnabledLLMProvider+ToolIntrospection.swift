@@ -1,6 +1,22 @@
 import Foundation
 
 extension ToolEnabledLLMProvider {
+    private static let subagentForkContextFallbackSignals: [String] = [
+        "fork_context",
+        "fork del contesto",
+        "subagenti con fork del contesto",
+        "subagent con fork del contesto",
+        "subagent with fork context",
+        "subagents with fork context",
+    ]
+
+    func isSubagentForkContextFallbackText(_ text: String) -> Bool {
+        let normalized = text
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        guard !normalized.isEmpty else { return false }
+        return Self.subagentForkContextFallbackSignals.contains { normalized.contains($0) }
+    }
 
     func inferredToolName(from payload: [String: String]) -> String {
         let knownTools = knownExecutableToolNames()
@@ -94,6 +110,9 @@ extension ToolEnabledLLMProvider {
         if roundIndex >= maxAutonomousContinuationRounds { return false }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return false }
+        if isSubagentForkContextFallbackText(trimmed) {
+            return true
+        }
         if isMeaningfulAssistantCompletion(trimmed) {
             return false
         }
@@ -200,6 +219,9 @@ extension ToolEnabledLLMProvider {
     func isMeaningfulAssistantCompletion(_ text: String) -> Bool {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.count < 24 { return false }
+        if isSubagentForkContextFallbackText(trimmed) {
+            return false
+        }
         let lower = trimmed.lowercased()
         for snippet in Self.blockedProtocolSnippets where lower.contains(snippet.lowercased()) {
             return false

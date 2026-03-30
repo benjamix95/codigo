@@ -6,6 +6,7 @@ extension ToolEnabledLLMProvider {
         let roundToolResults: [[String: String]]
         let pendingSubagentCalls: [(marker: CoderIDEMarker, name: String)]
         let sawExecutableSuggestion: Bool
+        let sawSubagentForkContextFallbackText: Bool
         let didEmitMeaningfulText: Bool
         let sawCodeMutationDuringTask: Bool
         let reviewerCompletedAfterLatestMutation: Bool
@@ -37,6 +38,7 @@ extension ToolEnabledLLMProvider {
         var testWriterCompletedAfterLatestMutation = false
         var mutatedPaths: Set<String> = []
         var didEmitMeaningfulText = false
+        var sawSubagentForkContextFallbackText = false
         var visibleTextLength = 0
         var didEmitPolicyAck = didEmitPolicyAck
         var localAcceptedSubagentInFirstRound = acceptedSubagentInFirstRound
@@ -45,6 +47,13 @@ extension ToolEnabledLLMProvider {
         for try await event in stream {
             switch event {
             case .textDelta(let delta):
+                if enforceSubagentFirstRound,
+                   !localAcceptedSubagentInFirstRound,
+                   isSubagentForkContextFallbackText(delta)
+                {
+                    sawSubagentForkContextFallbackText = true
+                    continue
+                }
                 let visibleDelta = sanitizeVisibleDelta(delta)
                 if !visibleDelta.isEmpty, roundTextLength + visibleDelta.count <= 100_000 {
                     roundTextParts.append(visibleDelta)
@@ -62,6 +71,16 @@ extension ToolEnabledLLMProvider {
                 }
 
             case .textReplace(let replacement):
+                if enforceSubagentFirstRound,
+                   !localAcceptedSubagentInFirstRound,
+                   isSubagentForkContextFallbackText(replacement)
+                {
+                    sawSubagentForkContextFallbackText = true
+                    roundTextParts = []
+                    roundTextLength = 0
+                    visibleTextLength = 0
+                    continue
+                }
                 let visibleReplacement = sanitizeVisibleDelta(replacement)
                 roundTextParts = visibleReplacement.isEmpty ? [] : [visibleReplacement]
                 roundTextLength = visibleReplacement.count
@@ -184,10 +203,10 @@ extension ToolEnabledLLMProvider {
                    !Self.isSubagentFirstRoundExemptTool(name)
                 {
                     continuation.yield(.raw(type: "tool_validation_error", payload: [
-                        "title": "Immediate user response required",
-                        "detail": "Start with a short user-facing response before the first operational tool round.",
+                        "title": "Subagent required in first tool round",
+                        "detail": "Use a subagent_* tool before direct operational tools in the first executable round.",
                         "status": "failed",
-                        "error_code": "assistant_response_first_required",
+                        "error_code": "subagent_first_required",
                         "tool": name,
                     ]))
                     continue
@@ -267,6 +286,7 @@ extension ToolEnabledLLMProvider {
             roundToolResults: roundToolResults,
             pendingSubagentCalls: pendingSubagentCalls,
             sawExecutableSuggestion: sawExecutableSuggestion,
+            sawSubagentForkContextFallbackText: sawSubagentForkContextFallbackText,
             didEmitMeaningfulText: didEmitMeaningfulText,
             sawCodeMutationDuringTask: sawCodeMutationDuringTask,
             reviewerCompletedAfterLatestMutation: reviewerCompletedAfterLatestMutation,

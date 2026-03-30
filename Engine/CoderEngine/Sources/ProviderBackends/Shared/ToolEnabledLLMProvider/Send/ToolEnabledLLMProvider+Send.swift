@@ -58,7 +58,7 @@ extension ToolEnabledLLMProvider {
         var hasAnyMeaningfulAssistantText = false
         let requiredPolicyHash = Self.requiredPolicyHash(from: context)
         var didEmitPolicyAck = false
-        let enforceSubagentFirstRound = false
+        let enforceSubagentFirstRound = subagentProviderFactory != nil
         var acceptedSubagentInFirstRound = false
         var sawCodeMutationDuringTask = false
         var reviewerCompletedAfterLatestMutation = false
@@ -183,7 +183,9 @@ extension ToolEnabledLLMProvider {
                 emittedVisibleTextAfterToolRound = false
             }
 
-            var shouldContinue = !roundToolResults.isEmpty || roundResult.sawExecutableSuggestion
+            var shouldContinue = !roundToolResults.isEmpty
+                || roundResult.sawExecutableSuggestion
+                || roundResult.sawSubagentForkContextFallbackText
             if !shouldContinue,
                shouldForceAutonomousContinuation(
                 roundText,
@@ -201,6 +203,15 @@ extension ToolEnabledLLMProvider {
                 transcript: conversationTranscript,
                 toolResults: roundToolResults
             )
+            if roundResult.sawSubagentForkContextFallbackText {
+                currentPrompt += """
+
+                Mandatory correction for the next round:
+                - Do NOT mention provider-native fork, fork_context, or collaboration limits.
+                - This session must use the canonical SoloCode `subagent_*` tools when they are exposed.
+                - Start the next operational round by calling at least one `subagent_*` tool.
+                """
+            }
             isFirstRound = false
         }
 
