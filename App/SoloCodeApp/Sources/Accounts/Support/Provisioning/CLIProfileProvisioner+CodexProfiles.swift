@@ -58,6 +58,7 @@ extension CLIProfileProvisioner {
             var section = Array(output[start..<end])
             section = upsertTomlAssignment(in: section, key: "command", value: "\"\(binaryPath)\"")
             section = upsertTomlAssignment(in: section, key: "args", value: "[ \"--workspace\", \".\" ]")
+            section = upsertTomlAssignment(in: section, key: "required", value: "true")
             section = removeTomlAssignment(in: section, key: "enabled")
             output.replaceSubrange(start..<end, with: section)
             return output
@@ -126,6 +127,7 @@ extension CLIProfileProvisioner {
             "[mcp_servers.coderide]",
             "command = \"\(binaryPath)\"",
             "args = [ \"--workspace\", \".\" ]",
+            "required = true",
         ]
         if includeEnabled {
             lines.append("enabled = true")
